@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddJsonOptions(options => { options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles; });
 
 builder.Services.AddDbContext<ReignDbContext>(options =>
-    options.UseSqlite("Data Source=../REIGN.Data/REIGN.db"));
+    options.UseSqlite("Data Source=REIGN.db"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddScoped<ConversationEngine>();
