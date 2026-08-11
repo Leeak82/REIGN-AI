@@ -9,7 +9,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddHttpClient<ReignApiClient>(client =>
 {
-    client.BaseAddress = new Uri("http://localhost:5204/");
+    client.BaseAddress = new Uri("https://reign-ai.onrender.com/");
 });
 
 var app = builder.Build();
