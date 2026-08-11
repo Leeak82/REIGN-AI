@@ -1,0 +1,38 @@
+@page "/reign"
+
+@using REIGN.Web.Services
+@inject ReignApiClient ReignClient
+
+<h1>Miss Reign AI</h1>
+
+<div>
+    <input @bind="Phone" placeholder="Phone Number" />
+</div>
+
+<div>
+    <textarea @bind="Message" placeholder="Type a message"></textarea>
+</div>
+
+<button @onclick="Send">
+    Send
+</button>
+
+@if (!string.IsNullOrWhiteSpace(Reply))
+{
+    <hr />
+    <h3>Miss Reign:</h3>
+    <p>@Reply</p>
+}
+
+@code {
+    private string Phone = "3609261856";
+    private string Message = "";
+    private string Reply = "";
+
+    private async Task Send()
+    {
+        Reply = await ReignClient.SendMessage(
+            Phone,
+            Message);
+    }
+}

@@ -1,0 +1,303 @@
+@page "/inbox"
+
+@using REIGN.Web.Services
+
+@inject ReignApiClient Api
+
+
+<h1>REIGN Inbox</h1>
+
+
+<div class="row">
+
+    <div class="col-md-4">
+
+        <div class="card p-3">
+
+            <h3>Customers</h3>
+
+            <button class="btn btn-secondary mb-3"
+                    @onclick="LoadCustomers">
+                Refresh
+            </button>
+
+
+            @foreach (var customer in Customers)
+            {
+                <button class="btn btn-outline-primary mb-2 text-start w-100"
+                        @onclick="() => SelectCustomer(customer)">
+
+                    <strong>
+                        @customer.PhoneNumber
+                    </strong>
+
+                    <br />
+
+                    <small>
+                        Messages: @customer.Messages |
+                        Appointments: @customer.Appointments
+                    </small>
+
+                </button>
+            }
+
+        </div>
+
+    </div>
+
+
+
+    <div class="col-md-8">
+
+        @if (SelectedCustomer == null)
+        {
+            <div class="alert alert-info">
+                Select a customer.
+            </div>
+        }
+        else
+        {
+
+            <div class="card p-3">
+
+                <h3>
+                    Customer:
+                    @SelectedCustomer.PhoneNumber
+                </h3>
+
+
+                <hr />
+
+                <h4>Conversation</h4>
+
+
+                <div>
+
+                    @foreach (var message in Messages)
+                    {
+                        <div class="mb-2">
+
+                            <strong>
+                                @message.Direction:
+                            </strong>
+
+                            @message.Body
+
+                            <br />
+
+                            <small>
+                                @message.CreatedAt
+                            </small>
+
+                        </div>
+                    }
+
+                </div>
+
+
+                <hr />
+
+
+                <textarea class="form-control"
+                          @bind="Message">
+                </textarea>
+
+
+                <br />
+
+
+                <button class="btn btn-primary"
+                        @onclick="Send">
+                    Send SMS
+                </button>
+
+
+                @if (!string.IsNullOrWhiteSpace(Response))
+                {
+                    <div class="alert alert-info mt-3">
+                        @Response
+                    </div>
+                }
+
+
+            </div>
+
+
+
+            <div class="card p-3 mt-4">
+
+                <h3>Appointments</h3>
+
+
+                @foreach (var appointment in Appointments)
+                {
+
+                    <div class="border p-2 mb-2">
+
+                        <strong>
+                            @appointment.Service
+                        </strong>
+
+
+                        <br />
+
+                        @appointment.AppointmentTime
+
+
+                        <br />
+
+                        Status:
+                        @appointment.Status
+
+
+                        <br />
+
+                        Price:
+                        @appointment.Price
+
+
+                        <br />
+
+
+                        @if (appointment.Status == "Pending")
+                        {
+                            <button class="btn btn-success"
+                                    @onclick="() => Confirm(appointment.Id)">
+                                Confirm
+                            </button>
+                        }
+
+
+                        @if (appointment.Status != "Cancelled")
+                        {
+                            <button class="btn btn-danger ms-2"
+                                    @onclick="() => Cancel(appointment.Id)">
+                                Cancel
+                            </button>
+                        }
+
+                    </div>
+
+                }
+
+            </div>
+
+        }
+
+    </div>
+
+</div>
+
+
+
+@code {
+
+    List<ReignApiClient.CustomerDto> Customers = new();
+
+    ReignApiClient.CustomerDto? SelectedCustomer;
+
+    List<ReignApiClient.MessageDto> Messages = new();
+
+    List<ReignApiClient.AppointmentDto> Appointments = new();
+
+
+    string Message = "";
+
+    string Response = "";
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+
+
+    async Task LoadCustomers()
+    {
+        Customers =
+            await Api.GetCustomers();
+    }
+
+
+
+    async Task SelectCustomer(
+        ReignApiClient.CustomerDto customer)
+    {
+
+        SelectedCustomer = customer;
+
+
+        Messages =
+            await Api.GetMessages(
+                customer.PhoneNumber);
+
+
+        Appointments =
+            await Api.GetCustomerAppointments(
+                customer.PhoneNumber);
+
+    }
+
+
+
+    async Task Send()
+    {
+        if (SelectedCustomer == null)
+            return;
+
+
+        if (string.IsNullOrWhiteSpace(Message))
+            return;
+
+
+        Response =
+            await Api.SendMessage(
+                SelectedCustomer.PhoneNumber,
+                Message);
+
+
+        Message = "";
+
+
+        Messages =
+            await Api.GetMessages(
+                SelectedCustomer.PhoneNumber);
+
+
+        Appointments =
+            await Api.GetCustomerAppointments(
+                SelectedCustomer.PhoneNumber);
+
+    }
+
+
+
+    async Task Confirm(Guid id)
+    {
+        await Api.ConfirmAppointment(id);
+
+        if (SelectedCustomer != null)
+        {
+            Appointments =
+                await Api.GetCustomerAppointments(
+                    SelectedCustomer.PhoneNumber);
+        }
+    }
+
+
+
+    async Task Cancel(Guid id)
+    {
+        await Api.CancelAppointment(id);
+
+        if (SelectedCustomer != null)
+        {
+            Appointments =
+                await Api.GetCustomerAppointments(
+                    SelectedCustomer.PhoneNumber);
+        }
+    }
+
+}

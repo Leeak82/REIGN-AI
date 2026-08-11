@@ -1,0 +1,6 @@
+@REIGN.API_HostAddress = http://localhost:5204
+
+GET {{REIGN.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,130 @@
+@page "/dashboard"
+
+@using System.Net.Http.Json
+
+@inject HttpClient Http
+
+
+<h3>REIGN Service Advisor Dashboard</h3>
+
+
+<div style="display:flex;gap:20px">
+
+
+<div style="border:1px solid #ccc;padding:20px">
+<h4>Customers</h4>
+<h2>@Customers</h2>
+</div>
+
+
+<div style="border:1px solid #ccc;padding:20px">
+<h4>Appointments</h4>
+<h2>@Appointments.Count</h2>
+</div>
+
+
+<div style="border:1px solid #ccc;padding:20px">
+<h4>Messages</h4>
+<h2>@Messages</h2>
+</div>
+
+
+</div>
+
+
+<h3>Today's Appointments</h3>
+
+
+@foreach(var a in Appointments)
+{
+<div style="border:1px solid #ddd;padding:10px;margin:10px">
+
+<b>@a.Service</b>
+
+<br/>
+
+@a.Phone
+
+<br/>
+
+@a.AppointmentTime
+
+<br/>
+
+Status:
+@a.Status
+
+</div>
+}
+
+
+
+@code {
+
+string Api = "http://localhost:5204";
+
+
+int Customers;
+
+int Messages;
+
+
+List<AppointmentDto> Appointments = new();
+
+
+
+protected override async Task OnInitializedAsync()
+{
+
+var customers =
+await Http.GetFromJsonAsync<List<CustomerDto>>
+($"{Api}/api/customers")
+?? new();
+
+
+Customers = customers.Count;
+
+
+foreach(var c in customers)
+{
+    Messages += c.Messages;
+}
+
+
+if(customers.Count > 0)
+{
+
+Appointments =
+await Http.GetFromJsonAsync<List<AppointmentDto>>
+($"{Api}/api/customer-appointments/{customers[0].PhoneNumber}")
+?? new();
+
+}
+
+}
+
+
+
+public class CustomerDto
+{
+public string PhoneNumber {get;set;}="";
+public int Messages {get;set;}
+}
+
+
+
+public class AppointmentDto
+{
+
+public string Service {get;set;}="";
+
+public string Phone {get;set;}="";
+
+public DateTime AppointmentTime {get;set;}
+
+public string Status {get;set;}="";
+
+}
+
+
+}

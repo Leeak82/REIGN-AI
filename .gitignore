@@ -1,0 +1,13 @@
+bin/
+obj/
+publish/
+.vs/
+*.user
+*.suo
+*.db-shm
+*.db-wal
+
+appsettings.Development.json
+
+node_modules/
+.env

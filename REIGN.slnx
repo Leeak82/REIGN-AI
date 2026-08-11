@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="REIGN.API/REIGN.API.csproj" />
+  <Project Path="REIGN.Core/REIGN.Core.csproj" />
+  <Project Path="REIGN.Data/REIGN.Data.csproj" />
+  <Project Path="REIGN.Web/REIGN.Web.csproj" />
+</Solution>

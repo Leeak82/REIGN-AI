@@ -1,0 +1,221 @@
+@page "/"
+
+@inject REIGN.Web.Services.ReignApiClient Api
+
+<h1>Miss Reign AI Dashboard</h1>
+
+<div class="card p-4">
+
+    <h3>SMS Simulator</h3>
+
+    <input class="form-control"
+           placeholder="Phone"
+           @bind="Phone" />
+
+    <br />
+
+    <textarea class="form-control"
+              placeholder="Customer message"
+              @bind="Message"></textarea>
+
+    <br />
+
+    <button class="btn btn-primary"
+            @onclick="Send">
+        Send
+    </button>
+
+    <hr />
+
+    <h4>AI Reply</h4>
+
+    <p>@Reply</p>
+
+</div>
+
+
+<br />
+
+
+<div class="card p-4">
+
+    <h3>Appointment Queue</h3>
+
+
+    <button class="btn btn-secondary"
+            @onclick="LoadAppointments">
+        Refresh
+    </button>
+
+
+    <br />
+    <br />
+
+
+    <table class="table">
+
+        <thead>
+
+            <tr>
+                <th>Customer</th>
+                <th>Service</th>
+                <th>Time</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+
+        </thead>
+
+
+        <tbody>
+
+        @foreach (var item in Appointments)
+        {
+
+            <tr>
+
+                <td>
+                    @item.Customer
+                </td>
+
+
+                <td>
+                    @item.Service
+                </td>
+
+
+                <td>
+                    @item.AppointmentTime.ToString("MMM d, yyyy h:mm tt")
+                </td>
+
+
+                <td>
+                    @item.Price.ToString("C")
+                </td>
+
+
+                <td>
+
+                    @if (item.Status == "Confirmed")
+                    {
+                        <span class="badge bg-success">
+                            Confirmed
+                        </span>
+                    }
+                    else if (item.Status == "Cancelled")
+                    {
+                        <span class="badge bg-danger">
+                            Cancelled
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-warning text-dark">
+                            @item.Status
+                        </span>
+                    }
+
+                </td>
+
+
+                <td>
+
+                    @if (item.Status != "Confirmed" &&
+                         item.Status != "Cancelled")
+                    {
+
+                        <button class="btn btn-success btn-sm me-2"
+                                @onclick="() => Confirm(item.Id)">
+                            Confirm
+                        </button>
+
+
+                        <button class="btn btn-danger btn-sm"
+                                @onclick="() => Cancel(item.Id)">
+                            Cancel
+                        </button>
+
+                    }
+
+                </td>
+
+
+            </tr>
+
+        }
+
+        </tbody>
+
+
+    </table>
+
+
+</div>
+
+
+
+@code {
+
+    string Phone = "3609261856";
+
+    string Message = "";
+
+    string Reply = "";
+
+
+    List<REIGN.Web.Services.ReignApiClient.AppointmentDto> Appointments = new();
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAppointments();
+    }
+
+
+
+    async Task Send()
+    {
+        if (string.IsNullOrWhiteSpace(Message))
+            return;
+
+
+        Reply = await Api.SendMessage(
+            Phone,
+            Message);
+
+
+        Message = "";
+
+
+        await LoadAppointments();
+    }
+
+
+
+    async Task LoadAppointments()
+    {
+        Appointments =
+            await Api.GetAppointments();
+    }
+
+
+
+    async Task Confirm(Guid id)
+    {
+        await Api.ConfirmAppointment(id);
+
+        await LoadAppointments();
+    }
+
+
+
+    async Task Cancel(Guid id)
+    {
+        await Api.CancelAppointment(id);
+
+        await LoadAppointments();
+    }
+
+}
