@@ -23,9 +23,9 @@ public class BusinessAssistantTests
     {
         await using var harness = await IncomingSmsProcessorTests.Harness.CreateAsync();
         var catalog = new CatalogIntelligence(harness.Db);
-        dynamic result = await catalog.RecommendAsync("How much is a QV?");
-        Assert.Equal(ServiceCatalog.QuickVisitName, (string)result.service);
-        Assert.Equal(150m, (decimal)result.price);
+        var result = await catalog.RecommendAsync("How much is a QV?");
+        Assert.Equal(ServiceCatalog.QuickVisitName, result.Service);
+        Assert.Equal(150m, result.Price);
     }
 
     [Fact]

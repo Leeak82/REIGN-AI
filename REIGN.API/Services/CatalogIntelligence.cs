@@ -54,7 +54,7 @@ public class CatalogIntelligence
         };
     }
 
-    public async Task<object> RecommendAsync(string message)
+    public async Task<CatalogRecommendationResult> RecommendAsync(string message)
     {
         var text = (message ?? "").ToLowerInvariant();
         var matchedName = BookingService.MatchCatalogService(text);
@@ -73,19 +73,30 @@ public class CatalogIntelligence
 
         if (match?.Service == null)
         {
-            return new
+            return new CatalogRecommendationResult
             {
-                service = "Unknown",
-                recommendation = $"Ask which session they want. {ServiceCatalog.CatalogSummary}."
+                Service = "Unknown",
+                Recommendation = $"Ask which session they want. {ServiceCatalog.CatalogSummary}."
             };
         }
 
-        return new
+        return new CatalogRecommendationResult
         {
-            service = match.Service.Name,
-            price = match.Service.Price,
-            duration = match.Service.DurationMinutes,
-            recommendation = match.Recommendation
+            Service = match.Service.Name,
+            Price = match.Service.Price,
+            Duration = match.Service.DurationMinutes,
+            Recommendation = match.Recommendation
         };
     }
+}
+
+public class CatalogRecommendationResult
+{
+    public string Service { get; set; } = "";
+
+    public decimal? Price { get; set; }
+
+    public int? Duration { get; set; }
+
+    public string Recommendation { get; set; } = "";
 }
