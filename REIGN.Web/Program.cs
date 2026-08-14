@@ -9,7 +9,7 @@ builder.Services.AddRazorComponents()
 var apiBase = builder.Configuration["ReignApi:BaseUrl"]
     ?? builder.Configuration["ApiBaseUrl"]
     ?? Environment.GetEnvironmentVariable("REIGN_API_BASE_URL")
-    ?? "http://localhost:5204/";
+    ?? "http://localhost:5012/";
 if (!apiBase.EndsWith('/'))
 {
     apiBase += "/";
