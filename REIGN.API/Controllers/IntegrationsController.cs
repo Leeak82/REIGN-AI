@@ -48,9 +48,10 @@ public class IntegrationsController : ControllerBase
                 configuredProvider = _google.Provider,
                 activeProvider = _calendar.ProviderName,
                 simulated = _calendar.IsSimulated,
-                oauthClientConfigured = _calendar.IsConfigured ||
-                    (!string.IsNullOrWhiteSpace(_google.ClientId) && !string.IsNullOrWhiteSpace(_google.ClientSecret)),
-                hasStoredGrant = _calendar.HasStoredGrant,
+                oauthClientConfigured =
+                    !string.IsNullOrWhiteSpace(_google.ClientId) &&
+                    !string.IsNullOrWhiteSpace(_google.ClientSecret),
+                hasStoredGrant = !_calendar.IsSimulated && _calendar.HasStoredGrant,
                 calendarId = _google.CalendarId
             }
         });
