@@ -7,6 +7,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var apiBase = builder.Configuration["ReignApi:BaseUrl"]
+    ?? builder.Configuration["ApiBaseUrl"]
     ?? Environment.GetEnvironmentVariable("REIGN_API_BASE_URL")
     ?? "http://localhost:5204/";
 if (!apiBase.EndsWith('/'))
@@ -25,13 +26,11 @@ app.Logger.LogInformation("REIGN Web API base URL: {BaseUrl}", apiBase);
 
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseExceptionHandler("/Error");
     app.UseHsts();
 }
 
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-
-app.UseHttpsRedirection();
+app.UseStatusCodePagesWithReExecute("/not-found");
 
 app.UseAntiforgery();
 

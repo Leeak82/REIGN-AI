@@ -36,7 +36,9 @@ public class HealthController : ControllerBase
         {
             status = "ok",
             service = "REIGN.API",
+            Status = "REIGN API Online",
             utc = DateTime.UtcNow,
+            Time = DateTime.UtcNow,
             databaseConfigured = !string.IsNullOrWhiteSpace(_configuration.GetConnectionString("Reign")),
             ai = new
             {

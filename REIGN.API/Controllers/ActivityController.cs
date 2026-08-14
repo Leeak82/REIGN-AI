@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using REIGN.API.Services;
+using REIGN.Data;
 
 namespace REIGN.API.Controllers;
 
@@ -8,11 +10,16 @@ namespace REIGN.API.Controllers;
 public class ActivityController : ControllerBase
 {
     private readonly OwnerAssistantService _ownerAssistant;
+    private readonly ReignDbContext _db;
     private readonly ILogger<ActivityController> _logger;
 
-    public ActivityController(OwnerAssistantService ownerAssistant, ILogger<ActivityController> logger)
+    public ActivityController(
+        OwnerAssistantService ownerAssistant,
+        ReignDbContext db,
+        ILogger<ActivityController> logger)
     {
         _ownerAssistant = ownerAssistant;
+        _db = db;
         _logger = logger;
     }
 
@@ -21,6 +28,26 @@ public class ActivityController : ControllerBase
     {
         var snapshot = await _ownerAssistant.BuildSnapshotAsync();
         return Ok(new { snapshot, intent = "owner_activity" });
+    }
+
+    [HttpGet("recent")]
+    public async Task<IActionResult> GetRecent()
+    {
+        var activity =
+            await _db.ConversationMessages
+                .Include(x => x.Customer)
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(25)
+                .Select(x => new
+                {
+                    Time = x.CreatedAt,
+                    Customer = x.Customer.Name ?? x.Customer.PhoneNumber,
+                    Direction = x.Direction,
+                    Message = x.Body
+                })
+                .ToListAsync();
+
+        return Ok(activity);
     }
 
     [HttpPost]
