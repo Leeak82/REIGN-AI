@@ -7,6 +7,11 @@
 
 <h1>REIGN Inbox</h1>
 
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alert alert-danger">@Error</div>
+}
+
 
 <div class="row">
 
@@ -28,14 +33,23 @@
                         @onclick="() => SelectCustomer(customer)">
 
                     <strong>
-                        @customer.PhoneNumber
+                        @(string.IsNullOrWhiteSpace(customer.Name) ? customer.PhoneNumber : customer.Name)
                     </strong>
 
                     <br />
 
                     <small>
+                        @customer.PhoneNumber<br />
                         Messages: @customer.Messages |
                         Appointments: @customer.Appointments
+                        @if (!string.IsNullOrWhiteSpace(customer.CurrentIntent))
+                        {
+                            <span> | Intent: @customer.CurrentIntent</span>
+                        }
+                        @if (customer.HumanOverrideActive)
+                        {
+                            <span> | Owner speaking</span>
+                        }
                     </small>
 
                 </button>
@@ -62,8 +76,26 @@
 
                 <h3>
                     Customer:
-                    @SelectedCustomer.PhoneNumber
+                    @(string.IsNullOrWhiteSpace(SelectedCustomer.Name) ? SelectedCustomer.PhoneNumber : SelectedCustomer.Name)
+                    <small>@SelectedCustomer.PhoneNumber</small>
                 </h3>
+
+                @if (!string.IsNullOrWhiteSpace(SelectedCustomer.MemorySummary))
+                {
+                    <div class="alert alert-secondary">
+                        @SelectedCustomer.MemorySummary
+                    </div>
+                }
+
+                @if (SelectedCustomer.HumanOverrideActive)
+                {
+                    <div class="alert alert-warning">
+                        Miss Reign auto-replies are paused. You are speaking as the owner from the REIGN business number.
+                        <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="ResumeAi">
+                            Resume AI
+                        </button>
+                    </div>
+                }
 
 
                 <hr />
@@ -108,7 +140,7 @@
 
                 <button class="btn btn-primary"
                         @onclick="Send">
-                    Send SMS
+                    Send owner SMS
                 </button>
 
 
@@ -205,6 +237,8 @@
 
     string Response = "";
 
+    string Error = "";
+
 
 
     protected override async Task OnInitializedAsync()
@@ -216,8 +250,15 @@
 
     async Task LoadCustomers()
     {
-        Customers =
-            await Api.GetCustomers();
+        try
+        {
+            Error = "";
+            Customers = await Api.GetCustomers();
+        }
+        catch (Exception ex)
+        {
+            Error = "Inbox could not load customers. " + ex.Message;
+        }
     }
 
 
@@ -225,19 +266,17 @@
     async Task SelectCustomer(
         ReignApiClient.CustomerDto customer)
     {
-
-        SelectedCustomer = customer;
-
-
-        Messages =
-            await Api.GetMessages(
-                customer.PhoneNumber);
-
-
-        Appointments =
-            await Api.GetCustomerAppointments(
-                customer.PhoneNumber);
-
+        try
+        {
+            Error = "";
+            SelectedCustomer = customer;
+            Messages = await Api.GetMessages(customer.PhoneNumber);
+            Appointments = await Api.GetCustomerAppointments(customer.PhoneNumber);
+        }
+        catch (Exception ex)
+        {
+            Error = "Could not load this conversation. " + ex.Message;
+        }
     }
 
 
@@ -252,27 +291,43 @@
             return;
 
 
+        var selectedId = SelectedCustomer.Id;
+        var phone = SelectedCustomer.PhoneNumber;
+
         Response =
-            await Api.SendMessage(
-                SelectedCustomer.PhoneNumber,
+            await Api.SendOwnerSms(
+                phone,
                 Message);
 
 
         Message = "";
 
 
+        await LoadCustomers();
+        SelectedCustomer = Customers.FirstOrDefault(c => c.Id == selectedId) ?? SelectedCustomer;
+
         Messages =
             await Api.GetMessages(
-                SelectedCustomer.PhoneNumber);
+                phone);
 
 
         Appointments =
             await Api.GetCustomerAppointments(
-                SelectedCustomer.PhoneNumber);
+                phone);
 
     }
 
 
+
+    async Task ResumeAi()
+    {
+        if (SelectedCustomer == null)
+            return;
+
+        await Api.ResumeAssistant(SelectedCustomer.PhoneNumber);
+        await LoadCustomers();
+        SelectedCustomer = Customers.FirstOrDefault(c => c.Id == SelectedCustomer.Id) ?? SelectedCustomer;
+    }
 
     async Task Confirm(Guid id)
     {

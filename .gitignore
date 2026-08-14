@@ -4,11 +4,18 @@ publish/
 .vs/
 *.user
 *.suo
+*.db
 *.db-shm
 *.db-wal
+*.bak
+*.tmp
+*.backup.txt
+reign-tree.txt
 
 appsettings.Development.json
 
 node_modules/
 .env
+.env.*
+!.env.example
 .openclaw/

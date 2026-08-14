@@ -24,5 +24,7 @@ public class Appointment
 
     public string? Notes { get; set; }
 
+    public string? ExternalCalendarEventId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

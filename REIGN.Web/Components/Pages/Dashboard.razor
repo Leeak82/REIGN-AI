@@ -1,126 +1,93 @@
-@using REIGN.Web.Models
 @page "/dashboard"
 
 @using REIGN.Web.Services
-@inject ReignApiClient ReignClient
+@inject ReignApiClient Api
 
-<h1>Dashboard</h1>
+<h3>REIGN Dashboard</h3>
 
-<section class="card p-4 mb-4">
-    <h2>Appointments</h2>
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alert alert-danger">@Error</div>
+}
 
-    @if (Appointments == null)
-    {
-        <div class="alert alert-info">Loading...</div>
-    }
-    else if (Appointments.Count == 0)
-    {
-        <div class="alert alert-warning">No upcoming appointments.</div>
-    }
-    else
-    {
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Customer</th>
-                        <th>Phone</th>
-                        <th>Service</th>
-                        <th>Date/Time</th>
-                        <th>Status</th>
-                        <th>Price</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var a in Appointments)
-                    {
-                        <tr>
-                            <td>@a.Customer</td>
-                            <td>@a.Phone</td>
-                            <td>@a.Service</td>
-                            <td>@a.AppointmentTime.ToString("MMM d, yyyy h:mm tt")</td>
-                            <td>
-                                <span class="badge @(GetStatusBadge(a.Status))">@a.Status</span>
-                            </td>
-                            <td>$@a.Price.ToString("F2")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
-</section>
+@if (!string.IsNullOrWhiteSpace(Activity))
+{
+    <div class="alert alert-info">@Activity</div>
+}
 
-<section class="card p-4">
-    <h2>Activity Feed</h2>
+<div style="display:flex;gap:20px">
+    <div style="border:1px solid #ccc;padding:20px">
+        <h4>Customers</h4>
+        <h2>@CustomerCount</h2>
+    </div>
+    <div style="border:1px solid #ccc;padding:20px">
+        <h4>Appointments</h4>
+        <h2>@Appointments.Count</h2>
+    </div>
+    <div style="border:1px solid #ccc;padding:20px">
+        <h4>Messages</h4>
+        <h2>@MessageCount</h2>
+    </div>
+</div>
 
-    @if (Activity == null)
-    {
-        <div class="alert alert-info">Loading...</div>
-    }
-    else if (Activity.Count == 0)
-    {
-        <div class="alert alert-warning">No recent activity.</div>
-    }
-    else
-    {
-        <div class="list-group">
-            @foreach (var item in Activity)
-            {
-                <div class="list-group-item">
-                    <div class="d-flex w-100 justify-content-between">
-                        <h6 class="mb-1">@item.Timestamp.ToString("MMM d, h:mm tt")</h6>
-                        <small>@item.Type</small>
-                    </div>
-                    <p class="mb-1">@item.Description</p>
-                    <small>By: @item.User</small>
-                </div>
-            }
-        </div>
-    }
-</section>
+@if (Catalog != null)
+{
+    <h3>Services</h3>
+    <p>@Catalog.Summary</p>
+    <ul>
+        @foreach (var service in Catalog.Services)
+        {
+            <li>@service.Code @service.Name — $@service.Price (@service.DurationMinutes min)</li>
+        }
+    </ul>
+}
+
+<h3>Today's Appointments</h3>
+
+@if (!Appointments.Any())
+{
+    <div class="alert alert-info">No appointments loaded.</div>
+}
+
+@foreach (var a in VisibleAppointments)
+{
+    <div style="border:1px solid #ddd;padding:10px;margin:10px">
+        <b>@a.Service</b>
+        <br />
+        @a.Customer
+        <br />
+        @a.AppointmentTime
+        <br />
+        Status: @a.Status
+    </div>
+}
 
 @code {
-    private List<ReignApiClient.AppointmentDto>? Appointments;
-    private List<ActivityItem>? Activity;
+    string Error = "";
+    string? Activity;
+    ReignApiClient.CatalogDto? Catalog;
+    int CustomerCount;
+    int MessageCount;
+    List<ReignApiClient.AppointmentDto> Appointments = new();
+    List<ReignApiClient.AppointmentDto> VisibleAppointments =>
+        Appointments.Where(x => x.AppointmentTime.Date == DateTime.Today).ToList() is { Count: > 0 } today
+            ? today
+            : Appointments.Take(8).ToList();
 
     protected override async Task OnInitializedAsync()
     {
-        Appointments = await ReignClient.GetAppointments();
-        // Load activity after appointments are loaded
-        Activity = await GetActivity();
-    }
-
-    private async Task<List<ActivityItem>> GetActivity()
-    {
-        var items = new List<ActivityItem>();
-
-        // Recent appointments
-        var recent = Appointments?
-            .Where(a => a.Status == "Confirmed" || a.Status == "Pending")
-            .OrderByDescending(a => a.AppointmentTime)
-            .Take(5)
-            .ToList();
-
-        foreach (var a in recent)
+        try
         {
-            items.Add(new ActivityItem
-            {
-                Timestamp = a.AppointmentTime,
-                Type = "Appointment",
-                Description = $"Appointment {@a.Service} for {@a.Customer}",
-                User = "System"
-            });
+            var customers = await Api.GetCustomers();
+            CustomerCount = customers.Count;
+            MessageCount = customers.Sum(c => c.Messages);
+            Appointments = await Api.GetAppointments();
+            Activity = await Api.GetActivitySnapshot();
+            Catalog = await Api.GetCatalog();
         }
-
-        return items;
+        catch (Exception ex)
+        {
+            Error = "Dashboard could not load from the REIGN API. " + ex.Message;
+        }
     }
-
-    private string GetStatusBadge(string status) => status switch
-    {
-        "Confirmed" => "bg-success",
-        "Pending" => "bg-warning",
-        "Cancelled" => "bg-danger",
-        _ => "bg-secondary"
-    };
 }

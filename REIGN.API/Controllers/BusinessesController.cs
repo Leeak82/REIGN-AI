@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using REIGN.Data;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using REIGN.API.Options;
+using REIGN.Core.Catalog;
 
 namespace REIGN.API.Controllers;
 
@@ -8,29 +9,27 @@ namespace REIGN.API.Controllers;
 [Route("api/businesses")]
 public class BusinessesController : ControllerBase
 {
-    private readonly ReignDbContext _db;
+    private readonly BusinessProfileOptions _business;
 
-    public BusinessesController(ReignDbContext db)
+    public BusinessesController(IOptions<BusinessProfileOptions> business)
     {
-        _db = db;
+        _business = business.Value;
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get()
+    public IActionResult Get()
     {
-        var businesses = await _db.Businesses.ToListAsync();
-        return Ok(businesses);
-    }
-
-    [HttpGet("{id}")]
-    public async Task<IActionResult> Get(Guid id)
-    {
-        var business = await _db.Businesses
-            .FirstOrDefaultAsync(x => x.Id == id);
-
-        if (business == null)
-            return NotFound();
-
-        return Ok(business);
+        return Ok(new[]
+        {
+            new
+            {
+                name = _business.Name,
+                assistant = _business.AssistantName,
+                offering = _business.Offering,
+                hours = _business.Hours,
+                timeZone = _business.TimeZone,
+                catalog = ServiceCatalog.CatalogSummary
+            }
+        });
     }
 }

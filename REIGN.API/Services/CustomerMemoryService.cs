@@ -7,13 +7,10 @@ public class CustomerMemoryService
 {
     private readonly ReignDbContext _db;
 
-
     public CustomerMemoryService(ReignDbContext db)
     {
         _db = db;
     }
-
-
 
     public async Task<string> GetCustomerContext(Guid customerId)
     {
@@ -23,54 +20,54 @@ public class CustomerMemoryService
             .Include(x => x.Messages)
             .FirstOrDefaultAsync(x => x.Id == customerId);
 
-
-
         if (customer == null)
-            return "";
-
-
-
-        var lastAppointment =
-            customer.Appointments
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault();
-
-
-
-        var completedServices =
-            customer.Appointments
-            .Where(x => x.Service != null)
-            .Select(x => x.Service!.Name)
-            .Distinct()
-            .ToList();
-
-
-
-        var state =
-            await _db.ConversationStates
-            .FirstOrDefaultAsync(x =>
-                x.CustomerId == customerId);
-
-
-
-        if (lastAppointment == null)
         {
-            return
-                $"New customer: {customer.Name ?? "Unknown"}. " +
-                $"Messages: {customer.Messages.Count}.";
+            return "";
         }
 
+        var lastAppointment = customer.Appointments
+            .Where(x => x.Status != "Cancelled")
+            .OrderByDescending(x => x.AppointmentTime)
+            .FirstOrDefault();
 
+        var recent = customer.Messages
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(6)
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => $"{x.Direction}: {x.Body}")
+            .ToList();
+
+        if (lastAppointment == null && customer.TurnCount <= 1)
+        {
+            return $"New customer {customer.Name ?? customer.PhoneNumber}.";
+        }
+
+        var appointmentBit = lastAppointment == null
+            ? "No prior appointments."
+            : $"Last appointment: {lastAppointment.Service?.Name ?? "session"} on {lastAppointment.AppointmentTime:g} ({lastAppointment.Status}).";
+
+        var historyBit = recent.Count == 0 ? "" : " Recent messages: " + string.Join(" | ", recent);
+
+        var preferenceBit = string.IsNullOrWhiteSpace(customer.Notes)
+            ? ""
+            : $" Preferences: {customer.Notes}.";
 
         return
-            $"Customer: {customer.Name ?? "Unknown"}. " +
-            $"Phone: {customer.PhoneNumber}. " +
-            $"Messages: {customer.Messages.Count}. " +
-            $"Appointments: {customer.Appointments.Count}. " +
-            $"Services used: {string.Join(", ", completedServices)}. " +
-            $"Last service: {lastAppointment.Service?.Name ?? "Unknown"}. " +
-            $"Last appointment: {lastAppointment.AppointmentTime:g}. " +
-            $"Status: {lastAppointment.Status}. " +
-            $"Current step: {state?.CurrentStep ?? "None"}.";
+            $"Returning customer: {customer.Name ?? customer.PhoneNumber}. {appointmentBit} " +
+            $"Pending service: {customer.PendingServiceName ?? "none"}.{preferenceBit}{historyBit}";
+    }
+
+    public async Task<List<(string Role, string Content)>> GetRecentTurns(Guid customerId, int take = 8)
+    {
+        var messages = await _db.ConversationMessages
+            .Where(x => x.CustomerId == customerId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(take)
+            .ToListAsync();
+
+        return messages
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => (x.Direction == "Outbound" ? "Assistant" : "Customer", x.Body))
+            .ToList();
     }
 }

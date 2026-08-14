@@ -1,104 +1,94 @@
+using REIGN.API.Services;
+using REIGN.Core.AI;
+using REIGN.Data.Models;
+
 namespace REIGN.API.Services;
-
-public enum CustomerIntent
-{
-    Unknown,
-    Greeting,
-    ServiceInquiry,
-    PricingQuestion,
-    BookingRequest,
-    Confirmation,
-    Cancellation,
-    GeneralQuestion
-}
-
 
 public class IntentDetectionService
 {
-    public CustomerIntent Detect(string message)
+    public DetectedIntent Detect(string message, Customer? customer = null, bool ownerChannel = false)
     {
-        message = message
-            .ToLower()
-            .Trim();
+        var text = (message ?? "").Trim();
+        var lower = text.ToLowerInvariant();
 
-
-        if (string.IsNullOrWhiteSpace(message))
-            return CustomerIntent.Unknown;
-
-
-
-        if (
-            message == "hi" ||
-            message == "hello" ||
-            message == "hey" ||
-            message == "hey there" ||
-            message == "good morning" ||
-            message == "good afternoon" ||
-            message == "whats up" ||
-            message == "what's up"
-        )
+        if (ownerChannel)
         {
-            return CustomerIntent.Greeting;
+            return new DetectedIntent
+            {
+                Kind = ReignIntentKind.OwnerActivity,
+                Label = "owner_activity",
+                Confidence = 0.95
+            };
         }
 
-
-
-        if (
-            message == "yes" ||
-            message.Contains("confirm")
-        )
+        if (text.Equals("YES", StringComparison.OrdinalIgnoreCase) ||
+            lower is "confirm" or "confirmed" ||
+            lower.Contains("sounds good") ||
+            lower.Contains("that works"))
         {
-            return CustomerIntent.Confirmation;
+            return new DetectedIntent { Kind = ReignIntentKind.Confirm, Label = "confirm", Confidence = 0.95 };
         }
 
-
-
-        if (
-            message.Contains("cancel") ||
-            message.Contains("reschedule")
-        )
+        if (lower.Contains("cancel") || lower.Contains("nevermind") || lower.Contains("never mind"))
         {
-            return CustomerIntent.Cancellation;
+            return new DetectedIntent { Kind = ReignIntentKind.Cancel, Label = "cancel", Confidence = 0.9 };
         }
 
-
-
-        if (
-            message.Contains("price") ||
-            message.Contains("cost") ||
-            message.Contains("how much") ||
-            message.Contains("$")
-        )
+        if (lower.Contains("reschedule") || lower.Contains("change my") || lower.Contains("move my") ||
+            lower.Contains("update my appointment"))
         {
-            return CustomerIntent.PricingQuestion;
+            return new DetectedIntent
+            {
+                Kind = ReignIntentKind.Schedule,
+                Label = "schedule",
+                ServiceName = BookingService.MatchCatalogService(lower),
+                Confidence = 0.88
+            };
         }
 
-
-
-        if (
-            message.Contains("book") ||
-            message.Contains("schedule") ||
-            message.Contains("appointment") ||
-            message.Contains("need") ||
-            message.Contains("want to")
-        )
+        if (LooksLikeBusinessQuestion(lower) &&
+            !lower.Contains("book") &&
+            !lower.Contains("schedule") &&
+            !lower.Contains("appointment"))
         {
-            return CustomerIntent.BookingRequest;
+            return new DetectedIntent { Kind = ReignIntentKind.BusinessQuestion, Label = "business_question", Confidence = 0.85 };
         }
 
+        var service = BookingService.MatchCatalogService(lower);
+        var hasTime = lower.Contains("today") || lower.Contains("tomorrow") ||
+                      lower.Contains("tonight") || lower.Contains("am") || lower.Contains("pm") ||
+                      System.Text.RegularExpressions.Regex.IsMatch(lower, @"\b\d{1,2}(:\d{2})?\b");
 
-
-        if (
-            message.Contains("service") ||
-            message.Contains("visit") ||
-            message.Contains("what do you offer")
-        )
+        if (!string.IsNullOrWhiteSpace(service) ||
+            lower.Contains("book") || lower.Contains("schedule") || lower.Contains("appointment") ||
+            (customer?.ConversationStatus == "AwaitingTime" && hasTime))
         {
-            return CustomerIntent.ServiceInquiry;
+            return new DetectedIntent
+            {
+                Kind = ReignIntentKind.Schedule,
+                Label = "schedule",
+                ServiceName = service,
+                Confidence = string.IsNullOrWhiteSpace(service) ? 0.7 : 0.92
+            };
         }
 
+        if (string.IsNullOrWhiteSpace(customer?.Name) && ConversationService.TryExtractName(text) != null)
+        {
+            return new DetectedIntent { Kind = ReignIntentKind.NameCapture, Label = "name_capture", Confidence = 0.8 };
+        }
 
+        if (lower is "hi" or "hello" or "hey" || lower.StartsWith("hi ") || lower.StartsWith("hello"))
+        {
+            return new DetectedIntent { Kind = ReignIntentKind.Greeting, Label = "greeting", Confidence = 0.75 };
+        }
 
-        return CustomerIntent.GeneralQuestion;
+        return new DetectedIntent { Kind = ReignIntentKind.Unknown, Label = "unknown", Confidence = 0.4 };
     }
+
+    private static bool LooksLikeBusinessQuestion(string lower) =>
+        lower.Contains("price") || lower.Contains("cost") || lower.Contains("how much") ||
+        lower.Contains("hours") || lower.Contains("how long") || lower.Contains("what is qv") ||
+        lower.Contains("what's qv") || lower.Contains("services") || lower.Contains("offer") ||
+        lower.Contains("qv") && (lower.Contains("what") || lower.Contains("tell")) ||
+        lower.Contains("do you") || lower.Contains("can you");
 }

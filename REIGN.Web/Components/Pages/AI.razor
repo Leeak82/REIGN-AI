@@ -1,72 +1,119 @@
 @page "/ai"
 
-@inject REIGN.Web.Services.ReignApiClient Api
+@using REIGN.Web.Services
+@inject ReignApiClient Api
 
-<h1>REIGN AI Assistant</h1>
+<h1>REIGN AI</h1>
 
-<div>
+<p>Customer conversations go through intent, memory, Groq (or fallback), then persistence. Owner questions read live activity.</p>
 
-    <input @bind="message"
-           placeholder="Customer message..." />
-
-    <button @onclick="AskAI">
-        Ask REIGN AI
-    </button>
-
-</div>
-
-
-@if(response != null)
+@if (!string.IsNullOrWhiteSpace(Error))
 {
-    <hr />
-
-    <h3>Recommendation</h3>
-
-    <p>
-        Service:
-        <strong>@response.Service</strong>
-    </p>
-
-    <p>
-        Price:
-        @response.Price
-    </p>
-
-    <p>
-        Duration:
-        @response.Duration minutes
-    </p>
-
-    <p>
-        @response.Recommendation
-    </p>
+    <div class="alert alert-danger">@Error</div>
 }
 
+<div class="row">
+    <div class="col-md-6">
+        <div class="card p-3 mb-3">
+            <h3>Customer conversation</h3>
+            <input class="form-control mb-2" placeholder="Customer phone" @bind="Phone" />
+            <textarea class="form-control mb-2" placeholder="Customer message" @bind="CustomerMessage"></textarea>
+            <button class="btn btn-primary" @onclick="SendCustomer" disabled="@Busy">Send</button>
+            @if (!string.IsNullOrWhiteSpace(CustomerReply))
+            {
+                <div class="alert alert-info mt-3">
+                    <strong>Intent:</strong> @LastIntent<br />
+                    <strong>Miss Reign:</strong> @CustomerReply
+                    @if (!string.IsNullOrWhiteSpace(Context))
+                    {
+                        <hr />
+                        <small>@Context</small>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-3 mb-3">
+            <h3>Owner activity</h3>
+            <textarea class="form-control mb-2" placeholder="Ask about customers, appointments, today" @bind="OwnerMessage"></textarea>
+            <button class="btn btn-secondary" @onclick="AskOwner" disabled="@Busy">Ask REIGN</button>
+            @if (!string.IsNullOrWhiteSpace(OwnerReply))
+            {
+                <div class="alert alert-success mt-3">@OwnerReply</div>
+            }
+        </div>
+    </div>
+</div>
 
 @code {
+    string Phone = "3605550100";
+    string CustomerMessage = "";
+    string CustomerReply = "";
+    string OwnerMessage = "";
+    string OwnerReply = "";
+    string LastIntent = "";
+    string Context = "";
+    string Error = "";
+    bool Busy;
 
-    string message = "";
-
-    AIResult? response;
-
-
-    async Task AskAI()
+    async Task SendCustomer()
     {
-        response =
-            await Api.Recommend(message);
+        Error = "";
+        if (string.IsNullOrWhiteSpace(Phone) || string.IsNullOrWhiteSpace(CustomerMessage))
+        {
+            Error = "Phone and message are required.";
+            return;
+        }
+
+        Busy = true;
+        try
+        {
+            var result = await Api.ChatAsync(Phone, CustomerMessage);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Error = result.Error;
+                return;
+            }
+
+            CustomerReply = result.Reply ?? "No response.";
+            LastIntent = result.Intent ?? "";
+            var profile = await Api.GetCustomerProfile(Phone);
+            Context = profile == null
+                ? ""
+                : $"{profile.Name ?? profile.PhoneNumber}: {profile.MemorySummary ?? profile.ConversationStatus} Pending: {profile.PendingServiceName ?? "none"}.";
+            CustomerMessage = "";
+        }
+        finally
+        {
+            Busy = false;
+        }
     }
 
-
-
-    public class AIResult
+    async Task AskOwner()
     {
-        public string Service { get; set; } = "";
+        Error = "";
+        if (string.IsNullOrWhiteSpace(OwnerMessage))
+        {
+            Error = "Ask a question first.";
+            return;
+        }
 
-        public decimal? Price { get; set; }
+        Busy = true;
+        try
+        {
+            var result = await Api.AskOwnerAsync(OwnerMessage);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Error = result.Error;
+                return;
+            }
 
-        public int? Duration { get; set; }
-
-        public string Recommendation { get; set; } = "";
+            OwnerReply = result.Reply ?? "No response.";
+        }
+        finally
+        {
+            Busy = false;
+        }
     }
-
 }

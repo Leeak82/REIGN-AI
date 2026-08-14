@@ -6,14 +6,23 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+var apiBase = builder.Configuration["ReignApi:BaseUrl"]
+    ?? builder.Configuration["ApiBaseUrl"]
+    ?? Environment.GetEnvironmentVariable("REIGN_API_BASE_URL")
+    ?? "http://localhost:5204/";
+if (!apiBase.EndsWith('/'))
+{
+    apiBase += "/";
+}
+
 builder.Services.AddHttpClient<ReignApiClient>(client =>
 {
-    client.BaseAddress = new Uri(
-        builder.Configuration["ApiBaseUrl"]
-        ?? "http://localhost:5012/");
+    client.BaseAddress = new Uri(apiBase);
 });
 
 var app = builder.Build();
+
+app.Logger.LogInformation("REIGN Web API base URL: {BaseUrl}", apiBase);
 
 if (!app.Environment.IsDevelopment())
 {

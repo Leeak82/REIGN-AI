@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using REIGN.API.Messaging;
+using REIGN.API.Options;
 using REIGN.API.Services;
-using REIGN.Data;
 
 namespace REIGN.API.Controllers;
 
@@ -9,183 +10,105 @@ namespace REIGN.API.Controllers;
 [Route("api/sms")]
 public class SMSController : ControllerBase
 {
-    private readonly ConversationService _conversationService;
-    private readonly BookingService _bookingService;
-    private readonly AppointmentService _appointmentService;
-    private readonly ReignDbContext _db;
-    private readonly ConversationEngine _engine;
-    private readonly ConversationStateService _stateService;
-    private readonly IntentDetectionService _intentDetection;
-    private readonly IntentMemoryService _intentMemory;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IncomingSmsProcessor _processor;
+    private readonly SimulatedSmsSender _simulated;
+    private readonly SmsOptions _options;
+    private readonly IHostEnvironment _environment;
 
     public SMSController(
-        ConversationService conversationService,
-        BookingService bookingService,
-        AppointmentService appointmentService,
-        ReignDbContext db,
-        ConversationEngine engine,
-        ConversationStateService stateService,
-        IntentDetectionService intentDetection,
-        IntentMemoryService intentMemory,
-        IHttpClientFactory httpClientFactory)
+        IncomingSmsProcessor processor,
+        SimulatedSmsSender simulated,
+        IOptions<SmsOptions> options,
+        IHostEnvironment environment)
     {
-        _conversationService = conversationService;
-        _bookingService = bookingService;
-        _appointmentService = appointmentService;
-        _db = db;
-        _engine = engine;
-        _stateService = stateService;
-        _intentDetection = intentDetection;
-        _intentMemory = intentMemory;
-        _httpClientFactory = httpClientFactory;
+        _processor = processor;
+        _simulated = simulated;
+        _options = options.Value;
+        _environment = environment;
     }
 
-
+    /// <summary>
+    /// Internal simulator / application endpoint. This is not a provider webhook.
+    /// Provider inbound traffic must use /api/sms/webhooks/twilio or /api/sms/webhooks/vonage.
+    /// </summary>
     [HttpPost("incoming")]
-    public async Task<IActionResult> Incoming(
-        [FromBody] SMSRequest request)
+    public async Task<IActionResult> Incoming([FromBody] SMSRequest request)
     {
-
-        var customer =
-            await _conversationService
-            .GetOrCreateCustomer(request.Phone);
-
-
-        await _conversationService.SaveMessage(
-            customer.Id,
-            "Inbound",
-            request.Message);
-
-
-        var intent =
-            _intentDetection.Detect(request.Message);
-
-
-        var booking =
-            await _bookingService.ParseRequest(
-                request.Message);
-
-
-        var activeState =
-            await _stateService
-            .GetActiveBookingState(customer.Id);
-
-        if(string.IsNullOrWhiteSpace(booking.ServiceName)
-            && activeState != null
-            && !string.IsNullOrWhiteSpace(activeState.SelectedService))
+        if (!IsInternalSimulatorAllowed())
         {
-            booking.ServiceName =
-                activeState.SelectedService;
+            return Unauthorized(new { error = "Internal SMS simulator is disabled or missing X-Reign-Internal-Key." });
         }
 
-        if(!string.IsNullOrWhiteSpace(booking.ServiceName))
+        if (request == null || string.IsNullOrWhiteSpace(request.Phone) || string.IsNullOrWhiteSpace(request.Message))
         {
-            await _stateService.UpdateService(
-                customer.Id,
-                booking.ServiceName);
+            return BadRequest(new { error = "Phone and message are required." });
         }
 
-        if(booking.RequestedDate != default
-            && !string.IsNullOrWhiteSpace(booking.ServiceName))
-        {
-            await _stateService.UpdateRequestedTime(
-                customer.Id,
-                booking.RequestedDate);
-
-            var appointment =
-                await _appointmentService.CreateAppointment(
-                    customer.Id,
-                    booking.ServiceName,
-                    booking.RequestedDate);
-
-            string reply;
-
-            if(appointment == null)
+        var result = await _processor.ProcessAsync(
+            new IncomingSmsMessage
             {
-                reply =
-                    "I was unable to create that appointment.";
-            }
-            else
-            {
-                // Check if we have a real SMS provider configured
-                bool hasRealSmsProvider =
-                    !string.IsNullOrWhiteSpace(
-                        _db.Set<Configuration>().FirstOrDefault(c => c.Key == "SMS:Provider")?.Value) &&
-                    _db.Set<Configuration>().FirstOrDefault(c => c.Key == "SMS:Provider")?.Value?.ToLower() == "textnow";
-
-                if (hasRealSmsProvider)
-                {
-                    // For real SMS providers, send a confirmation to the user's phone
-                    // In a production scenario, this would send an actual SMS message
-                    reply =
-                        $"Your {booking.ServiceName} appointment request for {booking.RequestedDate:g} has been created. You will receive a confirmation SMS shortly.";
-                }
-                else
-                {
-                    // For simulated SMS, just inform the user
-                    reply =
-                        $"Your {booking.ServiceName} appointment request for {booking.RequestedDate:g} has been saved. Reply YES to confirm.";
-                }
-            }
-
-            await _conversationService.SaveMessage(
-                customer.Id,
-                "Outbound",
-                reply);
-
-            await _intentMemory.Update(
-                customer.Id,
-                intent.ToString(),
-                booking.ServiceName,
-                "AppointmentCreated");
-
-            return Ok(new
-            {
-                customer = request.Phone,
-                intent,
-                service = booking.ServiceName,
-                reply
-            });
-        }
-
-        await _intentMemory.Update(
-            customer.Id,
-            intent.ToString(),
-            booking.ServiceName,
-            "Processing");
-
-        var response =
-            await _engine.Process(
-                customer,
-                request.Message);
-
-        await _conversationService.SaveMessage(
-            customer.Id,
-            "Outbound",
-            response);
+                From = request.Phone,
+                To = _options.BusinessPhoneNumber,
+                Body = request.Message,
+                Provider = "Internal"
+            },
+            sendReplyViaProvider: false);
 
         return Ok(new
         {
-            customer = request.Phone,
-            intent,
-            service = booking.ServiceName,
-            reply = response
+            customer = result.Phone,
+            received = result.Received,
+            reply = result.Reply,
+            autoReplied = result.AutoReplied,
+            humanOverride = result.HumanOverride,
+            ownerNumberIgnored = result.OwnerNumberIgnored,
+            ownerQuery = result.OwnerQueryHandled,
+            intent = result.Intent,
+            persisted = result.Persisted,
+            fellBack = result.AiFellBack
         });
     }
-}
 
+    [HttpGet("simulated")]
+    public IActionResult SimulatedOutbox()
+    {
+        if (!_environment.IsDevelopment() && !_options.Provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        {
+            return NotFound();
+        }
+
+        return Ok(_simulated.Sent);
+    }
+
+    private bool IsInternalSimulatorAllowed()
+    {
+        if (!_options.AllowInternalSimulator)
+        {
+            return false;
+        }
+
+        if (_environment.IsProduction() && string.IsNullOrWhiteSpace(_options.InternalApiKey))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.InternalApiKey))
+        {
+            if (!Request.Headers.TryGetValue("X-Reign-Internal-Key", out var provided))
+            {
+                return false;
+            }
+
+            return string.Equals(provided.ToString(), _options.InternalApiKey, StringComparison.Ordinal);
+        }
+
+        return true;
+    }
+}
 
 public class SMSRequest
 {
     public string Phone { get; set; } = "";
 
     public string Message { get; set; } = "";
-}
-
-public class Configuration
-{
-    public int Id { get; set; }
-    public string Key { get; set; } = "";
-    public string Value { get; set; } = "";
 }

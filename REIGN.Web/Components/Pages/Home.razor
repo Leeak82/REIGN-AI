@@ -4,6 +4,11 @@
 
 <h1>Miss Reign AI Dashboard</h1>
 
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alert alert-danger">@Error</div>
+}
+
 <div class="card p-4">
 
     <h3>SMS Simulator</h3>
@@ -21,7 +26,8 @@
     <br />
 
     <button class="btn btn-primary"
-            @onclick="Send">
+            @onclick="Send"
+            disabled="@Busy">
         Send
     </button>
 
@@ -157,11 +163,15 @@
 
 @code {
 
-    string Phone = "3609261856";
+    string Phone = "3605550100";
 
     string Message = "";
 
     string Reply = "";
+
+    string Error = "";
+
+    bool Busy;
 
 
     List<REIGN.Web.Services.ReignApiClient.AppointmentDto> Appointments = new();
@@ -177,27 +187,47 @@
 
     async Task Send()
     {
-        if (string.IsNullOrWhiteSpace(Message))
+        Error = "";
+        if (string.IsNullOrWhiteSpace(Phone) || string.IsNullOrWhiteSpace(Message))
+        {
+            Error = "Phone and message are required.";
             return;
+        }
 
+        Busy = true;
+        try
+        {
+            var result = await Api.ChatAsync(Phone, Message);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Error = result.Error;
+                return;
+            }
 
-        Reply = await Api.SendMessage(
-            Phone,
-            Message);
-
-
-        Message = "";
-
-
-        await LoadAppointments();
+            Reply = result.Reply ?? "No response.";
+            Message = "";
+            await LoadAppointments();
+        }
+        catch (Exception ex)
+        {
+            Error = "Could not reach the REIGN API. " + ex.Message;
+        }
+        finally
+        {
+            Busy = false;
+        }
     }
-
-
 
     async Task LoadAppointments()
     {
-        Appointments =
-            await Api.GetAppointments();
+        try
+        {
+            Appointments = await Api.GetAppointments();
+        }
+        catch (Exception ex)
+        {
+            Error = "Could not load appointments. " + ex.Message;
+        }
     }
 
 

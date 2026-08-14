@@ -3,4 +3,5 @@
   <Project Path="REIGN.Core/REIGN.Core.csproj" />
   <Project Path="REIGN.Data/REIGN.Data.csproj" />
   <Project Path="REIGN.Web/REIGN.Web.csproj" />
+  <Project Path="REIGN.Tests/REIGN.Tests.csproj" />
 </Solution>

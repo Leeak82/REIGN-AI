@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+using REIGN.Core.AI;
 using REIGN.Data;
 using REIGN.Data.Models;
 
@@ -13,101 +13,48 @@ public class ConversationStateService
         _db = db;
     }
 
-
-    public async Task<ConversationState> GetOrCreate(Guid customerId)
+    public async Task UpdateAsync(Customer customer, DetectedIntent intent, string message)
     {
-        var state = await _db.ConversationStates
-            .FirstOrDefaultAsync(x => x.CustomerId == customerId);
+        customer.TurnCount += 1;
+        customer.LastIntent = intent.Label;
+        customer.CurrentIntent = intent.Label;
+        customer.LastCustomerMessageAt = DateTime.UtcNow;
 
-        if (state != null)
-            return state;
-
-
-        state = new ConversationState
+        if (!string.IsNullOrWhiteSpace(intent.ServiceName))
         {
-            CustomerId = customerId,
-            CurrentStep = "New"
+            customer.PendingServiceName = intent.ServiceName;
+        }
+
+        var lower = message.ToLowerInvariant();
+        if (lower.Contains("prefer") || lower.Contains("i like") || lower.Contains("usually"))
+        {
+            customer.Notes = message.Length <= 240 ? message : message[..240];
+        }
+
+        customer.ConversationStatus = intent.Kind switch
+        {
+            ReignIntentKind.Schedule when message.Contains("YES", StringComparison.OrdinalIgnoreCase) => "AwaitingConfirm",
+            ReignIntentKind.Schedule when !string.IsNullOrWhiteSpace(intent.ServiceName) &&
+                                          !(message.ToLowerInvariant().Contains("am") ||
+                                            message.ToLowerInvariant().Contains("pm") ||
+                                            message.ToLowerInvariant().Contains("today") ||
+                                            message.ToLowerInvariant().Contains("tomorrow"))
+                => "AwaitingTime",
+            ReignIntentKind.Confirm => "Confirmed",
+            ReignIntentKind.Cancel => "Cancelled",
+            ReignIntentKind.NameCapture => "Active",
+            _ => string.IsNullOrWhiteSpace(customer.ConversationStatus) ? "Active" : customer.ConversationStatus
         };
 
-
-        _db.ConversationStates.Add(state);
-
-        await _db.SaveChangesAsync();
-
-        return state;
-    }
-
-
-
-    public async Task<ConversationState?> GetActiveBookingState(
-        Guid customerId)
-    {
-        return await _db.ConversationStates
-            .FirstOrDefaultAsync(x =>
-                x.CustomerId == customerId &&
-                (
-                    x.CurrentStep == "WaitingForTime" ||
-                    x.CurrentStep == "ReadyForBooking"
-                ));
-    }
-
-
-
-    public async Task UpdateService(
-        Guid customerId,
-        string service)
-    {
-        var state = await GetOrCreate(customerId);
-
-        state.SelectedService = service;
-        state.CurrentStep = "WaitingForTime";
-        state.UpdatedAt = DateTime.UtcNow;
-
         await _db.SaveChangesAsync();
     }
 
-
-
-    public async Task UpdateLocation(
-        Guid customerId,
-        string location)
+    public string Describe(Customer customer)
     {
-        var state = await GetOrCreate(customerId);
-
-        state.Location = location;
-        state.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
+        return
+            $"status={customer.ConversationStatus ?? "Active"}; " +
+            $"intent={customer.CurrentIntent ?? "none"}; " +
+            $"pendingService={customer.PendingServiceName ?? "none"}; " +
+            $"turns={customer.TurnCount}";
     }
-
-
-
-    public async Task UpdateRequestedTime(
-        Guid customerId,
-        DateTime time)
-    {
-        var state = await GetOrCreate(customerId);
-
-        state.RequestedTime = time;
-        state.CurrentStep = "ReadyForBooking";
-        state.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
-    }
-
-
-
-    public async Task ClearRequestedTime(Guid customerId)
-    {
-        var state = await _db.ConversationStates
-            .FirstOrDefaultAsync(x => x.CustomerId == customerId);
-
-        if (state == null)
-            return;
-
-        state.RequestedTime = null;
-
-        await _db.SaveChangesAsync();
-    }
-
 }
