@@ -36,8 +36,9 @@ Catalog is unchanged: Quick Visit $150 / 20 minutes, Half Hour $300 / 30 minutes
 - Web API base URL comes from `ReignApi__BaseUrl` / `REIGN_API_BASE_URL` (local default `http://localhost:5204/`).
 
 ### Validation
-- `dotnet build`
-- `dotnet test`
+- `dotnet build`: 0 errors
+- `dotnet test`: 21 passed (availability, confirm-then-create calendar, reschedule/cancel, config aliases, timezone wall-clock, existing production scenarios)
+
 
 ## Required environment variables
 
