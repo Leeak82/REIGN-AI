@@ -7,10 +7,12 @@ namespace REIGN.API.Services;
 public class SchedulingService
 {
     private readonly ReignDbContext _db;
+    private readonly AppointmentCalendarSync _calendarSync;
 
-    public SchedulingService(ReignDbContext db)
+    public SchedulingService(ReignDbContext db, AppointmentCalendarSync calendarSync)
     {
         _db = db;
+        _calendarSync = calendarSync;
     }
 
 
@@ -46,6 +48,8 @@ public class SchedulingService
         _db.Appointments.Add(appointment);
 
         await _db.SaveChangesAsync();
+
+        await _calendarSync.SyncAsync(appointment);
 
         return appointment;
     }

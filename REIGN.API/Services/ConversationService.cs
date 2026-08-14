@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using REIGN.API.Messaging;
 using REIGN.Data;
 using REIGN.Data.Models;
 
@@ -17,15 +18,16 @@ public class ConversationService
 
     public async Task<Customer> GetOrCreateCustomer(string phone, string? message = null)
     {
+        var normalized = PhoneNumbers.Normalize(phone);
         var customer = await _db.Customers
-            .FirstOrDefaultAsync(x => x.PhoneNumber == phone);
+            .FirstOrDefaultAsync(x => x.PhoneNumber == normalized || x.PhoneNumber == phone);
 
         if (customer == null)
         {
             customer = new Customer
             {
                 Id = Guid.NewGuid(),
-                PhoneNumber = phone,
+                PhoneNumber = normalized,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -34,7 +36,7 @@ public class ConversationService
 
         if (string.IsNullOrWhiteSpace(customer.Name) && !string.IsNullOrWhiteSpace(message))
         {
-            var name = ExtractName(message);
+            var name = TryExtractName(message);
 
             if (!string.IsNullOrWhiteSpace(name))
             {
@@ -48,7 +50,7 @@ public class ConversationService
     }
 
 
-    private string? ExtractName(string message)
+    public static string? TryExtractName(string message)
     {
         var patterns = new[]
         {
@@ -78,7 +80,9 @@ public class ConversationService
     public async Task SaveMessage(
         Guid customerId,
         string direction,
-        string body)
+        string body,
+        string source = "",
+        bool isOwnerOverride = false)
     {
         var message = new ConversationMessage
         {
@@ -86,6 +90,8 @@ public class ConversationService
             CustomerId = customerId,
             Direction = direction,
             Body = body,
+            Source = source,
+            IsOwnerOverride = isOwnerOverride,
             CreatedAt = DateTime.UtcNow
         };
 

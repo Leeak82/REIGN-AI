@@ -1,6 +1,50 @@
 @REIGN.API_HostAddress = http://localhost:5204
 
-GET {{REIGN.API_HostAddress}}/weatherforecast/
+GET {{REIGN.API_HostAddress}}/api/integrations/status
 Accept: application/json
 
-###
+### Internal SMS simulator (not a provider webhook)
+POST {{REIGN.API_HostAddress}}/api/sms/incoming
+Content-Type: application/json
+
+{
+  "phone": "3605550100",
+  "message": "Book a QV tomorrow at 2 pm"
+}
+
+### Owner human-override outbound SMS
+POST {{REIGN.API_HostAddress}}/api/messages/send
+Content-Type: application/json
+
+{
+  "phoneNumber": "+13605550100",
+  "body": "This is Miss Reign. I'll take this conversation from here."
+}
+
+### Resume assistant auto-replies
+POST {{REIGN.API_HostAddress}}/api/messages/resume
+Content-Type: application/json
+
+{
+  "phoneNumber": "+13605550100",
+  "body": ""
+}
+
+### Twilio inbound webhook (requires valid X-Twilio-Signature)
+POST {{REIGN.API_HostAddress}}/api/sms/webhooks/twilio
+Content-Type: application/x-www-form-urlencoded
+
+From=%2B15555550123&To=%2B15555550100&Body=Hello&MessageSid=SM123
+
+### Vonage inbound webhook (requires signed JWT when RequireSignedWebhooks=true)
+POST {{REIGN.API_HostAddress}}/api/sms/webhooks/vonage
+Content-Type: application/json
+
+{
+  "from": "15555550123",
+  "to": "15555550100",
+  "text": "Hello"
+}
+
+### Google Calendar OAuth start
+GET {{REIGN.API_HostAddress}}/api/integrations/google/authorize

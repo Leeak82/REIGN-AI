@@ -1,0 +1,55 @@
+@page "/integrations"
+
+@using REIGN.Web.Services
+@inject ReignApiClient Api
+
+<h1>Integrations</h1>
+
+<p>
+    SMS and Google Calendar providers are selected in API configuration.
+    Local development uses simulated providers until credentials are supplied.
+</p>
+
+@if (Status == null)
+{
+    <div class="alert alert-info">Loading integration status…</div>
+}
+else
+{
+    <div class="card p-3 mb-3">
+        <h3>SMS</h3>
+        <p>Configured provider: @Status.Sms.ConfiguredProvider</p>
+        <p>Active provider: @Status.Sms.ActiveProvider</p>
+        <p>Simulated: @Status.Sms.Simulated</p>
+        <p>Provider credentials present: @Status.Sms.CredentialsPresent</p>
+        <p>
+            TextNow is not a supported application SMS API. Use Simulated locally, or Twilio / Vonage
+            with a dedicated REIGN business number that is not the owner's personal cell.
+        </p>
+    </div>
+
+    <div class="card p-3">
+        <h3>Google Calendar</h3>
+        <p>Configured provider: @Status.GoogleCalendar.ConfiguredProvider</p>
+        <p>Active provider: @Status.GoogleCalendar.ActiveProvider</p>
+        <p>Simulated: @Status.GoogleCalendar.Simulated</p>
+        <p>OAuth client configured: @Status.GoogleCalendar.OauthClientConfigured</p>
+        <p>Stored Google grant: @Status.GoogleCalendar.HasStoredGrant</p>
+        <p>
+            After setting <code>GoogleCalendar__ClientId</code> and <code>GoogleCalendar__ClientSecret</code>,
+            connect the calendar:
+        </p>
+        <a class="btn btn-primary" href="@AuthorizeUrl">Connect Google Calendar</a>
+    </div>
+}
+
+@code {
+    ReignApiClient.IntegrationStatusDto? Status;
+
+    string AuthorizeUrl => $"{Api.BaseAddress}api/integrations/google/authorize";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Status = await Api.GetIntegrationStatus();
+    }
+}

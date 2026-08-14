@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using REIGN.Core.Catalog;
 using REIGN.Data.Models;
 
 namespace REIGN.Data;
@@ -20,10 +21,11 @@ public class ReignDbContext : DbContext
 
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
 
+    public DbSet<IntegrationToken> IntegrationTokens => Set<IntegrationToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
 
         modelBuilder.Entity<ServiceRecommendation>()
             .HasOne(x => x.Service)
@@ -35,69 +37,62 @@ public class ReignDbContext : DbContext
             .WithMany(x => x.Messages)
             .HasForeignKey(x => x.CustomerId);
 
+        modelBuilder.Entity<IntegrationToken>()
+            .HasIndex(x => x.Provider)
+            .IsUnique();
+
         modelBuilder.Entity<Service>().HasData(
             new Service
             {
-                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                Name = "Oil Change",
-                Price = 89.99m,
-                DurationMinutes = 30,
+                Id = ServiceCatalog.QuickVisitId,
+                Name = ServiceCatalog.QuickVisitName,
+                Price = ServiceCatalog.QuickVisitPrice,
+                DurationMinutes = ServiceCatalog.QuickVisitMinutes,
                 Active = true
             },
             new Service
             {
-                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                Name = "Brake Service",
-                Price = 249.99m,
-                DurationMinutes = 60,
+                Id = ServiceCatalog.HalfHourId,
+                Name = ServiceCatalog.HalfHourName,
+                Price = ServiceCatalog.HalfHourPrice,
+                DurationMinutes = ServiceCatalog.HalfHourMinutes,
                 Active = true
             },
             new Service
             {
-                Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
-                Name = "Diagnostic Inspection",
-                Price = 129.99m,
-                DurationMinutes = 60,
-                Active = true
-            },
-                        new Service
-            {
-                Id = Guid.Parse("44444444-4444-4444-4444-444444444444"),
-                Name = "Vehicle Inspection",
-                Price = 79.99m,
-                DurationMinutes = 30,
+                Id = ServiceCatalog.HourId,
+                Name = ServiceCatalog.HourName,
+                Price = ServiceCatalog.HourPrice,
+                DurationMinutes = ServiceCatalog.HourMinutes,
                 Active = true
             }
         );
 
-
         modelBuilder.Entity<ServiceRecommendation>().HasData(
             new ServiceRecommendation
             {
-                Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                Trigger = "oil",
-                Recommendation = "Customer likely needs routine oil maintenance.",
-                ServiceId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                Id = ServiceCatalog.QuickVisitRecommendationId,
+                Trigger = "quick",
+                Recommendation = "Customer is asking about a Quick Visit (QV): $150, less than 30 minutes.",
+                ServiceId = ServiceCatalog.QuickVisitId,
                 Active = true
             },
             new ServiceRecommendation
             {
-                Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-                Trigger = "brake",
-                Recommendation = "Customer may need brake service.",
-                ServiceId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                Id = ServiceCatalog.HalfHourRecommendationId,
+                Trigger = "half",
+                Recommendation = "Customer is asking about a Half Hour appointment (HH): $300, 30 minutes.",
+                ServiceId = ServiceCatalog.HalfHourId,
                 Active = true
             },
             new ServiceRecommendation
             {
-                Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-                Trigger = "diagnostic",
-                Recommendation = "Customer requires diagnostic inspection.",
-                ServiceId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+                Id = ServiceCatalog.HourRecommendationId,
+                Trigger = "hour",
+                Recommendation = "Customer is asking about an Hour appointment (HR): $500, 60 minutes.",
+                ServiceId = ServiceCatalog.HourId,
                 Active = true
             }
         );
     }
 }
-
-

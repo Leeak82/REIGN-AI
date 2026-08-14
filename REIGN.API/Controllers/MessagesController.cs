@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using REIGN.API.Services;
 using REIGN.Data;
-using REIGN.Data.Models;
 
 namespace REIGN.API.Controllers;
 
@@ -10,12 +10,13 @@ namespace REIGN.API.Controllers;
 public class MessagesController : ControllerBase
 {
     private readonly ReignDbContext _db;
+    private readonly OwnerMessagingService _ownerMessaging;
 
-    public MessagesController(ReignDbContext db)
+    public MessagesController(ReignDbContext db, OwnerMessagingService ownerMessaging)
     {
         _db = db;
+        _ownerMessaging = ownerMessaging;
     }
-
 
     [HttpGet("{phone}")]
     public async Task<IActionResult> GetMessages(string phone)
@@ -30,6 +31,8 @@ public class MessagesController : ControllerBase
                 Customer = x.Customer.Name ?? x.Customer.PhoneNumber,
                 x.Direction,
                 x.Body,
+                x.Source,
+                x.IsOwnerOverride,
                 x.CreatedAt
             })
             .ToListAsync();
@@ -37,37 +40,37 @@ public class MessagesController : ControllerBase
         return Ok(messages);
     }
 
-
     [HttpPost("send")]
     public async Task<IActionResult> SendMessage(SendMessageRequest request)
     {
-        var customer = await _db.Customers
-            .FirstOrDefaultAsync(x => x.PhoneNumber == request.PhoneNumber);
-
-
-        if (customer == null)
-            return NotFound();
-
-
-        var message = new ConversationMessage
+        var result = await _ownerMessaging.SendOverrideAsync(request.PhoneNumber, request.Body);
+        if (!result.Succeeded && result.Error == "Customer not found.")
         {
-            Id = Guid.NewGuid(),
-            CustomerId = customer.Id,
-            Direction = "Outbound",
-            Body = request.Body,
-            CreatedAt = DateTime.UtcNow
-        };
+            return NotFound();
+        }
 
+        return Ok(new
+        {
+            sent = result.Succeeded,
+            humanOverride = result.HumanOverrideActive,
+            simulated = result.Outbound?.Simulated ?? false,
+            provider = result.Outbound?.Provider,
+            error = result.Error
+        });
+    }
 
-        _db.ConversationMessages.Add(message);
+    [HttpPost("resume")]
+    public async Task<IActionResult> Resume(SendMessageRequest request)
+    {
+        var resumed = await _ownerMessaging.ResumeAssistantAsync(request.PhoneNumber);
+        if (!resumed)
+        {
+            return NotFound();
+        }
 
-        await _db.SaveChangesAsync();
-
-
-        return Ok(message);
+        return Ok(new { humanOverride = false });
     }
 }
-
 
 public class SendMessageRequest
 {

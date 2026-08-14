@@ -36,6 +36,10 @@
                     <small>
                         Messages: @customer.Messages |
                         Appointments: @customer.Appointments
+                        @if (customer.HumanOverrideActive)
+                        {
+                            <span> | Owner speaking</span>
+                        }
                     </small>
 
                 </button>
@@ -64,6 +68,16 @@
                     Customer:
                     @SelectedCustomer.PhoneNumber
                 </h3>
+
+                @if (SelectedCustomer.HumanOverrideActive)
+                {
+                    <div class="alert alert-warning">
+                        Miss Reign auto-replies are paused. You are speaking as the owner from the REIGN business number.
+                        <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="ResumeAi">
+                            Resume AI
+                        </button>
+                    </div>
+                }
 
 
                 <hr />
@@ -108,7 +122,7 @@
 
                 <button class="btn btn-primary"
                         @onclick="Send">
-                    Send SMS
+                    Send owner SMS
                 </button>
 
 
@@ -252,27 +266,43 @@
             return;
 
 
+        var selectedId = SelectedCustomer.Id;
+        var phone = SelectedCustomer.PhoneNumber;
+
         Response =
-            await Api.SendMessage(
-                SelectedCustomer.PhoneNumber,
+            await Api.SendOwnerSms(
+                phone,
                 Message);
 
 
         Message = "";
 
 
+        await LoadCustomers();
+        SelectedCustomer = Customers.FirstOrDefault(c => c.Id == selectedId) ?? SelectedCustomer;
+
         Messages =
             await Api.GetMessages(
-                SelectedCustomer.PhoneNumber);
+                phone);
 
 
         Appointments =
             await Api.GetCustomerAppointments(
-                SelectedCustomer.PhoneNumber);
+                phone);
 
     }
 
 
+
+    async Task ResumeAi()
+    {
+        if (SelectedCustomer == null)
+            return;
+
+        await Api.ResumeAssistant(SelectedCustomer.PhoneNumber);
+        await LoadCustomers();
+        SelectedCustomer = Customers.FirstOrDefault(c => c.Id == SelectedCustomer.Id) ?? SelectedCustomer;
+    }
 
     async Task Confirm(Guid id)
     {

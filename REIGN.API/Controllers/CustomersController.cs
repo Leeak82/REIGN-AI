@@ -25,6 +25,7 @@ public class CustomersController : ControllerBase
                 c.Id,
                 c.PhoneNumber,
                 c.Name,
+                c.HumanOverrideActive,
                 Messages = c.Messages.Count,
                 Appointments = c.Appointments.Count
             })

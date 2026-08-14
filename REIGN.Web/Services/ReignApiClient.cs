@@ -14,7 +14,9 @@ public class ReignApiClient
 
 
 
-    public async Task<string> SendMessage(
+    public Uri? BaseAddress => _http.BaseAddress;
+
+    public async Task<string> SimulateIncomingSms(
         string phone,
         string message)
     {
@@ -27,13 +29,63 @@ public class ReignApiClient
                     Message = message
                 });
 
-
         var result =
             await response.Content
                 .ReadFromJsonAsync<SMSResponse>();
 
-
         return result?.Reply ?? "No response.";
+    }
+
+    public async Task<string> SendMessage(
+        string phone,
+        string message)
+    {
+        return await SimulateIncomingSms(phone, message);
+    }
+
+    public async Task<string> SendOwnerSms(
+        string phone,
+        string message)
+    {
+        var response =
+            await _http.PostAsJsonAsync(
+                "api/messages/send",
+                new
+                {
+                    PhoneNumber = phone,
+                    Body = message
+                });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return "Unable to send owner SMS.";
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<OwnerSendResponse>();
+        if (!string.IsNullOrWhiteSpace(result?.Error) && result.Sent != true)
+        {
+            return result.Error;
+        }
+
+        return result?.Simulated == true
+            ? "Owner message saved (simulated SMS)."
+            : "Owner message sent.";
+    }
+
+    public async Task ResumeAssistant(string phone)
+    {
+        await _http.PostAsJsonAsync(
+            "api/messages/resume",
+            new
+            {
+                PhoneNumber = phone,
+                Body = ""
+            });
+    }
+
+    public async Task<IntegrationStatusDto?> GetIntegrationStatus()
+    {
+        return await _http.GetFromJsonAsync<IntegrationStatusDto>("api/integrations/status");
     }
 
 
@@ -130,6 +182,8 @@ public async Task CancelAppointment(Guid id)
         public int Messages { get; set; }
 
         public int Appointments { get; set; }
+
+        public bool HumanOverrideActive { get; set; }
     }
 
 
@@ -164,5 +218,49 @@ public async Task CancelAppointment(Guid id)
         public string Status { get; set; } = "";
 
         public decimal Price { get; set; }
+    }
+
+    public class OwnerSendResponse
+    {
+        public bool Sent { get; set; }
+
+        public bool HumanOverride { get; set; }
+
+        public bool Simulated { get; set; }
+
+        public string? Provider { get; set; }
+
+        public string? Error { get; set; }
+    }
+
+    public class IntegrationStatusDto
+    {
+        public SmsStatusDto Sms { get; set; } = new();
+
+        public GoogleStatusDto GoogleCalendar { get; set; } = new();
+    }
+
+    public class SmsStatusDto
+    {
+        public string ConfiguredProvider { get; set; } = "";
+
+        public string ActiveProvider { get; set; } = "";
+
+        public bool Simulated { get; set; }
+
+        public bool CredentialsPresent { get; set; }
+    }
+
+    public class GoogleStatusDto
+    {
+        public string ConfiguredProvider { get; set; } = "";
+
+        public string ActiveProvider { get; set; } = "";
+
+        public bool Simulated { get; set; }
+
+        public bool OauthClientConfigured { get; set; }
+
+        public bool HasStoredGrant { get; set; }
     }
 }

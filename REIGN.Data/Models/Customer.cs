@@ -10,6 +10,14 @@ public class Customer
 
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// When true, inbound customer SMS is stored but the assistant does not auto-reply.
+    /// The owner is speaking for REIGN through the inbox / outbound SMS path.
+    /// </summary>
+    public bool HumanOverrideActive { get; set; }
+
+    public DateTime? HumanOverrideAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public List<Appointment> Appointments { get; set; } = new();

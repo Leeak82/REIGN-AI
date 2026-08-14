@@ -30,6 +30,7 @@ public class AIController : ControllerBase
             await _db.ServiceRecommendations
             .Include(x => x.Service)
             .Where(x => x.Active)
+            .OrderByDescending(x => x.Trigger.Length)
             .FirstOrDefaultAsync(x =>
                 message.Contains(x.Trigger));
 
