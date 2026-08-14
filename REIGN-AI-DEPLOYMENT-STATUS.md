@@ -3,7 +3,7 @@
 Checkpoint: production cleanup after architecture consolidation.
 Catalog is unchanged: Quick Visit $150 / under 30 minutes, Half Hour $300 / 30 minutes, Hour $500 / 60 minutes.
 
-**Completion: ~92%**
+**Completion: ~94%**
 
 The product code, AI pipeline, memory, scheduling, calendar, SMS abstraction, and dashboard are in place. Remaining work is host configuration, secrets, OAuth consent, and provider webhooks — not application redesign.
 
@@ -82,17 +82,19 @@ Local API URLs:
 1. **Environment variables** — set Groq, Twilio, and Google secrets on the host. Keep `appsettings.json` empty.
 2. **OAuth authorization** — create a Google Cloud OAuth client whose redirect URI is `/api/integrations/google/callback`, then open `/api/integrations/google/authorize` once and confirm a stored grant.
 3. **SMS provider webhook** — provision a dedicated REIGN business number (not the owner cell). Point Twilio/Vonage inbound HTTPS at `/api/sms/webhooks/twilio` or `/api/sms/webhooks/vonage`.
-4. **Hosting** — deploy API + Web, set `REIGN_API_BASE_URL` to the live API origin, use durable SQLite (or later Postgres), and allow egress to `api.groq.com`, `oauth2.googleapis.com`, `www.googleapis.com`, and the SMS provider.
+4. **Hosting** — pick Azure App Service, Render, or Railway (`HOSTING.md`), deploy API + Web, set `REIGN_API_BASE_URL` to the live API origin, set `CORS_ALLOWED_ORIGINS` to the production web origin (never `*`), use durable SQLite, and allow egress to `api.groq.com`, `oauth2.googleapis.com`, `www.googleapis.com`, and the SMS provider.
 
 ## Verification (this commit)
 
 - `dotnet clean` succeeded
 - `dotnet build` — 0 errors, 0 warnings
-- `dotnet test` — 27 passed
+- `dotnet test` — 31 passed
 - `dotnet ef migrations list` — 21 migrations present; model has no pending changes
 - Fresh `dotnet ef database update` creates the full schema without touching production data
 - `GET /health` reports API, database, Groq, SMS, and calendar status without secrets
 - `REIGN.API/Dockerfile` publishes the API image (`dotnet publish` verified; host Docker to run the image)
+
+Launch checklist: `PRODUCTION-LAUNCH-CHECKLIST.md`
 
 ## Production launch checklist
 

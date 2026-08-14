@@ -4,10 +4,18 @@ public static class ConfigStartupValidator
 {
     public static void ValidateAndLog(WebApplication app)
     {
-        Validate(app.Configuration, app.Logger, app.Environment.IsProduction());
+        Validate(
+            app.Configuration,
+            app.Logger,
+            app.Environment.IsProduction(),
+            app.Environment.IsDevelopment());
     }
 
-    public static void Validate(IConfiguration configuration, ILogger logger, bool isProduction)
+    public static void Validate(
+        IConfiguration configuration,
+        ILogger logger,
+        bool isProduction,
+        bool isDevelopment = false)
     {
         logger.LogInformation("REIGN configuration check ({Mode})", isProduction ? "Production" : "Non-production");
 
@@ -102,6 +110,35 @@ public static class ConfigStartupValidator
             }
         }
 
+        var cors = CorsOriginPolicy.Resolve(configuration, isDevelopment);
+        if (cors.RejectedWildcard)
+        {
+            logger.LogError(
+                "Cors:AllowedOrigins contained '*'. Wildcard CORS is not allowed. Set CORS_ALLOWED_ORIGINS to explicit https origins.");
+        }
+
+        if (cors.Origins.Count == 0)
+        {
+            logger.LogWarning(
+                "No CORS origins are configured. Set CORS_ALLOWED_ORIGINS to the production web origin (for example https://app.example.com).");
+        }
+        else
+        {
+            logger.LogInformation("CORS allowed origins: {Count} configured.", cors.Origins.Count);
+        }
+
+        var databaseConfigured = !string.IsNullOrWhiteSpace(connection);
+        var groqConfigured = !string.IsNullOrWhiteSpace(configuration["Ai:ApiKey"]);
+        var smsConfigured = SmsConfigured(configuration, smsProvider);
+        var calendarConfigured = CalendarConfigured(configuration, calendarProvider);
+
+        logger.LogInformation(
+            "REIGN startup status: database={Database} groq={Groq} sms={Sms} calendar={Calendar}",
+            Flag(databaseConfigured),
+            Flag(groqConfigured),
+            Flag(smsConfigured),
+            Flag(calendarConfigured));
+
         if (!isProduction)
         {
             return;
@@ -123,6 +160,41 @@ public static class ConfigStartupValidator
             logger.LogWarning(
                 "Production has Sms:AllowInternalSimulator enabled without Sms__InternalApiKey. The internal simulator is disabled until a key is set.");
         }
+    }
+
+    private static string Flag(bool configured) => configured ? "configured" : "not configured";
+
+    private static bool SmsConfigured(IConfiguration configuration, string provider)
+    {
+        if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (provider.Equals("Twilio", StringComparison.OrdinalIgnoreCase))
+        {
+            return !Missing(configuration, "Sms:Twilio:AccountSid")
+                && !Missing(configuration, "Sms:Twilio:AuthToken");
+        }
+
+        if (provider.Equals("Vonage", StringComparison.OrdinalIgnoreCase))
+        {
+            return !Missing(configuration, "Sms:Vonage:ApiKey")
+                && !Missing(configuration, "Sms:Vonage:ApiSecret");
+        }
+
+        return false;
+    }
+
+    private static bool CalendarConfigured(IConfiguration configuration, string provider)
+    {
+        if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !Missing(configuration, "GoogleCalendar:ClientId")
+            && !Missing(configuration, "GoogleCalendar:ClientSecret");
     }
 
     private static bool Missing(IConfiguration configuration, string key) =>

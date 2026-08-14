@@ -25,6 +25,7 @@ Sms__Provider=Twilio
 GoogleCalendar__Provider=Google
 GOOGLE_REDIRECT_URI=https://YOUR_DOMAIN/api/integrations/google/callback
 REIGN_API_BASE_URL=https://YOUR_API_ORIGIN/
+CORS_ALLOWED_ORIGINS=https://YOUR_WEB_ORIGIN
 ```
 
 Do not commit real values. Use `.env` locally (gitignored) or the host secret store in production.
@@ -78,7 +79,13 @@ docker build -t reign-api -f REIGN.API/Dockerfile .
 6. Confirm `GET /health` returns `"status":"healthy"` and `"database":"connected"`.
 7. Confirm startup logs say Groq / Twilio / Google credentials are present — never the secret values.
 
+Host-specific build, start, port, and health settings: **`HOSTING.md`** (Azure App Service, Render, Railway).
+
+Launch steps: **`PRODUCTION-LAUNCH-CHECKLIST.md`**.
+
 `REIGN.API/appsettings.Production.example.json` is a placeholder-only reminder of the secret fields. The running app reads the nested keys and env aliases listed above.
+
+Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-separated https URLs). Wildcard `*` is rejected. Local development still allows localhost automatically.
 
 ## Google OAuth setup
 

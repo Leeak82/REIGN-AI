@@ -32,6 +32,7 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:PublicBaseUrl", "REIGN_PUBLIC_BASE_URL");
         TryAlias(configuration, extras, "ConnectionStrings:Reign", "REIGN_CONNECTION_STRING", "DATABASE_URL");
         TryAlias(configuration, extras, "ReignApi:BaseUrl", "REIGN_API_BASE_URL");
+        TryAlias(configuration, extras, "Cors:AllowedOrigins", "CORS_ALLOWED_ORIGINS");
 
         if (extras.Count > 0)
         {

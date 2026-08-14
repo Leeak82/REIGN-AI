@@ -14,6 +14,7 @@ RUN dotnet publish REIGN.API/REIGN.API.csproj -c Release -o /app/publish --no-re
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+# Default listen address. Railway PORT and Azure WEBSITES_PORT are honored in Program.cs.
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080
