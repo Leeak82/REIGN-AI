@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using REIGN.API.Options;
+using REIGN.API.Services;
 using REIGN.Core.AI;
 using REIGN.Core.Catalog;
 
@@ -12,13 +13,13 @@ public class GroqAiProvider : IAiProvider
 {
     private readonly HttpClient _http;
     private readonly AiOptions _options;
-    private readonly BusinessProfileOptions _business;
+    private readonly IBusinessProfileAccessor _business;
     private readonly ILogger<GroqAiProvider> _logger;
 
     public GroqAiProvider(
         HttpClient http,
         IOptions<AiOptions> options,
-        IOptions<BusinessProfileOptions> business,
+        IBusinessProfileAccessor business,
         ILogger<GroqAiProvider> logger)
     {
         _http = http;
@@ -29,7 +30,7 @@ public class GroqAiProvider : IAiProvider
                 ?? Environment.GetEnvironmentVariable("Ai__ApiKey")
                 ?? "";
         }
-        _business = business.Value;
+        _business = business;
         _logger = logger;
         if (_http.BaseAddress == null && Uri.TryCreate(_options.BaseUrl, UriKind.Absolute, out var baseUri))
         {
@@ -60,7 +61,7 @@ public class GroqAiProvider : IAiProvider
             model = _options.Model,
             temperature = 0.3,
             max_tokens = _options.MaxTokens,
-            messages = BuildMessages(request)
+            messages = await BuildMessages(request, cancellationToken)
         };
 
         using var message = new HttpRequestMessage(HttpMethod.Post, "chat/completions");
@@ -119,11 +120,12 @@ public class GroqAiProvider : IAiProvider
         }
     }
 
-    private List<object> BuildMessages(AiCompletionRequest request)
+    private async Task<List<object>> BuildMessages(AiCompletionRequest request, CancellationToken cancellationToken)
     {
+        var profile = await _business.GetActiveAsync(cancellationToken);
         var system =
-            $"You are {_business.AssistantName}, the AI assistant for {_business.Name}. " +
-            $"{_business.Offering} Hours: {_business.Hours} Tone: {_business.Tone} " +
+            $"You are {profile.AssistantName}, the AI assistant for {profile.Name}. " +
+            $"{profile.Offering} Hours: {profile.Hours} Tone: {profile.Tone} " +
             $"Services: {ServiceCatalog.CatalogSummary}. " +
             "Never invent prices or services. Never use automotive or mechanic language. " +
             "If the customer wants to book, collect service (QV/HH/HR) and day/time, then ask them to reply YES to confirm. " +

@@ -22,18 +22,21 @@ public class CustomersController : ControllerBase
     public async Task<IActionResult> GetCustomers()
     {
         var customers = await _db.Customers
-            .OrderByDescending(c => c.LastCustomerMessageAt ?? c.CreatedAt)
+            .OrderByDescending(c =>
+                c.ConversationState != null
+                    ? c.ConversationState.LastCustomerMessageAt ?? c.CreatedAt
+                    : c.CreatedAt)
             .Select(c => new
             {
                 c.Id,
                 c.PhoneNumber,
                 c.Name,
                 c.HumanOverrideActive,
-                c.CurrentIntent,
-                c.PendingServiceName,
-                c.ConversationStatus,
-                c.MemorySummary,
-                c.TurnCount,
+                CurrentIntent = c.ConversationState != null ? c.ConversationState.CurrentIntent : null,
+                PendingServiceName = c.ConversationState != null ? c.ConversationState.SelectedService : null,
+                ConversationStatus = c.ConversationState != null ? c.ConversationState.CurrentStep : null,
+                MemorySummary = c.IntentMemory != null ? c.IntentMemory.Summary : null,
+                TurnCount = c.ConversationState != null ? c.ConversationState.TurnCount : 0,
                 Messages = c.Messages.Count,
                 Appointments = c.Appointments.Count
             })
@@ -55,6 +58,8 @@ public class CustomersController : ControllerBase
             .Include(x => x.Messages)
             .Include(x => x.Appointments)
                 .ThenInclude(x => x.Service)
+            .Include(x => x.ConversationState)
+            .Include(x => x.IntentMemory)
             .FirstOrDefaultAsync(x => x.PhoneNumber == normalized || x.PhoneNumber == phone);
 
         if (customer == null)
@@ -69,13 +74,13 @@ public class CustomersController : ControllerBase
             customer.Name,
             customer.Notes,
             customer.HumanOverrideActive,
-            customer.CurrentIntent,
-            customer.LastIntent,
-            customer.PendingServiceName,
-            customer.ConversationStatus,
-            customer.TurnCount,
-            customer.MemorySummary,
-            customer.LastCustomerMessageAt,
+            CurrentIntent = customer.ConversationState?.CurrentIntent,
+            LastIntent = customer.ConversationState?.LastIntent,
+            PendingServiceName = customer.ConversationState?.SelectedService,
+            ConversationStatus = customer.ConversationState?.CurrentStep,
+            TurnCount = customer.ConversationState?.TurnCount ?? 0,
+            MemorySummary = customer.IntentMemory?.Summary,
+            LastCustomerMessageAt = customer.ConversationState?.LastCustomerMessageAt,
             messages = customer.Messages
                 .OrderBy(x => x.CreatedAt)
                 .Select(x => new { x.Direction, x.Body, x.Source, x.CreatedAt }),

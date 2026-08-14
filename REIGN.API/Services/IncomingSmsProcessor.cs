@@ -138,7 +138,8 @@ public class IncomingSmsProcessor
             var intent = _intents.Detect(incoming.Body, customer);
             await _state.UpdateAsync(customer, intent, incoming.Body);
             await _intentMemory.RecordAsync(customer, intent, incoming.Body);
-            _logger.LogInformation("Inbound {Phone} intent={Intent} status={Status}", from, intent.Label, customer.ConversationStatus);
+            var state = await _state.GetOrCreate(customer.Id);
+            _logger.LogInformation("Inbound {Phone} intent={Intent} status={Status}", from, intent.Label, state.CurrentStep);
 
             var reply = await BuildReplyAsync(customer, incoming.Body, intent);
 
@@ -284,7 +285,9 @@ public class IncomingSmsProcessor
             var booking = await _bookingService.ParseRequest(message);
             if (string.IsNullOrWhiteSpace(booking.ServiceName))
             {
-                booking.ServiceName = intent.ServiceName ?? customer.PendingServiceName ?? "";
+                booking.ServiceName = intent.ServiceName
+                    ?? (await _state.GetOrCreate(customer.Id)).SelectedService
+                    ?? "";
             }
 
             if (!string.IsNullOrWhiteSpace(booking.ServiceName) && booking.RequestedDate != default)

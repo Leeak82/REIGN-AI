@@ -14,11 +14,14 @@ public static class ServiceCatalogBootstrapper
         "vehicle inspection",
         "mechanic",
         "tire",
-        "transmission"
+        "transmission",
+        "auto service"
     ];
 
     public static async Task EnsureAsync(ReignDbContext db, CancellationToken cancellationToken = default)
     {
+        await EnsureBusinessAsync(db, cancellationToken);
+
         await UpsertServiceAsync(
             db,
             ServiceCatalog.QuickVisitId,
@@ -52,6 +55,14 @@ public static class ServiceCatalogBootstrapper
                 service.Id != ServiceCatalog.HourId)
             {
                 service.Active = false;
+            }
+
+            if (service.BusinessId == null &&
+                (service.Id == ServiceCatalog.QuickVisitId ||
+                 service.Id == ServiceCatalog.HalfHourId ||
+                 service.Id == ServiceCatalog.HourId))
+            {
+                service.BusinessId = BusinessSeed.BusinessId;
             }
         }
 
@@ -91,6 +102,55 @@ public static class ServiceCatalogBootstrapper
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    private static async Task EnsureBusinessAsync(ReignDbContext db, CancellationToken cancellationToken)
+    {
+        var seed = BusinessSeed.GetBusiness();
+        var existing = await db.Businesses.FirstOrDefaultAsync(x => x.Id == seed.Id, cancellationToken)
+            ?? await db.Businesses.FirstOrDefaultAsync(x => x.Active, cancellationToken);
+
+        if (existing == null)
+        {
+            db.Businesses.Add(seed);
+            existing = seed;
+        }
+        else
+        {
+            existing.Name = seed.Name;
+            existing.OwnerName = seed.OwnerName;
+            existing.Phone = seed.Phone;
+            existing.Email = seed.Email;
+            existing.Address = seed.Address;
+            existing.Industry = seed.Industry;
+            existing.Active = true;
+            existing.Greeting = seed.Greeting;
+            existing.Tone = seed.Tone;
+            existing.Personality = seed.Personality;
+            existing.Instructions = seed.Instructions;
+            existing.Hours = seed.Hours;
+            existing.TimeZone = seed.TimeZone;
+        }
+
+        var profileSeed = BusinessSeed.GetAIProfile();
+        profileSeed.BusinessId = existing.Id;
+
+        var profile = await db.BusinessAIProfiles.FirstOrDefaultAsync(x => x.Id == profileSeed.Id, cancellationToken)
+            ?? await db.BusinessAIProfiles.FirstOrDefaultAsync(x => x.BusinessId == existing.Id, cancellationToken);
+
+        if (profile == null)
+        {
+            db.BusinessAIProfiles.Add(profileSeed);
+        }
+        else
+        {
+            profile.AIName = profileSeed.AIName;
+            profile.Personality = profileSeed.Personality;
+            profile.Greeting = profileSeed.Greeting;
+            profile.BusinessDescription = profileSeed.BusinessDescription;
+            profile.Active = true;
+            profile.BusinessId = existing.Id;
+        }
+    }
+
     private static bool IsAutomotive(string value)
     {
         var text = value.ToLowerInvariant();
@@ -113,6 +173,7 @@ public static class ServiceCatalogBootstrapper
             db.Services.Add(new Service
             {
                 Id = id,
+                BusinessId = BusinessSeed.BusinessId,
                 Name = name,
                 Price = price,
                 DurationMinutes = durationMinutes,
@@ -125,6 +186,7 @@ public static class ServiceCatalogBootstrapper
         existing.Price = price;
         existing.DurationMinutes = durationMinutes;
         existing.Active = true;
+        existing.BusinessId ??= BusinessSeed.BusinessId;
     }
 
     private static async Task UpsertRecommendationAsync(

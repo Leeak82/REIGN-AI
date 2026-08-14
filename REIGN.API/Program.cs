@@ -32,7 +32,6 @@ builder.Services.AddDbContext<ReignDbContext>(options =>
 builder.Services.Configure<SmsOptions>(builder.Configuration.GetSection(SmsOptions.SectionName));
 builder.Services.Configure<GoogleCalendarOptions>(builder.Configuration.GetSection(GoogleCalendarOptions.SectionName));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.SectionName));
-builder.Services.Configure<BusinessProfileOptions>(builder.Configuration.GetSection(BusinessProfileOptions.SectionName));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -40,6 +39,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<REIGN.Core.Services.ConversationAIService>();
 builder.Services.AddSingleton<IReignAssistant, ReignAssistant>();
 builder.Services.AddSingleton<IntentDetectionService>();
+builder.Services.AddScoped<IBusinessProfileAccessor, BusinessProfileService>();
 builder.Services.AddScoped<ConversationStateService>();
 builder.Services.AddScoped<IntentMemoryService>();
 builder.Services.AddScoped<CustomerMemoryService>();

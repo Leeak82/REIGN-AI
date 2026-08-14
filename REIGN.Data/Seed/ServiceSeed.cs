@@ -12,6 +12,7 @@ public static class ServiceSeed
             new Service
             {
                 Id = ServiceCatalog.QuickVisitId,
+                BusinessId = BusinessSeed.BusinessId,
                 Name = ServiceCatalog.QuickVisitName,
                 Price = ServiceCatalog.QuickVisitPrice,
                 DurationMinutes = ServiceCatalog.QuickVisitMinutes,
@@ -20,6 +21,7 @@ public static class ServiceSeed
             new Service
             {
                 Id = ServiceCatalog.HalfHourId,
+                BusinessId = BusinessSeed.BusinessId,
                 Name = ServiceCatalog.HalfHourName,
                 Price = ServiceCatalog.HalfHourPrice,
                 DurationMinutes = ServiceCatalog.HalfHourMinutes,
@@ -28,6 +30,7 @@ public static class ServiceSeed
             new Service
             {
                 Id = ServiceCatalog.HourId,
+                BusinessId = BusinessSeed.BusinessId,
                 Name = ServiceCatalog.HourName,
                 Price = ServiceCatalog.HourPrice,
                 DurationMinutes = ServiceCatalog.HourMinutes,

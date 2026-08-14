@@ -4,7 +4,7 @@ using REIGN.API.Services;
 namespace REIGN.API.Controllers;
 
 [ApiController]
-[Route("api/catalog")]
+[Route("api/services")]
 public class ServiceCatalogController : ControllerBase
 {
     private readonly CatalogIntelligence _catalog;

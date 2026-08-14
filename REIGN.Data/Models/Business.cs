@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace REIGN.Data.Models;
 
 public class Business
@@ -21,7 +18,6 @@ public class Business
 
     public bool Active { get; set; } = true;
 
-    // AI Profile
     public string Greeting { get; set; } = string.Empty;
 
     public string Tone { get; set; } = string.Empty;
@@ -30,10 +26,15 @@ public class Business
 
     public string Instructions { get; set; } = string.Empty;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string Hours { get; set; } = string.Empty;
 
+    public string TimeZone { get; set; } = "America/New_York";
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<Customer> Customers { get; set; } = new List<Customer>();
 
     public ICollection<Service> Services { get; set; } = new List<Service>();
+
+    public ICollection<BusinessAIProfile> AIProfiles { get; set; } = new List<BusinessAIProfile>();
 }

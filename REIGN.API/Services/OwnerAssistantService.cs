@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using REIGN.API.Options;
 using REIGN.Core.AI;
 using REIGN.Core.Catalog;
 using REIGN.Data;
@@ -11,31 +9,32 @@ public class OwnerAssistantService
 {
     private readonly ReignDbContext _db;
     private readonly IAiProvider _ai;
-    private readonly BusinessProfileOptions _business;
+    private readonly IBusinessProfileAccessor _business;
     private readonly ILogger<OwnerAssistantService> _logger;
 
     public OwnerAssistantService(
         ReignDbContext db,
         IAiProvider ai,
-        IOptions<BusinessProfileOptions> business,
+        IBusinessProfileAccessor business,
         ILogger<OwnerAssistantService> logger)
     {
         _db = db;
         _ai = ai;
-        _business = business.Value;
+        _business = business;
         _logger = logger;
     }
 
     public async Task<string> AnswerAsync(string question, CancellationToken cancellationToken = default)
     {
         var snapshot = await BuildSnapshotAsync(cancellationToken);
+        var profile = await _business.GetActiveAsync(cancellationToken);
         try
         {
             var ai = await _ai.CompleteAsync(new AiCompletionRequest
             {
                 UserMessage = question,
                 Intent = "owner_activity",
-                BusinessProfile = $"{_business.Name}. {_business.Offering}",
+                BusinessProfile = profile.ToPrompt(),
                 MemoryContext = snapshot,
                 ConversationState = "owner_console"
             }, cancellationToken);
@@ -71,8 +70,9 @@ public class OwnerAssistantService
             : string.Join("; ", appointments.Select(a =>
                 $"{a.AppointmentTime:t} {a.Service?.Name} for {a.Customer?.Name ?? a.Customer?.PhoneNumber} ({a.Status})"));
 
+        var profile = await _business.GetActiveAsync(cancellationToken);
         return
-            $"{_business.AssistantName} activity: {customers} customers, {messages} messages, {pending} pending bookings. " +
+            $"{profile.AssistantName} activity: {customers} customers, {messages} messages, {pending} pending bookings. " +
             $"Catalog: {ServiceCatalog.CatalogSummary}. Today: {lines}";
     }
 }

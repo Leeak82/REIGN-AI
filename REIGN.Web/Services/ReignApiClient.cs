@@ -206,7 +206,7 @@ public async Task CancelAppointment(Guid id)
     {
         try
         {
-            return await _http.GetFromJsonAsync<CatalogDto>("api/catalog");
+            return await _http.GetFromJsonAsync<CatalogDto>("api/services");
         }
         catch
         {
