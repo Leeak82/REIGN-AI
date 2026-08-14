@@ -2,11 +2,14 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using REIGN.API.AI;
 using REIGN.API.Calendar;
 using REIGN.API.Messaging;
 using REIGN.API.Options;
 using REIGN.API.Services;
+using REIGN.Core.AI;
 using REIGN.Core.Catalog;
+using REIGN.Core.Services;
 using REIGN.Data;
 using REIGN.Data.Schema;
 using REIGN.Data.Seed;
@@ -53,6 +56,7 @@ public class IncomingSmsProcessorTests
         Assert.Contains("Quick Visit", result.Reply, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("YES", result.Reply, StringComparison.OrdinalIgnoreCase);
         Assert.True(result.Outbound?.Simulated);
+        Assert.True(result.Persisted);
 
         var appointment = await harness.Db.Appointments.Include(x => x.Service).SingleAsync();
         Assert.Equal(ServiceCatalog.QuickVisitName, appointment.Service.Name);
@@ -110,15 +114,17 @@ public class IncomingSmsProcessorTests
         var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage
         {
             From = "+15555550199",
-            Body = "Book QV tomorrow 2pm",
+            Body = "What's happening today?",
             Provider = "Internal"
         }, sendReplyViaProvider: false);
 
         Assert.True(result.OwnerNumberIgnored);
+        Assert.True(result.OwnerQueryHandled);
+        Assert.False(string.IsNullOrWhiteSpace(result.Reply));
         Assert.Empty(harness.Db.Customers);
     }
 
-    private sealed class Harness : IAsyncDisposable
+    internal sealed class Harness : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;
 
@@ -127,6 +133,7 @@ public class IncomingSmsProcessorTests
         public ConversationService Conversations { get; }
         public SimulatedSmsSender Sms { get; }
         public SimulatedCalendarService Calendar { get; }
+        public OwnerAssistantService OwnerAssistant { get; }
 
         private Harness(
             SqliteConnection connection,
@@ -134,7 +141,8 @@ public class IncomingSmsProcessorTests
             IncomingSmsProcessor processor,
             ConversationService conversations,
             SimulatedSmsSender sms,
-            SimulatedCalendarService calendar)
+            SimulatedCalendarService calendar,
+            OwnerAssistantService ownerAssistant)
         {
             _connection = connection;
             Db = db;
@@ -142,6 +150,7 @@ public class IncomingSmsProcessorTests
             Conversations = conversations;
             Sms = sms;
             Calendar = calendar;
+            OwnerAssistant = ownerAssistant;
         }
 
         public static async Task<Harness> CreateAsync()
@@ -163,6 +172,7 @@ public class IncomingSmsProcessorTests
                 BusinessPhoneNumber = "+15555550100",
                 OwnerPhoneNumber = "+15555550199"
             });
+            var business = Options.Create(new BusinessProfileOptions());
 
             var sms = new SimulatedSmsSender();
             var calendar = new SimulatedCalendarService();
@@ -170,7 +180,21 @@ public class IncomingSmsProcessorTests
             var booking = new BookingService(db);
             var calendarSync = new AppointmentCalendarSync(db, calendar, NullLogger<AppointmentCalendarSync>.Instance);
             var appointments = new AppointmentService(db, calendarSync);
-            var engine = new ConversationEngine(db);
+            var intents = new IntentDetectionService();
+            var state = new ConversationStateService(db);
+            var intentMemory = new IntentMemoryService(db);
+            var customerMemory = new CustomerMemoryService(db);
+            IAiProvider ai = new FallbackAiProvider(new ConversationAIService(), new ReignAssistant());
+            var engine = new ConversationEngine(
+                db,
+                intents,
+                state,
+                customerMemory,
+                intentMemory,
+                ai,
+                business,
+                NullLogger<ConversationEngine>.Instance);
+            var ownerAssistant = new OwnerAssistantService(db, ai, business, NullLogger<OwnerAssistantService>.Instance);
             var processor = new IncomingSmsProcessor(
                 conversations,
                 booking,
@@ -179,10 +203,14 @@ public class IncomingSmsProcessorTests
                 db,
                 sms,
                 calendarSync,
+                intents,
+                state,
+                intentMemory,
+                ownerAssistant,
                 smsOptions,
                 NullLogger<IncomingSmsProcessor>.Instance);
 
-            return new Harness(connection, db, processor, conversations, sms, calendar);
+            return new Harness(connection, db, processor, conversations, sms, calendar, ownerAssistant);
         }
 
         public async ValueTask DisposeAsync()

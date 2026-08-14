@@ -16,24 +16,39 @@ public class ReignApiClient
 
     public Uri? BaseAddress => _http.BaseAddress;
 
+    public async Task<ChatResult> ChatAsync(string phone, string message)
+    {
+        try
+        {
+            var response = await _http.PostAsJsonAsync(
+                "api/ai/chat",
+                new { Phone = phone, Message = message });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new ChatResult { Error = $"REIGN API returned {(int)response.StatusCode}." };
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ChatResult>();
+            return result ?? new ChatResult { Error = "Empty API response." };
+        }
+        catch (Exception ex)
+        {
+            return new ChatResult { Error = "Could not reach the REIGN API. " + ex.Message };
+        }
+    }
+
     public async Task<string> SimulateIncomingSms(
         string phone,
         string message)
     {
-        var response =
-            await _http.PostAsJsonAsync(
-                "api/sms/incoming",
-                new
-                {
-                    Phone = phone,
-                    Message = message
-                });
+        var chat = await ChatAsync(phone, message);
+        if (!string.IsNullOrWhiteSpace(chat.Error))
+        {
+            return chat.Error;
+        }
 
-        var result =
-            await response.Content
-                .ReadFromJsonAsync<SMSResponse>();
-
-        return result?.Reply ?? "No response.";
+        return chat.Reply ?? "No response.";
     }
 
     public async Task<string> SendMessage(
@@ -162,9 +177,45 @@ public async Task CancelAppointment(Guid id)
 
 
 
-    public class SMSResponse
+    public async Task<ChatResult> AskOwnerAsync(string message)
     {
-        public string Reply { get; set; } = "";
+        try
+        {
+            var response = await _http.PostAsJsonAsync(
+                "api/ai/owner",
+                new { Message = message });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new ChatResult { Error = $"REIGN API returned {(int)response.StatusCode}." };
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<ChatResult>();
+            return result ?? new ChatResult { Error = "Empty API response." };
+        }
+        catch (Exception ex)
+        {
+            return new ChatResult { Error = "Could not reach the REIGN API. " + ex.Message };
+        }
+    }
+
+    public class ChatResult
+    {
+        public string? Customer { get; set; }
+
+        public string? Received { get; set; }
+
+        public string? Reply { get; set; }
+
+        public string? Intent { get; set; }
+
+        public bool AutoReplied { get; set; }
+
+        public bool Persisted { get; set; }
+
+        public bool FellBack { get; set; }
+
+        public string? Error { get; set; }
     }
 
 

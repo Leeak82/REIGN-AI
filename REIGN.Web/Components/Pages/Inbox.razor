@@ -7,6 +7,11 @@
 
 <h1>REIGN Inbox</h1>
 
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alert alert-danger">@Error</div>
+}
+
 
 <div class="row">
 
@@ -219,6 +224,8 @@
 
     string Response = "";
 
+    string Error = "";
+
 
 
     protected override async Task OnInitializedAsync()
@@ -230,8 +237,15 @@
 
     async Task LoadCustomers()
     {
-        Customers =
-            await Api.GetCustomers();
+        try
+        {
+            Error = "";
+            Customers = await Api.GetCustomers();
+        }
+        catch (Exception ex)
+        {
+            Error = "Inbox could not load customers. " + ex.Message;
+        }
     }
 
 
@@ -239,19 +253,17 @@
     async Task SelectCustomer(
         ReignApiClient.CustomerDto customer)
     {
-
-        SelectedCustomer = customer;
-
-
-        Messages =
-            await Api.GetMessages(
-                customer.PhoneNumber);
-
-
-        Appointments =
-            await Api.GetCustomerAppointments(
-                customer.PhoneNumber);
-
+        try
+        {
+            Error = "";
+            SelectedCustomer = customer;
+            Messages = await Api.GetMessages(customer.PhoneNumber);
+            Appointments = await Api.GetCustomerAppointments(customer.PhoneNumber);
+        }
+        catch (Exception ex)
+        {
+            Error = "Could not load this conversation. " + ex.Message;
+        }
     }
 
 

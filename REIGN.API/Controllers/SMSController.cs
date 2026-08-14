@@ -39,6 +39,11 @@ public class SMSController : ControllerBase
             return Unauthorized(new { error = "Internal SMS simulator is disabled or missing X-Reign-Internal-Key." });
         }
 
+        if (request == null || string.IsNullOrWhiteSpace(request.Phone) || string.IsNullOrWhiteSpace(request.Message))
+        {
+            return BadRequest(new { error = "Phone and message are required." });
+        }
+
         var result = await _processor.ProcessAsync(
             new IncomingSmsMessage
             {
@@ -56,7 +61,11 @@ public class SMSController : ControllerBase
             reply = result.Reply,
             autoReplied = result.AutoReplied,
             humanOverride = result.HumanOverride,
-            ownerNumberIgnored = result.OwnerNumberIgnored
+            ownerNumberIgnored = result.OwnerNumberIgnored,
+            ownerQuery = result.OwnerQueryHandled,
+            intent = result.Intent,
+            persisted = result.Persisted,
+            fellBack = result.AiFellBack
         });
     }
 

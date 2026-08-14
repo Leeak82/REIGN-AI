@@ -1,0 +1,97 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using REIGN.Core.AI;
+using REIGN.Data;
+using REIGN.Data.Models;
+
+namespace REIGN.API.Services;
+
+public class IntentMemoryService
+{
+    private readonly ReignDbContext _db;
+
+    public IntentMemoryService(ReignDbContext db)
+    {
+        _db = db;
+    }
+
+    public async Task RecordAsync(Customer customer, DetectedIntent intent, string message)
+    {
+        var history = Deserialize(customer.IntentHistory);
+        history.Add(new IntentMemoryEntry
+        {
+            At = DateTime.UtcNow,
+            Intent = intent.Label,
+            ServiceName = intent.ServiceName,
+            Excerpt = Truncate(message)
+        });
+
+        if (history.Count > 12)
+        {
+            history = history.TakeLast(12).ToList();
+        }
+
+        customer.IntentHistory = JsonSerializer.Serialize(history);
+        customer.MemorySummary = BuildSummary(customer, history);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<string> GetAsync(Guid customerId)
+    {
+        var customer = await _db.Customers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == customerId);
+        if (customer == null)
+        {
+            return "";
+        }
+
+        if (!string.IsNullOrWhiteSpace(customer.MemorySummary))
+        {
+            return customer.MemorySummary;
+        }
+
+        var history = Deserialize(customer.IntentHistory);
+        return history.Count == 0
+            ? "No prior intents."
+            : "Recent intents: " + string.Join(", ", history.TakeLast(5).Select(x => x.Intent));
+    }
+
+    private static List<IntentMemoryEntry> Deserialize(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<IntentMemoryEntry>>(json) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static string BuildSummary(Customer customer, List<IntentMemoryEntry> history)
+    {
+        var recent = string.Join(", ", history.TakeLast(4).Select(x => x.Intent));
+        var pending = string.IsNullOrWhiteSpace(customer.PendingServiceName)
+            ? "none"
+            : customer.PendingServiceName;
+        return $"Intent memory for {customer.Name ?? customer.PhoneNumber}: recent={recent}; pending={pending}.";
+    }
+
+    private static string Truncate(string value) =>
+        value.Length <= 80 ? value : value[..80];
+
+    private sealed class IntentMemoryEntry
+    {
+        public DateTime At { get; set; }
+
+        public string Intent { get; set; } = "";
+
+        public string? ServiceName { get; set; }
+
+        public string Excerpt { get; set; } = "";
+    }
+}

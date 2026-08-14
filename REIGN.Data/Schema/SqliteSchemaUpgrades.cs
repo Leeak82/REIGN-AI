@@ -19,6 +19,14 @@ public static class SqliteSchemaUpgrades
         await AddColumnIfMissingAsync(db, "Appointments", "ExternalCalendarEventId", """ALTER TABLE "Appointments" ADD COLUMN "ExternalCalendarEventId" TEXT NULL;""", cancellationToken);
         await AddColumnIfMissingAsync(db, "ConversationMessages", "Source", """ALTER TABLE "ConversationMessages" ADD COLUMN "Source" TEXT NOT NULL DEFAULT '';""", cancellationToken);
         await AddColumnIfMissingAsync(db, "ConversationMessages", "IsOwnerOverride", """ALTER TABLE "ConversationMessages" ADD COLUMN "IsOwnerOverride" INTEGER NOT NULL DEFAULT 0;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "CurrentIntent", """ALTER TABLE "Customers" ADD COLUMN "CurrentIntent" TEXT NULL;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "LastIntent", """ALTER TABLE "Customers" ADD COLUMN "LastIntent" TEXT NULL;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "PendingServiceName", """ALTER TABLE "Customers" ADD COLUMN "PendingServiceName" TEXT NULL;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "ConversationStatus", """ALTER TABLE "Customers" ADD COLUMN "ConversationStatus" TEXT NULL;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "TurnCount", """ALTER TABLE "Customers" ADD COLUMN "TurnCount" INTEGER NOT NULL DEFAULT 0;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "LastCustomerMessageAt", """ALTER TABLE "Customers" ADD COLUMN "LastCustomerMessageAt" TEXT NULL;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "IntentHistory", """ALTER TABLE "Customers" ADD COLUMN "IntentHistory" TEXT NULL;""", cancellationToken);
+        await AddColumnIfMissingAsync(db, "Customers", "MemorySummary", """ALTER TABLE "Customers" ADD COLUMN "MemorySummary" TEXT NULL;""", cancellationToken);
 
         await db.Database.ExecuteSqlRawAsync("""
             CREATE TABLE IF NOT EXISTS IntegrationTokens (

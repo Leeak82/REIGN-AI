@@ -18,6 +18,22 @@ public class Customer
 
     public DateTime? HumanOverrideAt { get; set; }
 
+    public string? CurrentIntent { get; set; }
+
+    public string? LastIntent { get; set; }
+
+    public string? PendingServiceName { get; set; }
+
+    public string? ConversationStatus { get; set; }
+
+    public int TurnCount { get; set; }
+
+    public DateTime? LastCustomerMessageAt { get; set; }
+
+    public string? IntentHistory { get; set; }
+
+    public string? MemorySummary { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public List<Appointment> Appointments { get; set; } = new();

@@ -5,15 +5,20 @@
 
 <h1>Miss Reign AI</h1>
 
-<div>
-    <input @bind="Phone" placeholder="Phone Number" />
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alert alert-danger">@Error</div>
+}
+
+<div class="mb-2">
+    <input class="form-control" @bind="Phone" placeholder="Phone Number" />
 </div>
 
-<div>
-    <textarea @bind="Message" placeholder="Type a message"></textarea>
+<div class="mb-2">
+    <textarea class="form-control" @bind="Message" placeholder="Type a message"></textarea>
 </div>
 
-<button @onclick="Send">
+<button class="btn btn-primary" @onclick="Send" disabled="@Busy">
     Send
 </button>
 
@@ -22,17 +27,46 @@
     <hr />
     <h3>Miss Reign:</h3>
     <p>@Reply</p>
+    @if (!string.IsNullOrWhiteSpace(Intent))
+    {
+        <small>Intent: @Intent</small>
+    }
 }
 
 @code {
-    private string Phone = "3609261856";
+    private string Phone = "3605550100";
     private string Message = "";
     private string Reply = "";
+    private string Intent = "";
+    private string Error = "";
+    private bool Busy;
 
     private async Task Send()
     {
-        Reply = await ReignClient.SendMessage(
-            Phone,
-            Message);
+        Error = "";
+        if (string.IsNullOrWhiteSpace(Phone) || string.IsNullOrWhiteSpace(Message))
+        {
+            Error = "Phone and message are required.";
+            return;
+        }
+
+        Busy = true;
+        try
+        {
+            var result = await ReignClient.ChatAsync(Phone, Message);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Error = result.Error;
+                return;
+            }
+
+            Reply = result.Reply ?? "No response.";
+            Intent = result.Intent ?? "";
+            Message = "";
+        }
+        finally
+        {
+            Busy = false;
+        }
     }
 }
