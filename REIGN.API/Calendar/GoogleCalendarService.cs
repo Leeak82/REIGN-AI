@@ -56,28 +56,43 @@ public class GoogleCalendarService : ICalendarService
             return CalendarSyncResult.Fail(ProviderName, access.Error);
         }
 
+        var timeZoneId = string.IsNullOrWhiteSpace(_options.TimeZone) ? "America/New_York" : _options.TimeZone;
+        var tz = CalendarTime.Resolve(timeZoneId);
         var payload = new Dictionary<string, object?>
         {
             ["summary"] = request.Summary,
             ["description"] = request.Description,
             ["start"] = new Dictionary<string, string>
             {
-                ["dateTime"] = ToRfc3339(request.Start),
-                ["timeZone"] = _options.TimeZone
+                ["dateTime"] = CalendarTime.ToWallClockRfc3339(request.Start, tz),
+                ["timeZone"] = timeZoneId
             },
             ["end"] = new Dictionary<string, string>
             {
-                ["dateTime"] = ToRfc3339(request.End),
-                ["timeZone"] = _options.TimeZone
+                ["dateTime"] = CalendarTime.ToWallClockRfc3339(request.End, tz),
+                ["timeZone"] = timeZoneId
             },
             ["status"] = request.Status.Equals("Cancelled", StringComparison.OrdinalIgnoreCase)
                 ? "cancelled"
-                : "confirmed"
+                : "confirmed",
+            ["extendedProperties"] = new Dictionary<string, object>
+            {
+                ["private"] = new Dictionary<string, string>
+                {
+                    ["reignAppointmentId"] = request.AppointmentId.ToString()
+                }
+            }
         };
 
         var calendarId = Uri.EscapeDataString(string.IsNullOrWhiteSpace(_options.CalendarId) ? "primary" : _options.CalendarId);
+        var eventId = request.ExistingEventId;
+        if (string.IsNullOrWhiteSpace(eventId))
+        {
+            eventId = await FindExistingEventIdAsync(access.Token!, request.AppointmentId, calendarId, cancellationToken);
+        }
+
         HttpRequestMessage message;
-        if (string.IsNullOrWhiteSpace(request.ExistingEventId))
+        if (string.IsNullOrWhiteSpace(eventId))
         {
             message = new HttpRequestMessage(
                 HttpMethod.Post,
@@ -87,7 +102,7 @@ public class GoogleCalendarService : ICalendarService
         {
             message = new HttpRequestMessage(
                 HttpMethod.Put,
-                $"https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/{Uri.EscapeDataString(request.ExistingEventId)}");
+                $"https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/{Uri.EscapeDataString(eventId)}");
         }
 
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access.Token);
@@ -104,7 +119,7 @@ public class GoogleCalendarService : ICalendarService
             }
 
             using var doc = JsonDocument.Parse(body);
-            var id = doc.RootElement.TryGetProperty("id", out var idEl) ? idEl.GetString() : request.ExistingEventId;
+            var id = doc.RootElement.TryGetProperty("id", out var idEl) ? idEl.GetString() : eventId;
             return CalendarSyncResult.Ok(ProviderName, id);
         }
         catch (Exception ex)
@@ -170,7 +185,7 @@ public class GoogleCalendarService : ICalendarService
 
         if (!string.IsNullOrWhiteSpace(token.AccessToken) &&
             token.AccessTokenExpiresAt is { } expires &&
-            expires > DateTimeOffset.UtcNow.AddMinutes(1))
+            expires > DateTimeOffset.UtcNow.AddMinutes(5))
         {
             return (token.AccessToken, null);
         }
@@ -195,10 +210,63 @@ public class GoogleCalendarService : ICalendarService
         var accessToken = doc.RootElement.GetProperty("access_token").GetString();
         var expiresIn = doc.RootElement.TryGetProperty("expires_in", out var expEl) ? expEl.GetInt32() : 3600;
         token.AccessToken = accessToken ?? "";
+        if (doc.RootElement.TryGetProperty("refresh_token", out var rotated) &&
+            rotated.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(rotated.GetString()))
+        {
+            token.RefreshToken = rotated.GetString() ?? token.RefreshToken;
+        }
+
         token.AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
         token.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         return (token.AccessToken, null);
+    }
+
+    private async Task<string?> FindExistingEventIdAsync(
+        string accessToken,
+        Guid appointmentId,
+        string calendarId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var query = Uri.EscapeDataString($"reignAppointmentId={appointmentId}");
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events?privateExtendedProperty={query}&maxResults=1&showDeleted=false");
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using var response = await _http.SendAsync(message, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            if (!doc.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String)
+                {
+                    var id = idEl.GetString();
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        return id;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Google Calendar duplicate lookup failed for {AppointmentId}", appointmentId);
+        }
+
+        return null;
     }
 
     public async Task StoreAuthorizationCodeAsync(string code, CancellationToken cancellationToken = default)
@@ -249,14 +317,6 @@ public class GoogleCalendarService : ICalendarService
         existing.TokenType = tokenType;
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
-    }
-
-    private static string ToRfc3339(DateTime value)
-    {
-        var local = value.Kind == DateTimeKind.Unspecified
-            ? DateTime.SpecifyKind(value, DateTimeKind.Local)
-            : value;
-        return local.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
     }
 
     private static string Truncate(string value) =>

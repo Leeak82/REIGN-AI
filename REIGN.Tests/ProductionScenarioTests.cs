@@ -61,6 +61,8 @@ public class ProductionScenarioTests
         Assert.Equal("confirm", confirmed.Intent);
         Assert.Contains("Confirmed", confirmed.Reply, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Confirmed", (await harness.Db.Appointments.SingleAsync()).Status);
+        Assert.False(string.IsNullOrWhiteSpace((await harness.Db.Appointments.SingleAsync()).ExternalCalendarEventId));
+        Assert.Single(harness.Calendar.Events);
     }
 
     [Fact]

@@ -4,6 +4,7 @@ publish/
 .vs/
 *.user
 *.suo
+*.db
 *.db-shm
 *.db-wal
 
@@ -11,3 +12,5 @@ appsettings.Development.json
 
 node_modules/
 .env
+.env.*
+!.env.example

@@ -87,6 +87,11 @@ public class SMSController : ControllerBase
             return false;
         }
 
+        if (_environment.IsProduction() && string.IsNullOrWhiteSpace(_options.InternalApiKey))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrWhiteSpace(_options.InternalApiKey))
         {
             if (!Request.Headers.TryGetValue("X-Reign-Internal-Key", out var provided))

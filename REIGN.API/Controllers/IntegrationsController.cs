@@ -14,17 +14,20 @@ public class IntegrationsController : ControllerBase
     private readonly ConfigurableCalendarService _calendar;
     private readonly GoogleCalendarOptions _google;
     private readonly SmsOptions _smsOptions;
+    private readonly ILogger<IntegrationsController> _logger;
 
     public IntegrationsController(
         ConfigurableSmsSender sms,
         ConfigurableCalendarService calendar,
         IOptions<GoogleCalendarOptions> google,
-        IOptions<SmsOptions> smsOptions)
+        IOptions<SmsOptions> smsOptions,
+        ILogger<IntegrationsController> logger)
     {
         _sms = sms;
         _calendar = calendar;
         _google = google.Value;
         _smsOptions = smsOptions.Value;
+        _logger = logger;
     }
 
     [HttpGet("status")]
@@ -64,7 +67,7 @@ public class IntegrationsController : ControllerBase
         {
             return StatusCode(503, new
             {
-                error = "Google Calendar OAuth client is not configured. Set GoogleCalendar:ClientId and GoogleCalendar:ClientSecret."
+                error = "Google Calendar OAuth client is not configured. Set GoogleCalendar__ClientId and GoogleCalendar__ClientSecret."
             });
         }
 
@@ -100,7 +103,11 @@ public class IntegrationsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(502, new { error = "Google OAuth exchange failed.", detail = ex.Message });
+            _logger.LogWarning(ex, "Google OAuth code exchange failed.");
+            return StatusCode(502, new
+            {
+                error = "Google OAuth exchange failed. Confirm ClientId, ClientSecret, and RedirectUri, then authorize again."
+            });
         }
     }
 }

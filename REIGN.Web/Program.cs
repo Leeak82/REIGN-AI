@@ -3,18 +3,26 @@ using REIGN.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+var apiBase = builder.Configuration["ReignApi:BaseUrl"]
+    ?? Environment.GetEnvironmentVariable("REIGN_API_BASE_URL")
+    ?? "http://localhost:5204/";
+if (!apiBase.EndsWith('/'))
+{
+    apiBase += "/";
+}
+
 builder.Services.AddHttpClient<ReignApiClient>(client =>
 {
-    client.BaseAddress = new Uri("https://reign-ai.onrender.com/");
+    client.BaseAddress = new Uri(apiBase);
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+app.Logger.LogInformation("REIGN Web API base URL: {BaseUrl}", apiBase);
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

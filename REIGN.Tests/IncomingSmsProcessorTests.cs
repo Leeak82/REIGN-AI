@@ -40,7 +40,7 @@ public class IncomingSmsProcessorTests
     }
 
     [Fact]
-    public async Task Incoming_sms_creates_pending_qv_appointment_and_simulated_calendar_event()
+    public async Task Incoming_sms_creates_pending_qv_appointment_without_calendar_until_confirm()
     {
         await using var harness = await Harness.CreateAsync();
 
@@ -62,8 +62,84 @@ public class IncomingSmsProcessorTests
         Assert.Equal(ServiceCatalog.QuickVisitName, appointment.Service.Name);
         Assert.Equal(150m, appointment.Price);
         Assert.Equal("Pending", appointment.Status);
+        Assert.True(string.IsNullOrWhiteSpace(appointment.ExternalCalendarEventId));
+        Assert.Empty(harness.Calendar.Events);
+
+        var confirmed = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550100",
+            Body = "YES",
+            Provider = "Internal"
+        }, sendReplyViaProvider: false);
+
+        Assert.Contains("Confirmed", confirmed.Reply, StringComparison.OrdinalIgnoreCase);
+        appointment = await harness.Db.Appointments.SingleAsync();
+        Assert.Equal("Confirmed", appointment.Status);
         Assert.False(string.IsNullOrWhiteSpace(appointment.ExternalCalendarEventId));
         Assert.Single(harness.Calendar.Events);
+    }
+
+    [Fact]
+    public async Task Overlapping_slot_is_rejected()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550101",
+            Body = "Book HH tomorrow at 2 pm"
+        }, sendReplyViaProvider: false);
+
+        var overlap = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550102",
+            Body = "Book QV tomorrow at 2:15 pm"
+        }, sendReplyViaProvider: false);
+
+        Assert.Contains("not available", overlap.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(harness.Db.Appointments);
+    }
+
+    [Fact]
+    public async Task Reschedule_and_cancel_update_calendar_after_confirm()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550103",
+            Body = "Book HR tomorrow at 10 am"
+        }, sendReplyViaProvider: false);
+
+        await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550103",
+            Body = "YES"
+        }, sendReplyViaProvider: false);
+
+        var moved = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550103",
+            Body = "Book HR tomorrow at 3 pm"
+        }, sendReplyViaProvider: false);
+
+        Assert.Contains("updated", moved.Reply, StringComparison.OrdinalIgnoreCase);
+        var appointment = await harness.Db.Appointments.SingleAsync();
+        Assert.Equal(15, appointment.AppointmentTime.Hour);
+        Assert.Equal("Confirmed", appointment.Status);
+        Assert.Single(harness.Calendar.Events);
+        Assert.Equal(appointment.ExternalCalendarEventId, harness.Calendar.Events.Single().EventId);
+        Assert.Equal(appointment.AppointmentTime, harness.Calendar.Events.Single().Start);
+
+        var cancelled = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550103",
+            Body = "cancel my appointment"
+        }, sendReplyViaProvider: false);
+
+        Assert.Contains("Cancelled", cancelled.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Cancelled", (await harness.Db.Appointments.SingleAsync()).Status);
+        Assert.True(harness.Calendar.Events.Single().Cancelled);
     }
 
     [Fact]
@@ -179,7 +255,8 @@ public class IncomingSmsProcessorTests
             var conversations = new ConversationService(db);
             var booking = new BookingService(db);
             var calendarSync = new AppointmentCalendarSync(db, calendar, NullLogger<AppointmentCalendarSync>.Instance);
-            var appointments = new AppointmentService(db, calendarSync);
+            var scheduling = new SchedulingService(db);
+            var appointments = new AppointmentService(db, calendarSync, scheduling);
             var intents = new IntentDetectionService();
             var state = new ConversationStateService(db);
             var intentMemory = new IntentMemoryService(db);
@@ -202,7 +279,6 @@ public class IncomingSmsProcessorTests
                 engine,
                 db,
                 sms,
-                calendarSync,
                 intents,
                 state,
                 intentMemory,

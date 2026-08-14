@@ -41,7 +41,6 @@ public class IncomingSmsProcessor
     private readonly ConversationEngine _engine;
     private readonly ReignDbContext _db;
     private readonly ISmsSender _smsSender;
-    private readonly AppointmentCalendarSync _calendarSync;
     private readonly IntentDetectionService _intents;
     private readonly ConversationStateService _state;
     private readonly IntentMemoryService _intentMemory;
@@ -56,7 +55,6 @@ public class IncomingSmsProcessor
         ConversationEngine engine,
         ReignDbContext db,
         ISmsSender smsSender,
-        AppointmentCalendarSync calendarSync,
         IntentDetectionService intents,
         ConversationStateService state,
         IntentMemoryService intentMemory,
@@ -70,7 +68,6 @@ public class IncomingSmsProcessor
         _engine = engine;
         _db = db;
         _smsSender = smsSender;
-        _calendarSync = calendarSync;
         _intents = intents;
         _state = state;
         _intentMemory = intentMemory;
@@ -103,6 +100,7 @@ public class IncomingSmsProcessor
             {
                 var ownerReply = await _ownerAssistant.AnswerAsync(incoming.Body, cancellationToken);
                 _logger.LogInformation("Owner activity query handled without creating a customer thread.");
+                var ownerOutbound = await TrySendAsync(from, ownerReply, sendReplyViaProvider, cancellationToken);
                 return new IncomingSmsResult
                 {
                     Phone = from,
@@ -111,7 +109,8 @@ public class IncomingSmsProcessor
                     AutoReplied = true,
                     OwnerNumberIgnored = true,
                     OwnerQueryHandled = true,
-                    Intent = "owner_activity"
+                    Intent = "owner_activity",
+                    Outbound = ownerOutbound
                 };
             }
 
@@ -153,20 +152,7 @@ public class IncomingSmsProcessor
                 x => x.CustomerId == customer.Id && x.Direction == "Outbound" && x.Body == reply.Text,
                 cancellationToken);
 
-            SmsSendResult? outbound = null;
-            if (sendReplyViaProvider)
-            {
-                outbound = await _smsSender.SendAsync(new SmsSendRequest
-                {
-                    To = from,
-                    Body = reply.Text
-                }, cancellationToken);
-
-                if (outbound is { Succeeded: false })
-                {
-                    _logger.LogWarning("Outbound SMS failed for {Phone}: {Error}", from, outbound.Error);
-                }
-            }
+            var outbound = await TrySendAsync(from, reply.Text, sendReplyViaProvider, cancellationToken);
 
             return new IncomingSmsResult
             {
@@ -183,14 +169,50 @@ public class IncomingSmsProcessor
         catch (Exception ex)
         {
             _logger.LogError(ex, "Incoming SMS processing failed");
+            const string fallback = "I'm having trouble on my side. Please try again in a moment.";
+            var outbound = await TrySendAsync(incoming.From, fallback, sendReplyViaProvider, cancellationToken);
             return new IncomingSmsResult
             {
                 Phone = incoming.From,
                 Received = incoming.Body,
-                Reply = "I'm having trouble on my side. Please try again in a moment.",
+                Reply = fallback,
                 AutoReplied = true,
-                AiFellBack = true
+                AiFellBack = true,
+                Outbound = outbound
             };
+        }
+    }
+
+    private async Task<SmsSendResult?> TrySendAsync(
+        string to,
+        string body,
+        bool sendReplyViaProvider,
+        CancellationToken cancellationToken)
+    {
+        if (!sendReplyViaProvider || string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        try
+        {
+            var outbound = await _smsSender.SendAsync(new SmsSendRequest
+            {
+                To = to,
+                Body = body
+            }, cancellationToken);
+
+            if (outbound is { Succeeded: false })
+            {
+                _logger.LogWarning("Outbound SMS failed for {Phone}: {Error}", to, outbound.Error);
+            }
+
+            return outbound;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Outbound SMS threw for {Phone}", to);
+            return SmsSendResult.Fail(_smsSender.ProviderName, "Outbound send failed.");
         }
     }
 
@@ -212,14 +234,28 @@ public class IncomingSmsProcessor
                 return new ConversationReply { Text = "I don't have a pending appointment to confirm.", Provider = "Rules" };
             }
 
-            pendingAppointment.Status = "Confirmed";
-            await _db.SaveChangesAsync();
-            await _calendarSync.SyncAsync(pendingAppointment);
-            return new ConversationReply
+            try
             {
-                Text = $"Confirmed. Your {pendingAppointment.Service.Name} appointment is booked for {pendingAppointment.AppointmentTime:g}.",
-                Provider = "Rules"
-            };
+                var confirmed = await _appointmentService.ConfirmAppointment(pendingAppointment.Id);
+                if (confirmed == null)
+                {
+                    return new ConversationReply { Text = "I don't have a pending appointment to confirm.", Provider = "Rules" };
+                }
+
+                return new ConversationReply
+                {
+                    Text = $"Confirmed. Your {confirmed.Service.Name} appointment is booked for {confirmed.AppointmentTime:g}.",
+                    Provider = "Rules"
+                };
+            }
+            catch (SlotUnavailableException)
+            {
+                return new ConversationReply
+                {
+                    Text = "That time is no longer available. Please choose another day or time.",
+                    Provider = "Rules"
+                };
+            }
         }
 
         if (intent.Kind == ReignIntentKind.Cancel)
@@ -235,12 +271,10 @@ public class IncomingSmsProcessor
                 return new ConversationReply { Text = "I don't have an appointment to cancel.", Provider = "Rules" };
             }
 
-            open.Status = "Cancelled";
-            await _db.SaveChangesAsync();
-            await _calendarSync.CancelAsync(open);
+            var cancelled = await _appointmentService.CancelAppointment(open.Id);
             return new ConversationReply
             {
-                Text = $"Cancelled your {open.Service?.Name} appointment for {open.AppointmentTime:g}.",
+                Text = $"Cancelled your {cancelled?.Service?.Name} appointment for {cancelled?.AppointmentTime:g}.",
                 Provider = "Rules"
             };
         }
@@ -255,30 +289,53 @@ public class IncomingSmsProcessor
 
             if (!string.IsNullOrWhiteSpace(booking.ServiceName) && booking.RequestedDate != default)
             {
-                var appointment = await _appointmentService.CreateAppointment(
-                    customer.Id,
-                    booking.ServiceName,
-                    booking.RequestedDate);
-
-                if (appointment == null)
+                try
                 {
-                    return new ConversationReply { Text = "I was unable to create that appointment.", Provider = "Rules" };
-                }
+                    var write = await _appointmentService.CreateAppointment(
+                        customer.Id,
+                        booking.ServiceName,
+                        booking.RequestedDate);
 
-                if (appointment.CreatedAt < DateTime.UtcNow.AddSeconds(-5))
-                {
+                    if (write == null)
+                    {
+                        return new ConversationReply { Text = "I was unable to create that appointment.", Provider = "Rules" };
+                    }
+
+                    if (write.Duplicate)
+                    {
+                        return new ConversationReply
+                        {
+                            Text = $"You already have a {booking.ServiceName} appointment scheduled for {write.Appointment.AppointmentTime:g}.",
+                            Provider = "Rules"
+                        };
+                    }
+
+                    if (write.Rescheduled)
+                    {
+                        var confirmHint = write.Appointment.Status.Equals("Confirmed", StringComparison.OrdinalIgnoreCase)
+                            ? "It's updated on the calendar."
+                            : "Reply YES to confirm.";
+                        return new ConversationReply
+                        {
+                            Text = $"I updated your {booking.ServiceName} to {write.Appointment.AppointmentTime:g}. {confirmHint}",
+                            Provider = "Rules"
+                        };
+                    }
+
                     return new ConversationReply
                     {
-                        Text = $"You already have a {booking.ServiceName} appointment scheduled for {appointment.AppointmentTime:g}.",
+                        Text = $"Your {booking.ServiceName} appointment request for {booking.RequestedDate:g} has been saved. Reply YES to confirm.",
                         Provider = "Rules"
                     };
                 }
-
-                return new ConversationReply
+                catch (SlotUnavailableException)
                 {
-                    Text = $"Your {booking.ServiceName} appointment request for {booking.RequestedDate:g} has been saved. Reply YES to confirm.",
-                    Provider = "Rules"
-                };
+                    return new ConversationReply
+                    {
+                        Text = "That time is not available. Please choose another day or time.",
+                        Provider = "Rules"
+                    };
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(booking.ServiceName))

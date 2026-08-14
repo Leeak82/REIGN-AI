@@ -30,7 +30,7 @@ public class SmsWebhookController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(_options.Twilio.AuthToken))
         {
-            return StatusCode(503, new { error = "Twilio AuthToken is not configured." });
+            return StatusCode(503, new { error = "Twilio AuthToken is not configured. Set Sms__Twilio__AuthToken." });
         }
 
         var form = Request.HasFormContentType
@@ -55,7 +55,7 @@ public class SmsWebhookController : ControllerBase
             Provider = "Twilio"
         };
 
-        await _processor.ProcessAsync(incoming, sendReplyViaProvider: true);
+        await ProcessSafelyAsync("Twilio", incoming);
         return Content("<Response></Response>", "text/xml");
     }
 
@@ -69,9 +69,13 @@ public class SmsWebhookController : ControllerBase
 
         if (_options.Vonage.RequireSignedWebhooks)
         {
+            if (string.IsNullOrWhiteSpace(_options.Vonage.SignatureSecret))
+            {
+                return StatusCode(503, new { error = "Vonage SignatureSecret is not configured. Set Sms__Vonage__SignatureSecret." });
+            }
+
             var authorization = Request.Headers.Authorization.ToString();
-            if (string.IsNullOrWhiteSpace(_options.Vonage.SignatureSecret) ||
-                !VonageWebhookValidator.TryValidateJwt(_options.Vonage.SignatureSecret, authorization, rawBody))
+            if (!VonageWebhookValidator.TryValidateJwt(_options.Vonage.SignatureSecret, authorization, rawBody))
             {
                 _logger.LogWarning("Rejected Vonage webhook with invalid JWT signature.");
                 return Unauthorized();
@@ -84,8 +88,27 @@ public class SmsWebhookController : ControllerBase
             return BadRequest(new { error = "Unable to parse Vonage inbound SMS." });
         }
 
-        await _processor.ProcessAsync(incoming, sendReplyViaProvider: true);
-        return Ok();
+        await ProcessSafelyAsync("Vonage", incoming);
+        return Ok(new { ok = true });
+    }
+
+    private async Task ProcessSafelyAsync(string provider, IncomingSmsMessage incoming)
+    {
+        try
+        {
+            var result = await _processor.ProcessAsync(incoming, sendReplyViaProvider: true);
+            if (result.Outbound is { Succeeded: false })
+            {
+                _logger.LogWarning(
+                    "{Provider} inbound processed for {Phone} but outbound send failed.",
+                    provider,
+                    result.Phone);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "{Provider} webhook processing failed after validation.", provider);
+        }
     }
 
     private IncomingSmsMessage? ParseVonage(string rawBody, Dictionary<string, string>? form)
@@ -129,8 +152,9 @@ public class SmsWebhookController : ControllerBase
                 Provider = "Vonage"
             };
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Vonage inbound body could not be parsed.");
             return null;
         }
     }

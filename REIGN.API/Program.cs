@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using REIGN.API.AI;
 using REIGN.API.Calendar;
+using REIGN.API.Configuration;
 using REIGN.API.Messaging;
 using REIGN.API.Options;
 using REIGN.API.Services;
@@ -11,6 +12,7 @@ using REIGN.Data.Schema;
 using REIGN.Data.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
+ConfigEnvironmentAliases.Apply(builder.Configuration);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -79,6 +81,7 @@ builder.Services.AddScoped<ResilientAiProvider>();
 builder.Services.AddScoped<IAiProvider>(sp => sp.GetRequiredService<ResilientAiProvider>());
 
 var app = builder.Build();
+ConfigStartupValidator.ValidateAndLog(app);
 
 using (var scope = app.Services.CreateScope())
 {
