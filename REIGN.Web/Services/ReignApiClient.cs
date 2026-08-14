@@ -177,6 +177,87 @@ public async Task CancelAppointment(Guid id)
 
 
 
+    public async Task<CustomerProfileDto?> GetCustomerProfile(string phone)
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<CustomerProfileDto>($"api/customers/{Uri.EscapeDataString(phone)}");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<string?> GetActivitySnapshot()
+    {
+        try
+        {
+            var result = await _http.GetFromJsonAsync<ActivityDto>("api/activity");
+            return result?.Snapshot;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<CatalogDto?> GetCatalog()
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<CatalogDto>("api/catalog");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public class ActivityDto
+    {
+        public string Snapshot { get; set; } = "";
+    }
+
+    public class CatalogDto
+    {
+        public string Summary { get; set; } = "";
+
+        public List<CatalogServiceDto> Services { get; set; } = [];
+    }
+
+    public class CatalogServiceDto
+    {
+        public string Name { get; set; } = "";
+
+        public string Code { get; set; } = "";
+
+        public decimal Price { get; set; }
+
+        public int DurationMinutes { get; set; }
+    }
+
+    public class CustomerProfileDto
+    {
+        public Guid Id { get; set; }
+
+        public string PhoneNumber { get; set; } = "";
+
+        public string? Name { get; set; }
+
+        public string? Notes { get; set; }
+
+        public string? CurrentIntent { get; set; }
+
+        public string? PendingServiceName { get; set; }
+
+        public string? ConversationStatus { get; set; }
+
+        public string? MemorySummary { get; set; }
+
+        public int TurnCount { get; set; }
+    }
+
     public async Task<ChatResult> AskOwnerAsync(string message)
     {
         try
@@ -235,6 +316,16 @@ public async Task CancelAppointment(Guid id)
         public int Appointments { get; set; }
 
         public bool HumanOverrideActive { get; set; }
+
+        public string? CurrentIntent { get; set; }
+
+        public string? PendingServiceName { get; set; }
+
+        public string? ConversationStatus { get; set; }
+
+        public string? MemorySummary { get; set; }
+
+        public int TurnCount { get; set; }
     }
 
 

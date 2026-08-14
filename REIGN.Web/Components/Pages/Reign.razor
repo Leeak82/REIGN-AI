@@ -29,7 +29,7 @@
     <p>@Reply</p>
     @if (!string.IsNullOrWhiteSpace(Intent))
     {
-        <small>Intent: @Intent</small>
+        <small>Intent: @Intent@(Persisted ? " · saved" : "")</small>
     }
 }
 
@@ -38,6 +38,7 @@
     private string Message = "";
     private string Reply = "";
     private string Intent = "";
+    private bool Persisted;
     private string Error = "";
     private bool Busy;
 
@@ -62,6 +63,7 @@
 
             Reply = result.Reply ?? "No response.";
             Intent = result.Intent ?? "";
+            Persisted = result.Persisted;
             Message = "";
         }
         finally

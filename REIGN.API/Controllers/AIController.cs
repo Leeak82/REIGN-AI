@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using REIGN.API.Options;
 using REIGN.API.Services;
 using REIGN.Core.AI;
-using REIGN.Data;
 
 namespace REIGN.API.Controllers;
 
@@ -12,24 +10,27 @@ namespace REIGN.API.Controllers;
 [Route("api/ai")]
 public class AIController : ControllerBase
 {
-    private readonly ReignDbContext _db;
     private readonly IncomingSmsProcessor _processor;
     private readonly OwnerAssistantService _ownerAssistant;
+    private readonly CatalogIntelligence _catalog;
     private readonly IAiProvider _ai;
     private readonly AiOptions _aiOptions;
+    private readonly ILogger<AIController> _logger;
 
     public AIController(
-        ReignDbContext db,
         IncomingSmsProcessor processor,
         OwnerAssistantService ownerAssistant,
+        CatalogIntelligence catalog,
         IAiProvider ai,
-        IOptions<AiOptions> aiOptions)
+        IOptions<AiOptions> aiOptions,
+        ILogger<AIController> logger)
     {
-        _db = db;
         _processor = processor;
         _ownerAssistant = ownerAssistant;
+        _catalog = catalog;
         _ai = ai;
         _aiOptions = aiOptions.Value;
+        _logger = logger;
     }
 
     [HttpGet("status")]
@@ -52,25 +53,33 @@ public class AIController : ControllerBase
             return BadRequest(new { error = "Phone and message are required." });
         }
 
-        var result = await _processor.ProcessAsync(new Messaging.IncomingSmsMessage
+        try
         {
-            From = request.Phone,
-            Body = request.Message,
-            Provider = "AI"
-        }, sendReplyViaProvider: false);
+            var result = await _processor.ProcessAsync(new Messaging.IncomingSmsMessage
+            {
+                From = request.Phone,
+                Body = request.Message,
+                Provider = "AI"
+            }, sendReplyViaProvider: false);
 
-        return Ok(new
+            return Ok(new
+            {
+                customer = result.Phone,
+                received = result.Received,
+                reply = result.Reply,
+                intent = result.Intent,
+                autoReplied = result.AutoReplied,
+                humanOverride = result.HumanOverride,
+                ownerQuery = result.OwnerQueryHandled,
+                persisted = result.Persisted,
+                fellBack = result.AiFellBack
+            });
+        }
+        catch (Exception ex)
         {
-            customer = result.Phone,
-            received = result.Received,
-            reply = result.Reply,
-            intent = result.Intent,
-            autoReplied = result.AutoReplied,
-            humanOverride = result.HumanOverride,
-            ownerQuery = result.OwnerQueryHandled,
-            persisted = result.Persisted,
-            fellBack = result.AiFellBack
-        });
+            _logger.LogError(ex, "AI chat failed for {Phone}", request.Phone);
+            return StatusCode(500, new { error = "Unable to process that conversation right now." });
+        }
     }
 
     [HttpPost("owner")]
@@ -93,33 +102,7 @@ public class AIController : ControllerBase
             return BadRequest(new { error = "Message is required." });
         }
 
-        var message = request.Message.ToLowerInvariant();
-
-        var match =
-            await _db.ServiceRecommendations
-            .Include(x => x.Service)
-            .Where(x => x.Active)
-            .OrderByDescending(x => x.Trigger.Length)
-            .FirstOrDefaultAsync(x =>
-                message.Contains(x.Trigger));
-
-        if (match == null)
-        {
-            return Ok(new
-            {
-                service = "Unknown",
-                recommendation =
-                "Ask additional questions to determine customer needs."
-            });
-        }
-
-        return Ok(new
-        {
-            service = match.Service?.Name ?? "Unknown",
-            price = match.Service?.Price,
-            duration = match.Service?.DurationMinutes,
-            recommendation = match.Recommendation
-        });
+        return Ok(await _catalog.RecommendAsync(request.Message));
     }
 
     public class AIRequest

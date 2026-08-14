@@ -57,6 +57,8 @@ public class AppointmentService
             return await RescheduleCore(existing, service.DurationMinutes, appointmentTime);
         }
 
+        EnsureBookableTime(appointmentTime);
+
         if (!await _scheduling.IsAvailable(appointmentTime, service.DurationMinutes))
         {
             throw new SlotUnavailableException();
@@ -162,6 +164,8 @@ public class AppointmentService
             };
         }
 
+        EnsureBookableTime(appointmentTime);
+
         if (!await _scheduling.IsAvailable(appointmentTime, durationMinutes, appointment.Id))
         {
             throw new SlotUnavailableException();
@@ -182,5 +186,18 @@ public class AppointmentService
             Appointment = appointment,
             Rescheduled = true
         };
+    }
+
+    private static void EnsureBookableTime(DateTime appointmentTime)
+    {
+        if (appointmentTime == default)
+        {
+            throw new InvalidBookingException("A day and time are required.");
+        }
+
+        if (appointmentTime < DateTime.Now.AddMinutes(-1))
+        {
+            throw new InvalidBookingException("That time has already passed.");
+        }
     }
 }

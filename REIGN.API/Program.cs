@@ -49,6 +49,7 @@ builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AppointmentService>();
 builder.Services.AddScoped<SchedulingService>();
+builder.Services.AddScoped<CatalogIntelligence>();
 builder.Services.AddScoped<ConversationEngine>();
 builder.Services.AddScoped<IncomingSmsProcessor>();
 builder.Services.AddScoped<OwnerMessagingService>();

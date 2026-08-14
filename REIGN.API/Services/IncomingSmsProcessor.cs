@@ -336,6 +336,14 @@ public class IncomingSmsProcessor
                         Provider = "Rules"
                     };
                 }
+                catch (InvalidBookingException ex)
+                {
+                    return new ConversationReply
+                    {
+                        Text = ex.Message + " Please choose another day or time.",
+                        Provider = "Rules"
+                    };
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(booking.ServiceName))

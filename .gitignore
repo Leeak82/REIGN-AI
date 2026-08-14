@@ -7,6 +7,10 @@ publish/
 *.db
 *.db-shm
 *.db-wal
+*.bak
+*.tmp
+*.backup.txt
+reign-tree.txt
 
 appsettings.Development.json
 

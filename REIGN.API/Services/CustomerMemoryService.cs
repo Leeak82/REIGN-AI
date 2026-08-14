@@ -48,9 +48,13 @@ public class CustomerMemoryService
 
         var historyBit = recent.Count == 0 ? "" : " Recent messages: " + string.Join(" | ", recent);
 
+        var preferenceBit = string.IsNullOrWhiteSpace(customer.Notes)
+            ? ""
+            : $" Preferences: {customer.Notes}.";
+
         return
             $"Returning customer: {customer.Name ?? customer.PhoneNumber}. {appointmentBit} " +
-            $"Pending service: {customer.PendingServiceName ?? "none"}.{historyBit}";
+            $"Pending service: {customer.PendingServiceName ?? "none"}.{preferenceBit}{historyBit}";
     }
 
     public async Task<List<(string Role, string Content)>> GetRecentTurns(Guid customerId, int take = 8)

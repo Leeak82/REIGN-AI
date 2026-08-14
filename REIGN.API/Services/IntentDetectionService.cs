@@ -34,6 +34,18 @@ public class IntentDetectionService
             return new DetectedIntent { Kind = ReignIntentKind.Cancel, Label = "cancel", Confidence = 0.9 };
         }
 
+        if (lower.Contains("reschedule") || lower.Contains("change my") || lower.Contains("move my") ||
+            lower.Contains("update my appointment"))
+        {
+            return new DetectedIntent
+            {
+                Kind = ReignIntentKind.Schedule,
+                Label = "schedule",
+                ServiceName = BookingService.MatchCatalogService(lower),
+                Confidence = 0.88
+            };
+        }
+
         if (LooksLikeBusinessQuestion(lower) &&
             !lower.Contains("book") &&
             !lower.Contains("schedule") &&

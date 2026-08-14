@@ -24,6 +24,11 @@
                 <div class="alert alert-info mt-3">
                     <strong>Intent:</strong> @LastIntent<br />
                     <strong>Miss Reign:</strong> @CustomerReply
+                    @if (!string.IsNullOrWhiteSpace(Context))
+                    {
+                        <hr />
+                        <small>@Context</small>
+                    }
                 </div>
             }
         </div>
@@ -48,6 +53,7 @@
     string OwnerMessage = "";
     string OwnerReply = "";
     string LastIntent = "";
+    string Context = "";
     string Error = "";
     bool Busy;
 
@@ -72,6 +78,10 @@
 
             CustomerReply = result.Reply ?? "No response.";
             LastIntent = result.Intent ?? "";
+            var profile = await Api.GetCustomerProfile(Phone);
+            Context = profile == null
+                ? ""
+                : $"{profile.Name ?? profile.PhoneNumber}: {profile.MemorySummary ?? profile.ConversationStatus} Pending: {profile.PendingServiceName ?? "none"}.";
             CustomerMessage = "";
         }
         finally

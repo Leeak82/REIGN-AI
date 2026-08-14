@@ -3,11 +3,16 @@
 @using REIGN.Web.Services
 @inject ReignApiClient Api
 
-<h3>REIGN Service Advisor Dashboard</h3>
+<h3>REIGN Dashboard</h3>
 
 @if (!string.IsNullOrWhiteSpace(Error))
 {
     <div class="alert alert-danger">@Error</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Activity))
+{
+    <div class="alert alert-info">@Activity</div>
 }
 
 <div style="display:flex;gap:20px">
@@ -24,6 +29,18 @@
         <h2>@MessageCount</h2>
     </div>
 </div>
+
+@if (Catalog != null)
+{
+    <h3>Services</h3>
+    <p>@Catalog.Summary</p>
+    <ul>
+        @foreach (var service in Catalog.Services)
+        {
+            <li>@service.Code @service.Name — $@service.Price (@service.DurationMinutes min)</li>
+        }
+    </ul>
+}
 
 <h3>Today's Appointments</h3>
 
@@ -47,6 +64,8 @@
 
 @code {
     string Error = "";
+    string? Activity;
+    ReignApiClient.CatalogDto? Catalog;
     int CustomerCount;
     int MessageCount;
     List<ReignApiClient.AppointmentDto> Appointments = new();
@@ -63,6 +82,8 @@
             CustomerCount = customers.Count;
             MessageCount = customers.Sum(c => c.Messages);
             Appointments = await Api.GetAppointments();
+            Activity = await Api.GetActivitySnapshot();
+            Catalog = await Api.GetCatalog();
         }
         catch (Exception ex)
         {

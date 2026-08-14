@@ -25,6 +25,12 @@ public class ConversationStateService
             customer.PendingServiceName = intent.ServiceName;
         }
 
+        var lower = message.ToLowerInvariant();
+        if (lower.Contains("prefer") || lower.Contains("i like") || lower.Contains("usually"))
+        {
+            customer.Notes = message.Length <= 240 ? message : message[..240];
+        }
+
         customer.ConversationStatus = intent.Kind switch
         {
             ReignIntentKind.Schedule when message.Contains("YES", StringComparison.OrdinalIgnoreCase) => "AwaitingConfirm",
