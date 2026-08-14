@@ -75,6 +75,18 @@ docker build -t reign-api -f REIGN.API/Dockerfile .
 
 3. Set the required environment variables on the host. Keep `appsettings.json` empty of secrets.
 4. Persist SQLite (`ConnectionStrings__Reign`) on a volume, or the database will reset when the container is replaced.
+
+### Production database location
+
+SQLite file must live **outside the container filesystem** that gets replaced on deploy.
+
+| Environment | `ConnectionStrings__Reign` | Storage |
+| --- | --- | --- |
+| Local | unset or `Data Source=REIGN.db` | API content root (gitignored) |
+| Docker / Render / Railway / Azure | `Data Source=/data/REIGN.db` | Mount a persistent volume at `/data` |
+
+Do not point production at a path inside `/app`. Startup runs `Database.MigrateAsync()` then additive SQLite `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN` guards. That is safe to re-run; it does not drop customer data.
+
 5. Set `REIGN_API_BASE_URL` on REIGN.Web to the public API origin.
 6. Confirm `GET /health` returns `"status":"healthy"` and `"database":"connected"`.
 7. Confirm startup logs say Groq / Twilio / Google credentials are present — never the secret values.

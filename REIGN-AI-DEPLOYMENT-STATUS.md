@@ -3,7 +3,7 @@
 Checkpoint: production cleanup after architecture consolidation.
 Catalog is unchanged: Quick Visit $150 / under 30 minutes, Half Hour $300 / 30 minutes, Hour $500 / 60 minutes.
 
-**Completion: ~94%**
+**Completion: ~95%**
 
 The product code, AI pipeline, memory, scheduling, calendar, SMS abstraction, and dashboard are in place. Remaining work is host configuration, secrets, OAuth consent, and provider webhooks — not application redesign.
 
