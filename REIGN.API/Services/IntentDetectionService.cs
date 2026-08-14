@@ -61,7 +61,7 @@ public class IntentDetectionService
 
         if (!string.IsNullOrWhiteSpace(service) ||
             lower.Contains("book") || lower.Contains("schedule") || lower.Contains("appointment") ||
-            (customer?.ConversationStatus == "AwaitingTime" && hasTime))
+            (customer?.ConversationState?.CurrentStep == "AwaitingTime" && hasTime))
         {
             return new DetectedIntent
             {

@@ -248,7 +248,7 @@ public class IncomingSmsProcessorTests
                 BusinessPhoneNumber = "+15555550100",
                 OwnerPhoneNumber = "+15555550199"
             });
-            var business = Options.Create(new BusinessProfileOptions());
+            var profiles = new BusinessProfileService(db);
 
             var sms = new SimulatedSmsSender();
             var calendar = new SimulatedCalendarService();
@@ -269,9 +269,9 @@ public class IncomingSmsProcessorTests
                 customerMemory,
                 intentMemory,
                 ai,
-                business,
+                profiles,
                 NullLogger<ConversationEngine>.Instance);
-            var ownerAssistant = new OwnerAssistantService(db, ai, business, NullLogger<OwnerAssistantService>.Instance);
+            var ownerAssistant = new OwnerAssistantService(db, ai, profiles, NullLogger<OwnerAssistantService>.Instance);
             var processor = new IncomingSmsProcessor(
                 conversations,
                 booking,

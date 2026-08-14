@@ -65,9 +65,13 @@ public class BusinessAssistantTests
             Body = "I prefer afternoon appointments"
         }, sendReplyViaProvider: false);
 
-        var customer = await harness.Db.Customers.SingleAsync();
+        var customer = await harness.Db.Customers
+            .Include(x => x.ConversationState)
+            .Include(x => x.IntentMemory)
+            .SingleAsync();
         Assert.Contains("prefer", customer.Notes ?? "", StringComparison.OrdinalIgnoreCase);
-        Assert.False(string.IsNullOrWhiteSpace(customer.MemorySummary));
-        Assert.True(customer.TurnCount >= 2);
+        Assert.Contains("prefer", customer.ConversationState?.Preferences ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(customer.IntentMemory?.Summary));
+        Assert.True((customer.ConversationState?.TurnCount ?? 0) >= 2);
     }
 }

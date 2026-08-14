@@ -20,6 +20,8 @@ public class ConversationService
     {
         var normalized = PhoneNumbers.Normalize(phone);
         var customer = await _db.Customers
+            .Include(x => x.ConversationState)
+            .Include(x => x.IntentMemory)
             .FirstOrDefaultAsync(x => x.PhoneNumber == normalized || x.PhoneNumber == phone);
 
         if (customer == null)
@@ -28,7 +30,11 @@ public class ConversationService
             {
                 Id = Guid.NewGuid(),
                 PhoneNumber = normalized,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                BusinessId = await _db.Businesses
+                    .Where(x => x.Active)
+                    .Select(x => (Guid?)x.Id)
+                    .FirstOrDefaultAsync()
             };
 
             _db.Customers.Add(customer);

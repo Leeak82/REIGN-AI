@@ -88,12 +88,15 @@ public class ProductionScenarioTests
             Body = "What services do you offer?"
         }, sendReplyViaProvider: false);
 
-        var customer = await harness.Db.Customers.SingleAsync();
+        var customer = await harness.Db.Customers
+            .Include(x => x.ConversationState)
+            .Include(x => x.IntentMemory)
+            .SingleAsync();
         Assert.Equal("Jordan", customer.Name);
-        Assert.True(customer.TurnCount >= 3);
-        Assert.False(string.IsNullOrWhiteSpace(customer.MemorySummary));
-        Assert.False(string.IsNullOrWhiteSpace(customer.IntentHistory));
-        Assert.Contains("Quick Visit", customer.PendingServiceName ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.True((customer.ConversationState?.TurnCount ?? 0) >= 3);
+        Assert.False(string.IsNullOrWhiteSpace(customer.IntentMemory?.Summary));
+        Assert.False(string.IsNullOrWhiteSpace(customer.IntentMemory?.HistoryJson));
+        Assert.Contains("Quick Visit", customer.ConversationState?.SelectedService ?? "", StringComparison.OrdinalIgnoreCase);
         Assert.True(returning.Persisted);
         Assert.True(
             returning.Reply!.Contains("Returning", StringComparison.OrdinalIgnoreCase) ||

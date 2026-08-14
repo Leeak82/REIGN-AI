@@ -15,9 +15,32 @@ public class IntentMemoryService
         _db = db;
     }
 
+    public async Task<CustomerIntentMemory> GetOrCreate(Guid customerId)
+    {
+        var memory = await _db.CustomerIntentMemories
+            .FirstOrDefaultAsync(x => x.CustomerId == customerId);
+
+        if (memory != null)
+        {
+            return memory;
+        }
+
+        memory = new CustomerIntentMemory
+        {
+            CustomerId = customerId,
+            Intent = "Unknown",
+            Stage = "New"
+        };
+
+        _db.CustomerIntentMemories.Add(memory);
+        await _db.SaveChangesAsync();
+        return memory;
+    }
+
     public async Task RecordAsync(Customer customer, DetectedIntent intent, string message)
     {
-        var history = Deserialize(customer.IntentHistory);
+        var memory = await GetOrCreate(customer.Id);
+        var history = Deserialize(memory.HistoryJson);
         history.Add(new IntentMemoryEntry
         {
             At = DateTime.UtcNow,
@@ -31,25 +54,43 @@ public class IntentMemoryService
             history = history.TakeLast(12).ToList();
         }
 
-        customer.IntentHistory = JsonSerializer.Serialize(history);
-        customer.MemorySummary = BuildSummary(customer, history);
+        memory.Intent = intent.Label;
+        if (!string.IsNullOrWhiteSpace(intent.ServiceName))
+        {
+            memory.SelectedService = intent.ServiceName;
+        }
+
+        memory.Stage = intent.Kind switch
+        {
+            ReignIntentKind.Confirm => "Confirmed",
+            ReignIntentKind.Cancel => "Cancelled",
+            ReignIntentKind.Schedule => "Scheduling",
+            _ => "Active"
+        };
+        memory.HistoryJson = JsonSerializer.Serialize(history);
+        memory.Summary = BuildSummary(customer, memory, history);
+        memory.UpdatedAt = DateTime.UtcNow;
+
         await _db.SaveChangesAsync();
     }
 
     public async Task<string> GetAsync(Guid customerId)
     {
-        var customer = await _db.Customers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == customerId);
-        if (customer == null)
+        var memory = await _db.CustomerIntentMemories
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CustomerId == customerId);
+
+        if (memory == null)
         {
             return "";
         }
 
-        if (!string.IsNullOrWhiteSpace(customer.MemorySummary))
+        if (!string.IsNullOrWhiteSpace(memory.Summary))
         {
-            return customer.MemorySummary;
+            return memory.Summary;
         }
 
-        var history = Deserialize(customer.IntentHistory);
+        var history = Deserialize(memory.HistoryJson);
         return history.Count == 0
             ? "No prior intents."
             : "Recent intents: " + string.Join(", ", history.TakeLast(5).Select(x => x.Intent));
@@ -72,12 +113,12 @@ public class IntentMemoryService
         }
     }
 
-    private static string BuildSummary(Customer customer, List<IntentMemoryEntry> history)
+    private static string BuildSummary(Customer customer, CustomerIntentMemory memory, List<IntentMemoryEntry> history)
     {
         var recent = string.Join(", ", history.TakeLast(4).Select(x => x.Intent));
-        var pending = string.IsNullOrWhiteSpace(customer.PendingServiceName)
+        var pending = string.IsNullOrWhiteSpace(memory.SelectedService)
             ? "none"
-            : customer.PendingServiceName;
+            : memory.SelectedService;
         return $"Intent memory for {customer.Name ?? customer.PhoneNumber}: recent={recent}; pending={pending}.";
     }
 

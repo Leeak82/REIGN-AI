@@ -23,9 +23,55 @@ public class ReignDbContext : DbContext
 
     public DbSet<IntegrationToken> IntegrationTokens => Set<IntegrationToken>();
 
+    public DbSet<Business> Businesses => Set<Business>();
+
+    public DbSet<BusinessAIProfile> BusinessAIProfiles => Set<BusinessAIProfile>();
+
+    public DbSet<ConversationState> ConversationStates => Set<ConversationState>();
+
+    public DbSet<CustomerIntentMemory> CustomerIntentMemories => Set<CustomerIntentMemory>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<BusinessAIProfile>()
+            .HasOne(x => x.Business)
+            .WithMany(x => x.AIProfiles)
+            .HasForeignKey(x => x.BusinessId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Service>()
+            .HasOne(x => x.Business)
+            .WithMany(x => x.Services)
+            .HasForeignKey(x => x.BusinessId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Customer>()
+            .HasOne(x => x.Business)
+            .WithMany(x => x.Customers)
+            .HasForeignKey(x => x.BusinessId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Customer>()
+            .HasOne(x => x.ConversationState)
+            .WithOne(x => x.Customer)
+            .HasForeignKey<ConversationState>(x => x.CustomerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Customer>()
+            .HasOne(x => x.IntentMemory)
+            .WithOne(x => x.Customer)
+            .HasForeignKey<CustomerIntentMemory>(x => x.CustomerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ConversationState>()
+            .HasIndex(x => x.CustomerId)
+            .IsUnique();
+
+        modelBuilder.Entity<CustomerIntentMemory>()
+            .HasIndex(x => x.CustomerId)
+            .IsUnique();
 
         modelBuilder.Entity<ServiceRecommendation>()
             .HasOne(x => x.Service)

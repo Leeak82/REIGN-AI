@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using REIGN.API.Options;
 using REIGN.Core.AI;
 using REIGN.Core.Catalog;
 using REIGN.Data;
@@ -24,7 +22,7 @@ public class ConversationEngine
     private readonly CustomerMemoryService _memory;
     private readonly IntentMemoryService _intentMemory;
     private readonly IAiProvider _ai;
-    private readonly BusinessProfileOptions _business;
+    private readonly IBusinessProfileAccessor _business;
     private readonly ILogger<ConversationEngine> _logger;
 
     public ConversationEngine(
@@ -34,7 +32,7 @@ public class ConversationEngine
         CustomerMemoryService memory,
         IntentMemoryService intentMemory,
         IAiProvider ai,
-        IOptions<BusinessProfileOptions> business,
+        IBusinessProfileAccessor business,
         ILogger<ConversationEngine> logger)
     {
         _db = db;
@@ -43,7 +41,7 @@ public class ConversationEngine
         _memory = memory;
         _intentMemory = intentMemory;
         _ai = ai;
-        _business = business.Value;
+        _business = business;
         _logger = logger;
     }
 
@@ -90,6 +88,8 @@ public class ConversationEngine
         var memory = await _memory.GetCustomerContext(customer.Id);
         var intentMemory = await _intentMemory.GetAsync(customer.Id);
         var recent = await _memory.GetRecentTurns(customer.Id);
+        var conversationState = await _state.GetOrCreate(customer.Id);
+        var profile = await _business.GetActiveAsync();
 
         try
         {
@@ -98,8 +98,8 @@ public class ConversationEngine
                 UserMessage = message,
                 Intent = intent.Label,
                 MemoryContext = string.Join(" ", new[] { memory, intentMemory }.Where(x => !string.IsNullOrWhiteSpace(x))),
-                ConversationState = _state.Describe(customer),
-                BusinessProfile = $"{_business.Name}. {_business.Offering} Hours: {_business.Hours}",
+                ConversationState = _state.Describe(conversationState),
+                BusinessProfile = profile.ToPrompt(),
                 RecentMessages = recent.Select(x => new AiMessage { Role = x.Role, Content = x.Content }).ToList()
             });
 
@@ -127,7 +127,7 @@ public class ConversationEngine
         {
             return new ConversationReply
             {
-                Text = $"{_business.AssistantName} here. {ServiceCatalog.CatalogSummary}. {_business.Hours}",
+                Text = $"{profile.AssistantName} here. {ServiceCatalog.CatalogSummary}. {profile.Hours}",
                 FellBack = true,
                 Provider = "Rules"
             };

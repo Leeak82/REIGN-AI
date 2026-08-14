@@ -1,7 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using REIGN.API.Options;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using REIGN.API.Services;
 using REIGN.Core.Catalog;
+using REIGN.Data;
 
 namespace REIGN.API.Controllers;
 
@@ -9,27 +10,66 @@ namespace REIGN.API.Controllers;
 [Route("api/businesses")]
 public class BusinessesController : ControllerBase
 {
-    private readonly BusinessProfileOptions _business;
+    private readonly ReignDbContext _db;
+    private readonly IBusinessProfileAccessor _profiles;
 
-    public BusinessesController(IOptions<BusinessProfileOptions> business)
+    public BusinessesController(ReignDbContext db, IBusinessProfileAccessor profiles)
     {
-        _business = business.Value;
+        _db = db;
+        _profiles = profiles;
     }
 
     [HttpGet]
-    public IActionResult Get()
+    public async Task<IActionResult> Get()
     {
-        return Ok(new[]
-        {
-            new
+        var profile = await _profiles.GetActiveAsync();
+        var businesses = await _db.Businesses
+            .AsNoTracking()
+            .Where(x => x.Active)
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => new
             {
-                name = _business.Name,
-                assistant = _business.AssistantName,
-                offering = _business.Offering,
-                hours = _business.Hours,
-                timeZone = _business.TimeZone,
-                catalog = ServiceCatalog.CatalogSummary
-            }
-        });
+                x.Id,
+                x.Name,
+                x.OwnerName,
+                x.Phone,
+                x.Email,
+                x.Hours,
+                x.TimeZone,
+                x.Active
+            })
+            .ToListAsync();
+
+        if (businesses.Count == 0)
+        {
+            return Ok(new[]
+            {
+                new
+                {
+                    profile.Id,
+                    name = profile.Name,
+                    assistant = profile.AssistantName,
+                    offering = profile.Offering,
+                    hours = profile.Hours,
+                    timeZone = profile.TimeZone,
+                    catalog = ServiceCatalog.CatalogSummary
+                }
+            });
+        }
+
+        return Ok(businesses.Select(x => new
+        {
+            x.Id,
+            name = x.Name,
+            ownerName = x.OwnerName,
+            phone = x.Phone,
+            email = x.Email,
+            hours = x.Hours,
+            timeZone = x.TimeZone,
+            assistant = profile.Id == x.Id ? profile.AssistantName : "REIGN",
+            offering = profile.Id == x.Id ? profile.Offering : "",
+            catalog = ServiceCatalog.CatalogSummary,
+            active = x.Active
+        }));
     }
 }

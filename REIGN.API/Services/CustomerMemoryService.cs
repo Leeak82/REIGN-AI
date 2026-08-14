@@ -18,6 +18,8 @@ public class CustomerMemoryService
             .Include(x => x.Appointments)
                 .ThenInclude(x => x.Service)
             .Include(x => x.Messages)
+            .Include(x => x.ConversationState)
+            .Include(x => x.IntentMemory)
             .FirstOrDefaultAsync(x => x.Id == customerId);
 
         if (customer == null)
@@ -37,7 +39,8 @@ public class CustomerMemoryService
             .Select(x => $"{x.Direction}: {x.Body}")
             .ToList();
 
-        if (lastAppointment == null && customer.TurnCount <= 1)
+        var turnCount = customer.ConversationState?.TurnCount ?? 0;
+        if (lastAppointment == null && turnCount <= 1)
         {
             return $"New customer {customer.Name ?? customer.PhoneNumber}.";
         }
@@ -48,13 +51,19 @@ public class CustomerMemoryService
 
         var historyBit = recent.Count == 0 ? "" : " Recent messages: " + string.Join(" | ", recent);
 
-        var preferenceBit = string.IsNullOrWhiteSpace(customer.Notes)
-            ? ""
-            : $" Preferences: {customer.Notes}.";
+        var preferenceBit = !string.IsNullOrWhiteSpace(customer.ConversationState?.Preferences)
+            ? $" Preferences: {customer.ConversationState.Preferences}."
+            : string.IsNullOrWhiteSpace(customer.Notes)
+                ? ""
+                : $" Preferences: {customer.Notes}.";
+
+        var pending = customer.ConversationState?.SelectedService
+            ?? customer.IntentMemory?.SelectedService
+            ?? "none";
 
         return
             $"Returning customer: {customer.Name ?? customer.PhoneNumber}. {appointmentBit} " +
-            $"Pending service: {customer.PendingServiceName ?? "none"}.{preferenceBit}{historyBit}";
+            $"Pending service: {pending}.{preferenceBit}{historyBit}";
     }
 
     public async Task<List<(string Role, string Content)>> GetRecentTurns(Guid customerId, int take = 8)
