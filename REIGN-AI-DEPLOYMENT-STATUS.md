@@ -3,7 +3,7 @@
 Checkpoint: production cleanup after architecture consolidation.
 Catalog is unchanged: Quick Visit $150 / under 30 minutes, Half Hour $300 / 30 minutes, Hour $500 / 60 minutes.
 
-**Completion: ~88%**
+**Completion: ~92%**
 
 The product code, AI pipeline, memory, scheduling, calendar, SMS abstraction, and dashboard are in place. Remaining work is host configuration, secrets, OAuth consent, and provider webhooks — not application redesign.
 
@@ -91,6 +91,8 @@ Local API URLs:
 - `dotnet test` — 27 passed
 - `dotnet ef migrations list` — 21 migrations present; model has no pending changes
 - Fresh `dotnet ef database update` creates the full schema without touching production data
+- `GET /health` reports API, database, Groq, SMS, and calendar status without secrets
+- `REIGN.API/Dockerfile` publishes the API image (`dotnet publish` verified; host Docker to run the image)
 
 ## Production launch checklist
 
