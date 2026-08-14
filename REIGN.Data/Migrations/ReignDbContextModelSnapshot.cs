@@ -15,7 +15,7 @@ namespace REIGN.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
 
             modelBuilder.Entity("REIGN.Data.Models.Appointment", b =>
                 {
@@ -57,6 +57,98 @@ namespace REIGN.Data.Migrations
                     b.ToTable("Appointments");
                 });
 
+            modelBuilder.Entity("REIGN.Data.Models.Business", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Greeting")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Industry")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OwnerName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Personality")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tone")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Businesses");
+                });
+
+            modelBuilder.Entity("REIGN.Data.Models.BusinessAIProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AIName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BusinessDescription")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Greeting")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Personality")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
+
+                    b.ToTable("BusinessAIProfiles");
+                });
+
             modelBuilder.Entity("REIGN.Data.Models.ConversationMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -84,10 +176,45 @@ namespace REIGN.Data.Migrations
                     b.ToTable("ConversationMessages");
                 });
 
+            modelBuilder.Entity("REIGN.Data.Models.ConversationState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrentStep")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Location")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RequestedTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SelectedService")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("ConversationStates");
+                });
+
             modelBuilder.Entity("REIGN.Data.Models.Customer", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("BusinessId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
@@ -105,7 +232,39 @@ namespace REIGN.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BusinessId");
+
                     b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("REIGN.Data.Models.CustomerIntentMemory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Intent")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SelectedService")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("CustomerIntentMemories");
                 });
 
             modelBuilder.Entity("REIGN.Data.Models.Service", b =>
@@ -116,6 +275,12 @@ namespace REIGN.Data.Migrations
 
                     b.Property<bool>("Active")
                         .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("BusinessId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("DurationMinutes")
                         .HasColumnType("INTEGER");
@@ -129,41 +294,9 @@ namespace REIGN.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Services");
+                    b.HasIndex("BusinessId");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            Active = true,
-                            DurationMinutes = 30,
-                            Name = "Oil Change",
-                            Price = 89.99m
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            Active = true,
-                            DurationMinutes = 60,
-                            Name = "Brake Service",
-                            Price = 249.99m
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            Active = true,
-                            DurationMinutes = 60,
-                            Name = "Diagnostic Inspection",
-                            Price = 129.99m
-                        },
-                        new
-                        {
-                            Id = new Guid("44444444-4444-4444-4444-444444444444"),
-                            Active = true,
-                            DurationMinutes = 30,
-                            Name = "Vehicle Inspection",
-                            Price = 79.99m
-                        });
+                    b.ToTable("Services");
                 });
 
             modelBuilder.Entity("REIGN.Data.Models.ServiceRecommendation", b =>
@@ -191,32 +324,6 @@ namespace REIGN.Data.Migrations
                     b.HasIndex("ServiceId");
 
                     b.ToTable("ServiceRecommendations");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                            Active = true,
-                            Recommendation = "Customer likely needs routine oil maintenance.",
-                            ServiceId = new Guid("11111111-1111-1111-1111-111111111111"),
-                            Trigger = "oil"
-                        },
-                        new
-                        {
-                            Id = new Guid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-                            Active = true,
-                            Recommendation = "Customer may need brake service.",
-                            ServiceId = new Guid("22222222-2222-2222-2222-222222222222"),
-                            Trigger = "brake"
-                        },
-                        new
-                        {
-                            Id = new Guid("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-                            Active = true,
-                            Recommendation = "Customer requires diagnostic inspection.",
-                            ServiceId = new Guid("33333333-3333-3333-3333-333333333333"),
-                            Trigger = "diagnostic"
-                        });
                 });
 
             modelBuilder.Entity("REIGN.Data.Models.Appointment", b =>
@@ -238,6 +345,17 @@ namespace REIGN.Data.Migrations
                     b.Navigation("Service");
                 });
 
+            modelBuilder.Entity("REIGN.Data.Models.BusinessAIProfile", b =>
+                {
+                    b.HasOne("REIGN.Data.Models.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+                });
+
             modelBuilder.Entity("REIGN.Data.Models.ConversationMessage", b =>
                 {
                     b.HasOne("REIGN.Data.Models.Customer", "Customer")
@@ -249,6 +367,44 @@ namespace REIGN.Data.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("REIGN.Data.Models.ConversationState", b =>
+                {
+                    b.HasOne("REIGN.Data.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("REIGN.Data.Models.Customer", b =>
+                {
+                    b.HasOne("REIGN.Data.Models.Business", null)
+                        .WithMany("Customers")
+                        .HasForeignKey("BusinessId");
+                });
+
+            modelBuilder.Entity("REIGN.Data.Models.CustomerIntentMemory", b =>
+                {
+                    b.HasOne("REIGN.Data.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("REIGN.Data.Models.Service", b =>
+                {
+                    b.HasOne("REIGN.Data.Models.Business", "Business")
+                        .WithMany("Services")
+                        .HasForeignKey("BusinessId");
+
+                    b.Navigation("Business");
+                });
+
             modelBuilder.Entity("REIGN.Data.Models.ServiceRecommendation", b =>
                 {
                     b.HasOne("REIGN.Data.Models.Service", "Service")
@@ -258,6 +414,13 @@ namespace REIGN.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Service");
+                });
+
+            modelBuilder.Entity("REIGN.Data.Models.Business", b =>
+                {
+                    b.Navigation("Customers");
+
+                    b.Navigation("Services");
                 });
 
             modelBuilder.Entity("REIGN.Data.Models.Customer", b =>

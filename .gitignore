@@ -11,3 +11,4 @@ appsettings.Development.json
 
 node_modules/
 .env
+.openclaw/

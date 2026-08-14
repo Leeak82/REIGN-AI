@@ -14,26 +14,41 @@ public class SMSController : ControllerBase
     private readonly AppointmentService _appointmentService;
     private readonly ReignDbContext _db;
     private readonly ConversationEngine _engine;
+    private readonly ConversationStateService _stateService;
+    private readonly IntentDetectionService _intentDetection;
+    private readonly IntentMemoryService _intentMemory;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public SMSController(
         ConversationService conversationService,
         BookingService bookingService,
         AppointmentService appointmentService,
         ReignDbContext db,
-        ConversationEngine engine)
+        ConversationEngine engine,
+        ConversationStateService stateService,
+        IntentDetectionService intentDetection,
+        IntentMemoryService intentMemory,
+        IHttpClientFactory httpClientFactory)
     {
         _conversationService = conversationService;
         _bookingService = bookingService;
         _appointmentService = appointmentService;
         _db = db;
         _engine = engine;
+        _stateService = stateService;
+        _intentDetection = intentDetection;
+        _intentMemory = intentMemory;
+        _httpClientFactory = httpClientFactory;
     }
 
 
     [HttpPost("incoming")]
-    public async Task<IActionResult> Incoming([FromBody] SMSRequest request)
+    public async Task<IActionResult> Incoming(
+        [FromBody] SMSRequest request)
     {
-        var customer = await _conversationService
+
+        var customer =
+            await _conversationService
             .GetOrCreateCustomer(request.Phone);
 
 
@@ -43,90 +58,119 @@ public class SMSController : ControllerBase
             request.Message);
 
 
-        string reply;
+        var intent =
+            _intentDetection.Detect(request.Message);
 
 
-        if (request.Message.Trim()
-            .Equals("YES", StringComparison.OrdinalIgnoreCase))
+        var booking =
+            await _bookingService.ParseRequest(
+                request.Message);
+
+
+        var activeState =
+            await _stateService
+            .GetActiveBookingState(customer.Id);
+
+        if(string.IsNullOrWhiteSpace(booking.ServiceName)
+            && activeState != null
+            && !string.IsNullOrWhiteSpace(activeState.SelectedService))
         {
-            var pendingAppointment = await _db.Appointments
-                .Include(x => x.Service)
-                .Where(x =>
-                    x.CustomerId == customer.Id &&
-                    x.Status == "Pending")
-                .OrderByDescending(x => x.CreatedAt)
-                .FirstOrDefaultAsync();
-
-
-            if (pendingAppointment == null)
-            {
-                reply = "I don't have a pending appointment to confirm.";
-            }
-            else
-            {
-                pendingAppointment.Status = "Confirmed";
-
-                await _db.SaveChangesAsync();
-
-                reply =
-                    $"Confirmed. Your {pendingAppointment.Service.Name} appointment is booked for {pendingAppointment.AppointmentTime:g}.";
-            }
+            booking.ServiceName =
+                activeState.SelectedService;
         }
-        else
+
+        if(!string.IsNullOrWhiteSpace(booking.ServiceName))
         {
-            var booking = await _bookingService
-                .ParseRequest(request.Message);
+            await _stateService.UpdateService(
+                customer.Id,
+                booking.ServiceName);
+        }
 
+        if(booking.RequestedDate != default
+            && !string.IsNullOrWhiteSpace(booking.ServiceName))
+        {
+            await _stateService.UpdateRequestedTime(
+                customer.Id,
+                booking.RequestedDate);
 
-            if (!string.IsNullOrWhiteSpace(booking.ServiceName)
-                && booking.RequestedDate != default)
-            {
-                var appointment = await _appointmentService.CreateAppointment(
+            var appointment =
+                await _appointmentService.CreateAppointment(
                     customer.Id,
                     booking.ServiceName,
                     booking.RequestedDate);
 
+            string reply;
 
-                if (appointment == null)
+            if(appointment == null)
+            {
+                reply =
+                    "I was unable to create that appointment.";
+            }
+            else
+            {
+                // Check if we have a real SMS provider configured
+                bool hasRealSmsProvider =
+                    !string.IsNullOrWhiteSpace(
+                        _db.Set<Configuration>().FirstOrDefault(c => c.Key == "SMS:Provider")?.Value) &&
+                    _db.Set<Configuration>().FirstOrDefault(c => c.Key == "SMS:Provider")?.Value?.ToLower() == "textnow";
+
+                if (hasRealSmsProvider)
                 {
-                    reply = "I was unable to create that appointment.";
-                }
-                else if (appointment.CreatedAt < DateTime.UtcNow.AddSeconds(-5))
-                {
+                    // For real SMS providers, send a confirmation to the user's phone
+                    // In a production scenario, this would send an actual SMS message
                     reply =
-                        $"You already have a {booking.ServiceName} appointment scheduled for {appointment.AppointmentTime:g}.";
+                        $"Your {booking.ServiceName} appointment request for {booking.RequestedDate:g} has been created. You will receive a confirmation SMS shortly.";
                 }
                 else
                 {
+                    // For simulated SMS, just inform the user
                     reply =
                         $"Your {booking.ServiceName} appointment request for {booking.RequestedDate:g} has been saved. Reply YES to confirm.";
                 }
             }
-            else if (!string.IsNullOrWhiteSpace(booking.ServiceName))
+
+            await _conversationService.SaveMessage(
+                customer.Id,
+                "Outbound",
+                reply);
+
+            await _intentMemory.Update(
+                customer.Id,
+                intent.ToString(),
+                booking.ServiceName,
+                "AppointmentCreated");
+
+            return Ok(new
             {
-                reply =
-                    $"I can schedule your {booking.ServiceName}. What day and time works best?";
-            }
-            else
-            {
-                reply = await _engine.Process(
-                    customer,
-                    request.Message);
-            }
+                customer = request.Phone,
+                intent,
+                service = booking.ServiceName,
+                reply
+            });
         }
 
+        await _intentMemory.Update(
+            customer.Id,
+            intent.ToString(),
+            booking.ServiceName,
+            "Processing");
+
+        var response =
+            await _engine.Process(
+                customer,
+                request.Message);
 
         await _conversationService.SaveMessage(
             customer.Id,
             "Outbound",
-            reply);
-
+            response);
 
         return Ok(new
         {
             customer = request.Phone,
-            received = request.Message,
-            reply
+            intent,
+            service = booking.ServiceName,
+            reply = response
         });
     }
 }
@@ -137,4 +181,11 @@ public class SMSRequest
     public string Phone { get; set; } = "";
 
     public string Message { get; set; } = "";
+}
+
+public class Configuration
+{
+    public int Id { get; set; }
+    public string Key { get; set; } = "";
+    public string Value { get; set; } = "";
 }

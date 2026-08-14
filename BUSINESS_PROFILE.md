@@ -1,0 +1,16 @@
+# Business Profile
+
+Business Name:
+Miss Reign
+
+Service Area:
+Pierce County and King County including Tacoma and Federal Way areas.
+
+Availability:
+Flexible scheduling.
+On-call appointments available.
+Same-day appointments allowed when possible.
+One hour notice preferred.
+
+Scheduling:
+Google Calendar integration planned.

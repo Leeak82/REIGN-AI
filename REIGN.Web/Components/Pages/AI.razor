@@ -1,0 +1,72 @@
+@page "/ai"
+
+@inject REIGN.Web.Services.ReignApiClient Api
+
+<h1>REIGN AI Assistant</h1>
+
+<div>
+
+    <input @bind="message"
+           placeholder="Customer message..." />
+
+    <button @onclick="AskAI">
+        Ask REIGN AI
+    </button>
+
+</div>
+
+
+@if(response != null)
+{
+    <hr />
+
+    <h3>Recommendation</h3>
+
+    <p>
+        Service:
+        <strong>@response.Service</strong>
+    </p>
+
+    <p>
+        Price:
+        @response.Price
+    </p>
+
+    <p>
+        Duration:
+        @response.Duration minutes
+    </p>
+
+    <p>
+        @response.Recommendation
+    </p>
+}
+
+
+@code {
+
+    string message = "";
+
+    AIResult? response;
+
+
+    async Task AskAI()
+    {
+        response =
+            await Api.Recommend(message);
+    }
+
+
+
+    public class AIResult
+    {
+        public string Service { get; set; } = "";
+
+        public decimal? Price { get; set; }
+
+        public int? Duration { get; set; }
+
+        public string Recommendation { get; set; } = "";
+    }
+
+}

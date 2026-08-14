@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using REIGN.Data;
-using REIGN.Data.Models;
 
 namespace REIGN.API.Controllers;
 
@@ -16,6 +15,25 @@ public class MessagesController : ControllerBase
         _db = db;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetAllMessages()
+    {
+        var messages = await _db.ConversationMessages
+            .Include(x => x.Customer)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.Id,
+                Customer = x.Customer.Name ?? x.Customer.PhoneNumber,
+                Phone = x.Customer.PhoneNumber,
+                x.Direction,
+                x.Body,
+                x.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(messages);
+    }
 
     [HttpGet("{phone}")]
     public async Task<IActionResult> GetMessages(string phone)
@@ -36,42 +54,4 @@ public class MessagesController : ControllerBase
 
         return Ok(messages);
     }
-
-
-    [HttpPost("send")]
-    public async Task<IActionResult> SendMessage(SendMessageRequest request)
-    {
-        var customer = await _db.Customers
-            .FirstOrDefaultAsync(x => x.PhoneNumber == request.PhoneNumber);
-
-
-        if (customer == null)
-            return NotFound();
-
-
-        var message = new ConversationMessage
-        {
-            Id = Guid.NewGuid(),
-            CustomerId = customer.Id,
-            Direction = "Outbound",
-            Body = request.Body,
-            CreatedAt = DateTime.UtcNow
-        };
-
-
-        _db.ConversationMessages.Add(message);
-
-        await _db.SaveChangesAsync();
-
-
-        return Ok(message);
-    }
-}
-
-
-public class SendMessageRequest
-{
-    public string PhoneNumber { get; set; } = "";
-
-    public string Body { get; set; } = "";
 }

@@ -1,0 +1,255 @@
+@page "/reign"
+
+@using System.Globalization
+@using REIGN.Web.Services
+@inject ReignApiClient ReignClient
+
+<h1>REIGN AI</h1>
+
+<section class="card p-4 mb-4">
+    <h2>Book a Visit</h2>
+
+    <div class="mb-3">
+        <label class="form-label" for="booking-name">
+            Name (optional)
+        </label>
+        <input id="booking-name"
+               class="form-control"
+               @bind="Name"
+               @bind:event="oninput"
+               @oninput="ResetBooking"
+               placeholder="Your name" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="booking-phone">
+            Phone number
+        </label>
+        <input id="booking-phone"
+               class="form-control"
+               inputmode="tel"
+               @bind="Phone"
+               @bind:event="oninput"
+               @oninput="ResetBooking"
+               placeholder="Phone number" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="booking-service">
+            Choose a visit
+        </label>
+        <select id="booking-service"
+                class="form-select"
+                @bind="SelectedServiceId"
+                @onchange="ResetBooking">
+            <option value="">
+                Select a visit
+            </option>
+            @foreach (var service in Services)
+            {
+                <option value="@service.Id">
+                    @FormatServiceOption(service)
+                </option>
+            }
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="booking-time">
+            Date/time
+        </label>
+        <input id="booking-time"
+               class="form-control"
+               type="datetime-local"
+               @bind="AppointmentTime"
+               @onchange="ResetBooking" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="booking-notes">
+            Optional notes
+        </label>
+        <textarea id="booking-notes"
+                  class="form-control"
+                  @bind="Notes"
+                  @bind:event="oninput"
+                  @oninput="ResetBooking"></textarea>
+    </div>
+
+    <button class="btn btn-primary"
+            disabled="@IsBookingDisabled"
+            @onclick="BookAppointment">
+        @(IsBooking ? "Booking..." : "Book Appointment")
+    </button>
+
+    @if (!string.IsNullOrWhiteSpace(BookingError))
+    {
+        <div class="alert alert-danger mt-3" id="booking-error">
+            @BookingError
+        </div>
+    }
+
+    @if (BookedAppointment != null)
+    {
+        <div class="alert alert-success mt-3" id="booking-confirmation">
+            <h3 class="h6 mb-2">Appointment requested</h3>
+            <strong>@BookedAppointment.Service</strong><br />
+            @BookedAppointment.Price.ToString("C", CultureInfo.InvariantCulture)<br />
+            @BookedAppointment.DurationMinutes minutes<br />
+            @BookedAppointment.AppointmentTime.ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)<br />
+            Status: @BookedAppointment.Status
+        </div>
+    }
+</section>
+
+<section class="card p-4">
+    <h2>SMS</h2>
+
+    <div class="mb-3">
+        <label class="form-label" for="sms-phone">
+            Phone number
+        </label>
+        <input id="sms-phone"
+               class="form-control"
+               @bind="SmsPhone"
+               placeholder="Phone number" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="sms-message">
+            Message
+        </label>
+        <textarea id="sms-message"
+                  class="form-control"
+                  @bind="Message"
+                  placeholder="Type a message"></textarea>
+    </div>
+
+    <button class="btn btn-secondary"
+            @onclick="Send">
+        Send
+    </button>
+
+    @if (!string.IsNullOrWhiteSpace(SmsError))
+    {
+        <div class="alert alert-danger mt-3" id="sms-error">
+            @SmsError
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Reply))
+    {
+        <hr />
+        <h3>REIGN:</h3>
+        <p>@Reply</p>
+    }
+</section>
+
+@code {
+    private string Name = "";
+    private string Phone = "";
+    private string SmsPhone = "3609261856";
+    private string Message = "";
+    private string Reply = "";
+    private string SelectedServiceId = "";
+    private DateTime AppointmentTime = DateTime.Now.AddDays(1).Date.AddHours(10);
+    private string? Notes;
+    private string BookingError = "";
+    private string SmsError = "";
+    private bool IsBooking;
+    private bool BookingComplete;
+    private List<ReignApiClient.ServiceDto> Services = new();
+    private ReignApiClient.AppointmentDto? BookedAppointment;
+
+    private bool IsBookingDisabled =>
+        IsBooking ||
+        BookingComplete ||
+        string.IsNullOrWhiteSpace(Phone) ||
+        string.IsNullOrWhiteSpace(SelectedServiceId) ||
+        AppointmentTime == default;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Services = await ReignClient.GetServices();
+    }
+
+    private void ResetBooking()
+    {
+        BookingComplete = false;
+        BookedAppointment = null;
+        BookingError = "";
+    }
+
+    private async Task BookAppointment()
+    {
+        BookingError = "";
+        BookedAppointment = null;
+
+        if (!Guid.TryParse(SelectedServiceId, out var serviceId))
+        {
+            BookingError = "Choose a visit.";
+            return;
+        }
+
+        if (AppointmentTime <= DateTime.Now)
+        {
+            BookingError = "Choose a future date and time.";
+            return;
+        }
+
+        IsBooking = true;
+
+        try
+        {
+            BookedAppointment =
+                await ReignClient.CreateAppointment(
+                    new ReignApiClient.CreateAppointmentRequest
+                    {
+                        Phone = Phone,
+                        Name = string.IsNullOrWhiteSpace(Name) ? null : Name.Trim(),
+                        ServiceId = serviceId,
+                        AppointmentTime = AppointmentTime,
+                        Notes = Notes
+                    });
+
+            BookingComplete = true;
+        }
+        catch (Exception ex)
+        {
+            BookingError = ex.Message;
+        }
+        finally
+        {
+            IsBooking = false;
+        }
+    }
+
+    private async Task Send()
+    {
+        SmsError = "";
+        Reply = "";
+
+        try
+        {
+            Reply = await ReignClient.SendMessage(
+                SmsPhone,
+                Message);
+        }
+        catch (Exception ex)
+        {
+            SmsError = ex.Message;
+        }
+    }
+
+    private static string FormatServiceOption(
+        ReignApiClient.ServiceDto service)
+    {
+        return service.Name switch
+        {
+            "QV" => $"QV - {service.Price.ToString("C0", CultureInfo.InvariantCulture)} - Less than 30 minutes",
+            "HH" => $"HH - {service.Price.ToString("C0", CultureInfo.InvariantCulture)} - 30 minutes",
+            "HR" => $"HR - {service.Price.ToString("C0", CultureInfo.InvariantCulture)} - 60 minutes",
+            _ => $"{service.Name} - {service.Price.ToString("C0", CultureInfo.InvariantCulture)} - {service.DurationMinutes} minutes"
+        };
+    }
+}

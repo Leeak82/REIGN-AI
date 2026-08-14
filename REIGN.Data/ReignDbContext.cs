@@ -20,10 +20,23 @@ public class ReignDbContext : DbContext
 
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
 
+    public DbSet<Business> Businesses => Set<Business>();
+
+    public DbSet<BusinessAIProfile> BusinessAIProfiles => Set<BusinessAIProfile>();
+
+    public DbSet<ConversationState> ConversationStates => Set<ConversationState>();
+
+    public DbSet<CustomerIntentMemory> CustomerIntentMemories => Set<CustomerIntentMemory>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<BusinessAIProfile>()
+            .HasOne(x => x.Business)
+            .WithMany()
+            .HasForeignKey(x => x.BusinessId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<ServiceRecommendation>()
             .HasOne(x => x.Service)
@@ -34,69 +47,6 @@ public class ReignDbContext : DbContext
             .HasOne(x => x.Customer)
             .WithMany(x => x.Messages)
             .HasForeignKey(x => x.CustomerId);
-
-        modelBuilder.Entity<Service>().HasData(
-            new Service
-            {
-                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                Name = "Oil Change",
-                Price = 89.99m,
-                DurationMinutes = 30,
-                Active = true
-            },
-            new Service
-            {
-                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                Name = "Brake Service",
-                Price = 249.99m,
-                DurationMinutes = 60,
-                Active = true
-            },
-            new Service
-            {
-                Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
-                Name = "Diagnostic Inspection",
-                Price = 129.99m,
-                DurationMinutes = 60,
-                Active = true
-            },
-                        new Service
-            {
-                Id = Guid.Parse("44444444-4444-4444-4444-444444444444"),
-                Name = "Vehicle Inspection",
-                Price = 79.99m,
-                DurationMinutes = 30,
-                Active = true
-            }
-        );
-
-
-        modelBuilder.Entity<ServiceRecommendation>().HasData(
-            new ServiceRecommendation
-            {
-                Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-                Trigger = "oil",
-                Recommendation = "Customer likely needs routine oil maintenance.",
-                ServiceId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                Active = true
-            },
-            new ServiceRecommendation
-            {
-                Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-                Trigger = "brake",
-                Recommendation = "Customer may need brake service.",
-                ServiceId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                Active = true
-            },
-            new ServiceRecommendation
-            {
-                Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-                Trigger = "diagnostic",
-                Recommendation = "Customer requires diagnostic inspection.",
-                ServiceId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
-                Active = true
-            }
-        );
     }
 }
 

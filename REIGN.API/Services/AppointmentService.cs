@@ -24,21 +24,31 @@ public class AppointmentService
                 x.Active &&
                 x.Name == serviceName);
 
+
         if (service == null)
             return null;
 
 
-        var existing = await _db.Appointments
-    .Include(x => x.Service)
-    .FirstOrDefaultAsync(x =>
-        x.CustomerId == customerId &&
-        x.ServiceId == service.Id &&
-        x.AppointmentTime.Date == appointmentTime.Date &&
-        x.Status != "Cancelled");
+
+        // Prevent duplicate customer bookings
+        var existing =
+            await _db.Appointments
+            .FirstOrDefaultAsync(x =>
+                x.CustomerId == customerId &&
+                x.ServiceId == service.Id &&
+                x.AppointmentTime == appointmentTime &&
+                x.Status != "Cancelled");
 
 
         if (existing != null)
+        {
+            existing.Status = "Confirmed";
+
+            await _db.SaveChangesAsync();
+
             return existing;
+        }
+
 
 
         var appointment = new Appointment
@@ -48,7 +58,7 @@ public class AppointmentService
             Price = service.Price,
             DurationMinutes = service.DurationMinutes,
             AppointmentTime = appointmentTime,
-            Status = "Pending",
+            Status = "Confirmed",
             CreatedAt = DateTime.UtcNow
         };
 
@@ -56,6 +66,7 @@ public class AppointmentService
         _db.Appointments.Add(appointment);
 
         await _db.SaveChangesAsync();
+
 
         return appointment;
     }
