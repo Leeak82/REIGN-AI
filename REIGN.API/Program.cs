@@ -13,6 +13,7 @@ using REIGN.Data.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 ConfigEnvironmentAliases.Apply(builder.Configuration);
+ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(builder.Configuration, builder.Environment);
 ContainerListen.Apply(builder);
 
 builder.Services.AddProblemDetails();

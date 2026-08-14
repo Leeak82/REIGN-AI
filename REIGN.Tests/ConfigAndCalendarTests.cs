@@ -38,6 +38,38 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Production_sms_defaults_to_twilio_and_keeps_vonage()
+    {
+        Assert.Equal("Simulated", SmsProviderSelection.Resolve("Simulated", isDevelopment: true));
+        Assert.Equal("Simulated", SmsProviderSelection.Resolve("", isDevelopment: true));
+        Assert.Equal("Twilio", SmsProviderSelection.Resolve("Simulated", isDevelopment: false));
+        Assert.Equal("Twilio", SmsProviderSelection.Resolve("", isDevelopment: false));
+        Assert.Equal("Vonage", SmsProviderSelection.Resolve("Vonage", isDevelopment: false));
+        Assert.Equal("Twilio", SmsProviderSelection.Resolve("Twilio", isDevelopment: true));
+    }
+
+    [Fact]
+    public void Sms_provider_environment_variable_overrides_appsettings()
+    {
+        var previous = Environment.GetEnvironmentVariable("SMS_PROVIDER");
+        try
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", "Vonage");
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:Provider"] = "Simulated"
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal("Vonage", manager["Sms:Provider"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", previous);
+        }
+    }
+
+    [Fact]
     public void Startup_validator_reports_missing_credentials_without_printing_secret_values()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

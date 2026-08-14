@@ -37,6 +37,7 @@ TWILIO_ACCOUNT_SID
 TWILIO_AUTH_TOKEN
 TWILIO_PHONE_NUMBER
 ConnectionStrings__Reign=Data Source=/data/REIGN.db
+SMS_PROVIDER=Twilio
 Sms__Provider=Twilio
 GoogleCalendar__Provider=Google
 CORS_ALLOWED_ORIGINS=https://YOUR_WEB_HOST

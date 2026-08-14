@@ -2,6 +2,7 @@
 
 @using REIGN.Web.Services
 @inject ReignApiClient Api
+@inject IWebHostEnvironment HostEnvironment
 
 <h1>REIGN AI</h1>
 
@@ -13,27 +14,31 @@
 }
 
 <div class="row">
-    <div class="col-md-6">
-        <div class="card p-3 mb-3">
-            <h3>Customer conversation</h3>
-            <input class="form-control mb-2" placeholder="Customer phone" @bind="Phone" />
-            <textarea class="form-control mb-2" placeholder="Customer message" @bind="CustomerMessage"></textarea>
-            <button class="btn btn-primary" @onclick="SendCustomer" disabled="@Busy">Send</button>
-            @if (!string.IsNullOrWhiteSpace(CustomerReply))
-            {
-                <div class="alert alert-info mt-3">
-                    <strong>Intent:</strong> @LastIntent<br />
-                    <strong>Miss Reign:</strong> @CustomerReply
-                    @if (!string.IsNullOrWhiteSpace(Context))
-                    {
-                        <hr />
-                        <small>@Context</small>
-                    }
-                </div>
-            }
+    @if (HostEnvironment.IsDevelopment())
+    {
+        <div class="col-md-6">
+            <div class="card p-3 mb-3">
+                <h3>Customer conversation</h3>
+                <p class="text-muted">Development SMS tester. Hidden in production.</p>
+                <input class="form-control mb-2" placeholder="Customer phone" @bind="Phone" />
+                <textarea class="form-control mb-2" placeholder="Customer message" @bind="CustomerMessage"></textarea>
+                <button class="btn btn-primary" @onclick="SendCustomer" disabled="@Busy">Send</button>
+                @if (!string.IsNullOrWhiteSpace(CustomerReply))
+                {
+                    <div class="alert alert-info mt-3">
+                        <strong>Intent:</strong> @LastIntent<br />
+                        <strong>Miss Reign:</strong> @CustomerReply
+                        @if (!string.IsNullOrWhiteSpace(Context))
+                        {
+                            <hr />
+                            <small>@Context</small>
+                        }
+                    </div>
+                }
+            </div>
         </div>
-    </div>
-    <div class="col-md-6">
+    }
+    <div class="@(HostEnvironment.IsDevelopment() ? "col-md-6" : "col-md-12")">
         <div class="card p-3 mb-3">
             <h3>Owner activity</h3>
             <textarea class="form-control mb-2" placeholder="Ask about customers, appointments, today" @bind="OwnerMessage"></textarea>

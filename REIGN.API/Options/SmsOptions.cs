@@ -5,7 +5,8 @@ public class SmsOptions
     public const string SectionName = "Sms";
 
     /// <summary>
-    /// Simulated (default), Twilio, Vonage, or TextNow.
+    /// Simulated (Development/tests only), Twilio, Vonage, or TextNow.
+    /// Production defaults to Twilio unless SMS_PROVIDER is Vonage.
     /// TextNow has no supported application SMS API and will not send or receive.
     /// </summary>
     public string Provider { get; set; } = "Simulated";
@@ -27,7 +28,7 @@ public class SmsOptions
     public string PublicBaseUrl { get; set; } = "";
 
     /// <summary>
-    /// Shared secret for the internal /api/sms/incoming simulator. Empty allows the simulator in Development.
+    /// Shared secret for the internal /api/sms/incoming simulator. Empty allows the simulator in Development only.
     /// </summary>
     public string InternalApiKey { get; set; } = "";
 

@@ -21,6 +21,7 @@ Runtime configuration is bound from ASP.NET Core keys, with aliases applied at s
 Also set for live SMS/calendar (not secrets, but required):
 
 ```
+SMS_PROVIDER=Twilio
 Sms__Provider=Twilio
 GoogleCalendar__Provider=Google
 GOOGLE_REDIRECT_URI=https://YOUR_DOMAIN/api/integrations/google/callback

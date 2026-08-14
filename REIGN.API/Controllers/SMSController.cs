@@ -72,7 +72,7 @@ public class SMSController : ControllerBase
     [HttpGet("simulated")]
     public IActionResult SimulatedOutbox()
     {
-        if (!_environment.IsDevelopment() && !_options.Provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        if (!_environment.IsDevelopment())
         {
             return NotFound();
         }
@@ -82,6 +82,11 @@ public class SMSController : ControllerBase
 
     private bool IsInternalSimulatorAllowed()
     {
+        if (!_environment.IsDevelopment())
+        {
+            return false;
+        }
+
         if (!_options.AllowInternalSimulator)
         {
             return false;
