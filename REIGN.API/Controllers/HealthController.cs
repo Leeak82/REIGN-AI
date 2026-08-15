@@ -41,18 +41,19 @@ public class HealthController : ControllerBase
         var groqConfigured = GroqConfigured();
         var smsConfigured = SmsConfigured();
         var calendarConfigured = CalendarConfigured();
-        var healthy = database == "connected";
+        var connected = database == "connected";
 
         var body = new
         {
-            status = healthy ? "healthy" : "unhealthy",
+            status = connected ? "healthy" : "degraded",
             database,
             groqConfigured,
             smsConfigured,
             calendarConfigured
         };
 
-        return healthy ? Ok(body) : StatusCode(503, body);
+        // Stay 200 when the password is wrong so Render does not restart the container.
+        return Ok(body);
     }
 
     [HttpGet]
@@ -64,6 +65,7 @@ public class HealthController : ControllerBase
             service = "REIGN.API",
             utc = DateTime.UtcNow,
             databaseStatus = !string.IsNullOrWhiteSpace(_configuration.GetConnectionString("Reign"))
+                || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"))
                 ? "configured"
                 : "not configured",
             groqConfigured = _ai.IsConfigured || GroqConfigured(),

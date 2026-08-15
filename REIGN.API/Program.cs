@@ -162,7 +162,10 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex) when (DatabaseConnection.IsPasswordAuthFailure(ex))
     {
         var endpoint = postgresEndpoint ?? "PostgreSQL";
-        throw new InvalidOperationException(DatabaseConnection.AuthFailedMessage(endpoint), ex);
+        app.Logger.LogCritical(
+            ex,
+            "{Message} The API will stay up so Render does not crash-loop. Booking and SMS persistence will fail until SUPABASE_DB_PASSWORD (or Password= in ConnectionStrings__Reign) matches the reset Supabase database password. Do not keep redeploying with the rejected password.",
+            DatabaseConnection.AuthFailedMessage(endpoint));
     }
 }
 

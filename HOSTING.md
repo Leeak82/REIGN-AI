@@ -76,6 +76,7 @@ Fix: save `ConnectionStrings__Reign`, then redeploy. External `*.render.com` URL
 
 4. Redeploy the API. Startup creates the schema from the current EF model, then seeds QV / HH / HR.
 5. Confirm `GET /api/health` returns `"status":"ok"` and `"databaseStatus":"configured"`.
+   `GET /health` stays HTTP 200 even if the database password is rejected, so Render does not crash-loop. Fix `SUPABASE_DB_PASSWORD` and redeploy once.
 
 You do not need a `/data` disk for PostgreSQL.
 
