@@ -90,7 +90,7 @@ public class ConfigAndCalendarTests
         Assert.Equal("dpg-xxxx-a", internalUrl.Host);
         Assert.Equal(Npgsql.SslMode.Disable, internalUrl.SslMode);
 
-        Assert.Equal("dpg-xxxx-a:5432/reign", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
+        Assert.Equal("reign@dpg-xxxx-a:5432/reign", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
         Assert.DoesNotContain("s3cret", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
     }
 
@@ -99,10 +99,12 @@ public class ConfigAndCalendarTests
     {
         var previousRegion = Environment.GetEnvironmentVariable("SUPABASE_REGION");
         var previousPooler = Environment.GetEnvironmentVariable("SUPABASE_POOLER_HOST");
+        var previousRef = Environment.GetEnvironmentVariable("SUPABASE_PROJECT_REF");
         try
         {
             Environment.SetEnvironmentVariable("SUPABASE_POOLER_HOST", null);
             Environment.SetEnvironmentVariable("SUPABASE_REGION", null);
+            Environment.SetEnvironmentVariable("SUPABASE_PROJECT_REF", null);
 
             var rewritten = DatabaseConnection.Normalize(
                 "Host=db.abcdefghijklmnopabcd.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=placeholder;SSL Mode=Prefer");
@@ -134,6 +136,17 @@ public class ConfigAndCalendarTests
             Assert.Contains("Host=aws-0-us-west-2.pooler.supabase.com", alreadyPooled);
             Assert.Contains("Port=5432", alreadyPooled);
             Assert.Contains("Username=postgres.abc123", alreadyPooled);
+            Assert.Equal(Npgsql.GssEncryptionMode.Disable, DatabaseConnection.Parse(alreadyPooled).GssEncryptionMode);
+
+            Environment.SetEnvironmentVariable("SUPABASE_PROJECT_REF", "fromenvref");
+            var poolerBareUser = DatabaseConnection.Normalize(
+                "Host=aws-0-us-west-2.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres;Password=x");
+            Assert.Contains("Username=postgres.fromenvref", poolerBareUser);
+            Environment.SetEnvironmentVariable("SUPABASE_PROJECT_REF", null);
+
+            Assert.Contains("postgres.<project-ref>", DatabaseConnection.AuthFailedMessage("postgres@pooler/postgres"));
+            Assert.True(DatabaseConnection.IsPasswordAuthFailure(
+                new InvalidOperationException("wrapper", new Exception("28P01: password authentication failed for user \"postgres\""))));
 
             var customUser = DatabaseConnection.Normalize(
                 "Host=db.abc123.supabase.co;Database=postgres;Username=postgres.abc123;Password=x");
@@ -158,6 +171,7 @@ public class ConfigAndCalendarTests
         {
             Environment.SetEnvironmentVariable("SUPABASE_REGION", previousRegion);
             Environment.SetEnvironmentVariable("SUPABASE_POOLER_HOST", previousPooler);
+            Environment.SetEnvironmentVariable("SUPABASE_PROJECT_REF", previousRef);
         }
     }
 

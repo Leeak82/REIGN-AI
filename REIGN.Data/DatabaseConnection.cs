@@ -14,6 +14,10 @@ public static class DatabaseConnection
         @"^db\.([a-z0-9]+)\.supabase\.co$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    private static readonly Regex SupabaseProjectRefInText = new(
+        @"db\.([a-z0-9]+)\.supabase\.co",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     public static string? ResolveFromEnvironment()
     {
         foreach (var name in new[]
@@ -70,9 +74,10 @@ public static class DatabaseConnection
     public static string Normalize(string connectionString)
     {
         var builder = Parse(connectionString.Trim());
-        ApplySupabasePooler(builder);
+        ApplySupabasePooler(builder, connectionString);
         ApplyRenderDefaults(builder);
         builder.Timeout = Math.Max(builder.Timeout, 30);
+        builder.GssEncryptionMode = GssEncryptionMode.Disable;
         return builder.ConnectionString;
     }
 
@@ -83,7 +88,8 @@ public static class DatabaseConnection
             var builder = Parse(connectionString.Trim());
             var host = string.IsNullOrWhiteSpace(builder.Host) ? "(unknown host)" : builder.Host;
             var database = string.IsNullOrWhiteSpace(builder.Database) ? "(unknown database)" : builder.Database;
-            return $"{host}:{builder.Port}/{database}";
+            var user = string.IsNullOrWhiteSpace(builder.Username) ? "(unknown user)" : builder.Username;
+            return $"{user}@{host}:{builder.Port}/{database}";
         }
         catch
         {
@@ -169,41 +175,96 @@ public static class DatabaseConnection
     /// Direct db.&lt;ref&gt;.supabase.co:5432 is IPv6-only on many projects. Render cannot
     /// open that socket (Network is unreachable). Rewrite to the Session pooler (IPv4, port 5432).
     /// Transaction pooler port 6543 is also rewritten to 5432 so EF Core prepared statements work.
+    /// Session pooler rejects username <c>postgres</c>; it must be <c>postgres.&lt;project-ref&gt;</c>.
     /// </summary>
-    public static void ApplySupabasePooler(NpgsqlConnectionStringBuilder builder)
+    public static void ApplySupabasePooler(NpgsqlConnectionStringBuilder builder, string? original = null)
     {
         var host = builder.Host ?? "";
-        if (host.Contains("pooler.supabase.com", StringComparison.OrdinalIgnoreCase))
+        var isPooler = host.Contains("pooler.supabase.com", StringComparison.OrdinalIgnoreCase);
+        var direct = SupabaseDirectHost.Match(host);
+        if (!isPooler && !direct.Success)
         {
-            if (builder.Port == 6543)
+            return;
+        }
+
+        var projectRef = TryGetSupabaseProjectRef(builder, original);
+        if (direct.Success)
+        {
+            var poolerHost = Environment.GetEnvironmentVariable("SUPABASE_POOLER_HOST");
+            if (string.IsNullOrWhiteSpace(poolerHost))
             {
-                builder.Port = 5432;
+                var region = InferSupabaseRegion();
+                poolerHost = $"aws-0-{region}.pooler.supabase.com";
             }
 
-            builder.SslMode = SslMode.Require;
-            return;
+            builder.Host = poolerHost.Trim();
         }
 
-        var match = SupabaseDirectHost.Match(host);
-        if (!match.Success)
+        if (builder.Port == 6543 || builder.Port == 0)
         {
-            return;
+            builder.Port = 5432;
         }
 
-        var projectRef = match.Groups[1].Value;
-        var poolerHost = Environment.GetEnvironmentVariable("SUPABASE_POOLER_HOST");
-        if (string.IsNullOrWhiteSpace(poolerHost))
-        {
-            var region = InferSupabaseRegion();
-            poolerHost = $"aws-0-{region}.pooler.supabase.com";
-        }
-
-        builder.Host = poolerHost.Trim();
-        builder.Port = 5432;
         builder.SslMode = SslMode.Require;
+        EnsurePoolerUsername(builder, projectRef);
+    }
 
-        if (string.IsNullOrWhiteSpace(builder.Username)
-            || builder.Username.Equals("postgres", StringComparison.OrdinalIgnoreCase))
+    public static string? TryGetSupabaseProjectRef(NpgsqlConnectionStringBuilder builder, string? original = null)
+    {
+        var configured = Environment.GetEnvironmentVariable("SUPABASE_PROJECT_REF");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured.Trim();
+        }
+
+        var hostMatch = SupabaseDirectHost.Match(builder.Host ?? "");
+        if (hostMatch.Success)
+        {
+            return hostMatch.Groups[1].Value;
+        }
+
+        var user = builder.Username ?? "";
+        if (user.StartsWith("postgres.", StringComparison.OrdinalIgnoreCase)
+            && user.Length > "postgres.".Length)
+        {
+            return user["postgres.".Length..];
+        }
+
+        foreach (var text in new[]
+        {
+            original,
+            Environment.GetEnvironmentVariable("ConnectionStrings__Reign"),
+            Environment.GetEnvironmentVariable("DATABASE_URL"),
+            Environment.GetEnvironmentVariable("REIGN_CONNECTION_STRING"),
+            Environment.GetEnvironmentVariable("SUPABASE_DB_URL")
+        })
+        {
+            var fromText = ProjectRefFromText(text);
+            if (fromText != null)
+            {
+                return fromText;
+            }
+        }
+
+        return null;
+    }
+
+    public static void EnsurePoolerUsername(NpgsqlConnectionStringBuilder builder, string? projectRef)
+    {
+        var user = builder.Username ?? "";
+        if (user.StartsWith("postgres.", StringComparison.OrdinalIgnoreCase)
+            && user.Length > "postgres.".Length)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(projectRef))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(user)
+            || user.Equals("postgres", StringComparison.OrdinalIgnoreCase))
         {
             builder.Username = $"postgres.{projectRef}";
         }
@@ -265,5 +326,40 @@ public static class DatabaseConnection
 
         return
             $"Cannot reach the database at {endpoint}. On Render, set ConnectionStrings__Reign to the Internal Database URL from a PostgreSQL instance in the same region as this service. Do not use localhost. External *.render.com URLs require SSL.";
+    }
+
+    public static string AuthFailedMessage(string endpoint)
+    {
+        return
+            $"Password authentication failed for {endpoint}. The Supabase Session pooler requires Username=postgres.<project-ref> (not postgres). Set that in ConnectionStrings__Reign or set SUPABASE_PROJECT_REF. Confirm the database password in Render has no extra quotes or spaces. If the password was pasted into chat, rotate it in Supabase and update the env var.";
+    }
+
+    public static bool IsPasswordAuthFailure(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres && postgres.SqlState == "28P01")
+            {
+                return true;
+            }
+
+            if (current.Message.Contains("password authentication failed", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? ProjectRefFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var match = SupabaseProjectRefInText.Match(text);
+        return match.Success ? match.Groups[1].Value : null;
     }
 }

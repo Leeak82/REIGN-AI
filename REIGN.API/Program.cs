@@ -140,6 +140,11 @@ using (var scope = app.Services.CreateScope())
         var endpoint = postgresEndpoint ?? "local SQLite";
         throw new InvalidOperationException(DatabaseConnection.UnreachableMessage(endpoint), ex);
     }
+    catch (Exception ex) when (DatabaseConnection.IsPasswordAuthFailure(ex))
+    {
+        var endpoint = postgresEndpoint ?? "PostgreSQL";
+        throw new InvalidOperationException(DatabaseConnection.AuthFailedMessage(endpoint), ex);
+    }
 }
 
 if (!app.Environment.IsDevelopment())
