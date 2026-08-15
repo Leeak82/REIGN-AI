@@ -110,17 +110,36 @@ if (!string.IsNullOrWhiteSpace(sqliteStorageWarning))
     app.Logger.LogWarning("{Message}", sqliteStorageWarning);
 }
 
-app.Logger.LogInformation(
-    DatabaseConnection.IsPostgreSql(connection)
-        ? "PostgreSQL connection is configured."
-        : "SQLite local fallback is configured.");
+if (DatabaseConnection.IsPostgreSql(connection))
+{
+    app.Logger.LogInformation(
+        "PostgreSQL endpoint {Endpoint} is configured.",
+        DatabaseConnection.DescribeEndpoint(connection));
+}
+else
+{
+    app.Logger.LogInformation("SQLite local fallback is configured.");
+}
+
 ConfigStartupValidator.ValidateAndLog(app);
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ReignDbContext>();
-    await SqliteSchemaUpgrades.ApplyAsync(db);
-    await ServiceCatalogBootstrapper.EnsureAsync(db);
+    try
+    {
+        await SqliteSchemaUpgrades.ApplyAsync(db);
+        await ServiceCatalogBootstrapper.EnsureAsync(db);
+    }
+    catch (Exception ex) when (IsSocketFailure(ex))
+    {
+        var endpoint = DatabaseConnection.IsPostgreSql(connection)
+            ? DatabaseConnection.DescribeEndpoint(connection)
+            : "local SQLite";
+        throw new InvalidOperationException(
+            $"Cannot reach the database at {endpoint}. On Render, set ConnectionStrings__Reign to the Internal Database URL from a PostgreSQL instance in the same region as this service. Do not use localhost. External *.render.com URLs require SSL.",
+            ex);
+    }
 }
 
 if (!app.Environment.IsDevelopment())
@@ -134,5 +153,24 @@ app.UseSwaggerUI();
 app.MapControllers();
 
 app.Run();
+
+static bool IsSocketFailure(Exception ex)
+{
+    for (var current = ex; current != null; current = current.InnerException)
+    {
+        if (current is System.Net.Sockets.SocketException)
+        {
+            return true;
+        }
+
+        if (current.GetType().Name.Contains("Socket", StringComparison.OrdinalIgnoreCase)
+            && current.Message.Contains("Socket", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 public partial class Program { }

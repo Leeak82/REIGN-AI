@@ -20,8 +20,16 @@ DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
 ConnectionStrings__Reign=<Internal Database URL>
 ```
 
-Internal URLs look like `postgresql://USER:PASSWORD@dpg-xxxx-a/reign`.
-External URLs (`.render.com`) also work; the app enables SSL for `render.com` hosts.
+Use the **Internal Database URL** (`postgresql://USER:PASSWORD@dpg-xxxx-a/reign`).
+That hostname only works from a Render service in the **same region**.
+
+A `SocketException` / `AwaitableSocketAsyncEventArgs` at startup means the API cannot open a TCP connection to Postgres. Typical causes:
+
+- `ConnectionStrings__Reign` is localhost, a laptop IP, or empty-and-wrong
+- The **External** URL was used without SSL, or the **Internal** URL was used from a different region
+- The Postgres instance is not in the same Render account/region as the API
+
+Fix: paste the Internal Database URL into `ConnectionStrings__Reign`, save env, and redeploy. External `*.render.com` URLs are supported with SSL.
 
 4. Redeploy the API. Startup creates the schema from the current EF model, then seeds QV / HH / HR.
 5. Confirm `GET /api/health` returns `"status":"ok"` and `"databaseStatus":"configured"`.

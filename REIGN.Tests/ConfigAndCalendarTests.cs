@@ -46,11 +46,19 @@ public class ConfigAndCalendarTests
         Assert.False(DatabaseConnection.IsPostgreSql("Data Source=/data/REIGN.db"));
         Assert.False(DatabaseConnection.IsPostgreSql(""));
 
-        var normalized = DatabaseConnection.Normalize("postgresql://reign:s3cret@dpg-xxxx.render.com/reign");
-        Assert.Contains("Host=dpg-xxxx.render.com", normalized);
-        Assert.Contains("Database=reign", normalized);
-        Assert.Contains("Username=reign", normalized);
-        Assert.Contains("Password=s3cret", normalized);
+        var external = DatabaseConnection.Normalize("postgresql://reign:s3cret@dpg-xxxx.render.com/reign");
+        Assert.Contains("Host=dpg-xxxx.render.com", external);
+        Assert.Contains("Database=reign", external);
+        Assert.Contains("Username=reign", external);
+        Assert.Contains("SSL Mode=Require", external);
+
+        var internalUrl = DatabaseConnection.Parse("postgresql://reign:s3cret@dpg-xxxx-a/reign");
+        DatabaseConnection.ApplyRenderDefaults(internalUrl);
+        Assert.Equal("dpg-xxxx-a", internalUrl.Host);
+        Assert.Equal(Npgsql.SslMode.Disable, internalUrl.SslMode);
+
+        Assert.Equal("dpg-xxxx-a:5432/reign", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
+        Assert.DoesNotContain("s3cret", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
     }
 
     [Fact]

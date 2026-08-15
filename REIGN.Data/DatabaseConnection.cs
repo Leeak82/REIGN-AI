@@ -29,11 +29,34 @@ public static class DatabaseConnection
 
     public static string Normalize(string connectionString)
     {
+        var builder = Parse(connectionString.Trim());
+        ApplyRenderDefaults(builder);
+        builder.Timeout = Math.Max(builder.Timeout, 30);
+        return builder.ConnectionString;
+    }
+
+    public static string DescribeEndpoint(string connectionString)
+    {
+        try
+        {
+            var builder = Parse(connectionString.Trim());
+            var host = string.IsNullOrWhiteSpace(builder.Host) ? "(unknown host)" : builder.Host;
+            var database = string.IsNullOrWhiteSpace(builder.Database) ? "(unknown database)" : builder.Database;
+            return $"{host}:{builder.Port}/{database}";
+        }
+        catch
+        {
+            return "(unparseable ConnectionStrings__Reign)";
+        }
+    }
+
+    public static NpgsqlConnectionStringBuilder Parse(string connectionString)
+    {
         var value = connectionString.Trim();
         if (!value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
             && !value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
-            return value;
+            return new NpgsqlConnectionStringBuilder(value);
         }
 
         var uri = new Uri(value);
@@ -56,10 +79,7 @@ public static class DatabaseConnection
             Port = uri.IsDefaultPort ? 5432 : uri.Port,
             Database = string.IsNullOrWhiteSpace(database) ? "reign" : database,
             Username = username,
-            Password = password,
-            SslMode = uri.Host.Contains("render.com", StringComparison.OrdinalIgnoreCase)
-                ? SslMode.Require
-                : SslMode.Prefer
+            Password = password
         };
 
         var query = uri.Query.TrimStart('?');
@@ -80,6 +100,25 @@ public static class DatabaseConnection
             }
         }
 
-        return builder.ConnectionString;
+        return builder;
+    }
+
+    public static void ApplyRenderDefaults(NpgsqlConnectionStringBuilder builder)
+    {
+        var host = builder.Host ?? "";
+        var renderExternal = host.Contains("render.com", StringComparison.OrdinalIgnoreCase);
+        var renderInternal = host.StartsWith("dpg-", StringComparison.OrdinalIgnoreCase) && !renderExternal;
+
+        if (renderExternal)
+        {
+            builder.SslMode = SslMode.Require;
+            return;
+        }
+
+        if (renderInternal && builder.SslMode == SslMode.Prefer)
+        {
+            // Internal Render hostnames are private DNS and do not use public TLS.
+            builder.SslMode = SslMode.Disable;
+        }
     }
 }
