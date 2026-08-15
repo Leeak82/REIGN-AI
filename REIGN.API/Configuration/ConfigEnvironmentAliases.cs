@@ -31,6 +31,14 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:InternalApiKey", "REIGN_INTERNAL_API_KEY");
         TryAlias(configuration, extras, "Sms:PublicBaseUrl", "REIGN_PUBLIC_BASE_URL");
         TryAlias(configuration, extras, "ReignApi:BaseUrl", "REIGN_API_BASE_URL");
+        TryAlias(
+            configuration,
+            extras,
+            "ConnectionStrings:Reign",
+            "ConnectionStrings__Reign",
+            "DATABASE_URL",
+            "REIGN_CONNECTION_STRING",
+            "SUPABASE_DB_URL");
 
         if (extras.Count > 0)
         {

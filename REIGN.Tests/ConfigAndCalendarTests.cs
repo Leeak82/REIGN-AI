@@ -46,6 +46,17 @@ public class ConfigAndCalendarTests
         Assert.False(DatabaseConnection.IsPostgreSql("Data Source=/data/REIGN.db"));
         Assert.False(DatabaseConnection.IsPostgreSql(""));
 
+        var previous = Environment.GetEnvironmentVariable("DATABASE_URL");
+        try
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", "Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x");
+            Assert.Contains("supabase.co", DatabaseConnection.ResolveFromEnvironment());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", previous);
+        }
+
         var external = DatabaseConnection.Normalize("postgresql://reign:s3cret@dpg-xxxx.render.com/reign");
         Assert.Contains("Host=dpg-xxxx.render.com", external);
         Assert.Contains("Database=reign", external);

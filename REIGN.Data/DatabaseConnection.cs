@@ -7,6 +7,39 @@ namespace REIGN.Data;
 /// </summary>
 public static class DatabaseConnection
 {
+    public static string? ResolveFromEnvironment()
+    {
+        foreach (var name in new[]
+        {
+            "ConnectionStrings__Reign",
+            "CONNECTIONSTRINGS__REIGN",
+            "DATABASE_URL",
+            "REIGN_CONNECTION_STRING",
+            "SUPABASE_DB_URL"
+        })
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+        {
+            var key = entry.Key?.ToString();
+            if (key != null
+                && key.Equals("ConnectionStrings__Reign", StringComparison.OrdinalIgnoreCase)
+                && entry.Value is string value
+                && !string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
+    }
+
     public static bool IsPostgreSql(string? connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))

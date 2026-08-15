@@ -12,13 +12,17 @@ Do not put the connection string in source files.
 
 1. Dashboard → **New** → **PostgreSQL**. Use the free instance.
 2. Open the database → copy **Internal Database URL** (same region as the web service).
-3. On the REIGN API service → **Environment**:
+3. On the **same** REIGN API web service (not the Postgres addon, not a different service) → **Environment** → **Add Environment Variable**:
 
-```
-ASPNETCORE_ENVIRONMENT=Production
-DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
-ConnectionStrings__Reign=<Internal Database URL>
-```
+| Key | Value |
+| --- | --- |
+| `ConnectionStrings__Reign` | Supabase or Render Postgres connection string (one line) |
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE` | `false` |
+
+Use two underscores: `ConnectionStrings__Reign`. `DATABASE_URL` is also accepted.
+
+Save, then **Manual Deploy**. The Docker image does not contain the database password. If this variable is missing, the container exits immediately.
 
 ### Supabase (free Postgres)
 
