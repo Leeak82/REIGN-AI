@@ -39,6 +39,31 @@ public static class TwilioRequestValidator
                CryptographicOperations.FixedTimeEquals(expectedBytes, computedBytes);
     }
 
+    public static bool IsValidAny(
+        string authToken,
+        IEnumerable<string> requestUrls,
+        IDictionary<string, string> parameters,
+        string? expectedSignature,
+        out string? matchedUrl)
+    {
+        matchedUrl = null;
+        foreach (var url in requestUrls)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                continue;
+            }
+
+            if (IsValid(authToken, url, parameters, expectedSignature))
+            {
+                matchedUrl = url;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static string ComputeSignature(
         string authToken,
         string requestUrl,

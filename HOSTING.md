@@ -80,6 +80,14 @@ Fix: save `ConnectionStrings__Reign`, then redeploy. External `*.render.com` URL
 
 You do not need a `/data` disk for PostgreSQL.
 
+## Twilio (live inbound)
+
+Sending a message from the Twilio Console uses Twilio's own API. It does **not** call REIGN. Live customer texts only work when the **phone number** webhook is HTTP POST:
+
+`https://reign-ai-2.onrender.com/api/sms/webhooks/twilio`
+
+Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (live token, not test), `TWILIO_FROM_NUMBER` (the dedicated Twilio number), and `TWILIO_WEBHOOK_URL` to that same URL. `/api/sms/incoming` is the Development simulator and is disabled in production.
+
 ## Docker
 
 ```bash

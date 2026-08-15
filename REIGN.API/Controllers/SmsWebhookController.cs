@@ -38,11 +38,23 @@ public class SmsWebhookController : ControllerBase
             : new Dictionary<string, string>();
 
         var signature = Request.Headers["X-Twilio-Signature"].ToString();
-        var url = ResolvePublicUrl(_options.Twilio.WebhookPublicUrl, "/api/sms/webhooks/twilio");
+        var candidates = TwilioWebhookUrlResolver.Candidates(
+            Request.Scheme,
+            Request.Host.Value,
+            Request.Path.Value,
+            Request.QueryString.Value,
+            _options.Twilio.WebhookPublicUrl,
+            _options.PublicBaseUrl,
+            Request.Headers["X-Forwarded-Proto"].ToString(),
+            Request.Headers["X-Forwarded-Host"].ToString(),
+            Environment.GetEnvironmentVariable("RENDER_EXTERNAL_URL"));
 
-        if (!TwilioRequestValidator.IsValid(_options.Twilio.AuthToken, url, form, signature))
+        if (!TwilioRequestValidator.IsValidAny(_options.Twilio.AuthToken, candidates, form, signature, out _))
         {
-            _logger.LogWarning("Rejected Twilio webhook with invalid signature.");
+            _logger.LogWarning(
+                "Rejected Twilio webhook with invalid signature. Tried {Count} public URL candidates: {Urls}. Sending SMS from the Twilio Console does not hit this endpoint; the phone number A Message Comes In webhook must POST to https://YOUR_HOST/api/sms/webhooks/twilio using the same Auth Token as TWILIO_AUTH_TOKEN.",
+                candidates.Count,
+                string.Join(" | ", candidates));
             return Forbid();
         }
 
@@ -100,9 +112,10 @@ public class SmsWebhookController : ControllerBase
             if (result.Outbound is { Succeeded: false })
             {
                 _logger.LogWarning(
-                    "{Provider} inbound processed for {Phone} but outbound send failed.",
+                    "{Provider} inbound processed for {Phone} but outbound send failed: {Error}. The Twilio From number must be the dedicated Twilio number (TWILIO_FROM_NUMBER), not the owner cell. Console Send SMS does not use this From check.",
                     provider,
-                    result.Phone);
+                    result.Phone,
+                    result.Outbound.Error);
             }
         }
         catch (Exception ex)
@@ -157,21 +170,6 @@ public class SmsWebhookController : ControllerBase
             _logger.LogWarning(ex, "Vonage inbound body could not be parsed.");
             return null;
         }
-    }
-
-    private string ResolvePublicUrl(string configured, string path)
-    {
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return configured;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
-        {
-            return $"{_options.PublicBaseUrl.TrimEnd('/')}{path}{Request.QueryString}";
-        }
-
-        return $"{Request.Scheme}://{Request.Host}{Request.Path}{Request.QueryString}";
     }
 
     private static string? ReadString(System.Text.Json.JsonElement element, string name) =>

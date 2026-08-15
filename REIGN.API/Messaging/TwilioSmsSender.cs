@@ -56,7 +56,12 @@ public class TwilioSmsSender : ISmsSender
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Twilio send failed: {Status} {Body}", (int)response.StatusCode, Truncate(body));
+                _logger.LogWarning(
+                    "Twilio send failed: {Status} From={From} To={To} {Body}",
+                    (int)response.StatusCode,
+                    from.Number,
+                    PhoneNumbers.Normalize(request.To),
+                    Truncate(body));
                 return SmsSendResult.Fail(ProviderName, $"Twilio HTTP {(int)response.StatusCode}");
             }
 

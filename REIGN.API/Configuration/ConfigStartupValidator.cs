@@ -53,6 +53,19 @@ public static class ConfigStartupValidator
             else
             {
                 logger.LogInformation("Twilio credentials are present.");
+                if (!Missing(configuration, "Sms:Twilio:WebhookPublicUrl"))
+                {
+                    logger.LogInformation("Twilio webhook public URL is configured.");
+                }
+                else if (!Missing(configuration, "Sms:PublicBaseUrl"))
+                {
+                    logger.LogInformation("Twilio signatures will use Sms:PublicBaseUrl plus /api/sms/webhooks/twilio.");
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Sms__PublicBaseUrl and TWILIO_WEBHOOK_URL are empty. Set TWILIO_WEBHOOK_URL=https://YOUR_HOST/api/sms/webhooks/twilio to match the Twilio number A Message Comes In webhook. Sending SMS from the Twilio Console does not call REIGN.");
+                }
             }
         }
         else if (smsProvider.Equals("Vonage", StringComparison.OrdinalIgnoreCase))

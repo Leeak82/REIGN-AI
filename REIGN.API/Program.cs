@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using REIGN.API.AI;
 using REIGN.API.Calendar;
@@ -17,6 +18,15 @@ HostingFileWatch.DisableReloadOnChange(builder.Configuration);
 ConfigEnvironmentAliases.Apply(builder.Configuration);
 ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(builder.Configuration, builder.Environment);
 ContainerListen.Apply(builder);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost;
+    options.KnownProxies.Clear();
+    options.KnownIPNetworks.Clear();
+});
 
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -174,6 +184,8 @@ using (var scope = app.Services.CreateScope())
             "PostgreSQL is missing the Businesses table after schema setup. The API will stay up. Redeploy once after this build so CREATE TABLE can run.");
     }
 }
+
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {

@@ -29,7 +29,16 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:BusinessPhoneNumber", "REIGN_BUSINESS_PHONE");
         TryAlias(configuration, extras, "Sms:OwnerPhoneNumber", "REIGN_OWNER_PHONE");
         TryAlias(configuration, extras, "Sms:InternalApiKey", "REIGN_INTERNAL_API_KEY");
-        TryAlias(configuration, extras, "Sms:PublicBaseUrl", "REIGN_PUBLIC_BASE_URL");
+        TryAlias(configuration, extras, "Sms:PublicBaseUrl", "REIGN_PUBLIC_BASE_URL", "RENDER_EXTERNAL_URL");
+        if (string.IsNullOrWhiteSpace(configuration["Sms:PublicBaseUrl"]) &&
+            !extras.ContainsKey("Sms:PublicBaseUrl"))
+        {
+            var renderHost = Environment.GetEnvironmentVariable("RENDER_EXTERNAL_HOSTNAME");
+            if (!string.IsNullOrWhiteSpace(renderHost))
+            {
+                extras["Sms:PublicBaseUrl"] = "https://" + renderHost.Trim().TrimEnd('/');
+            }
+        }
         TryAlias(configuration, extras, "ReignApi:BaseUrl", "REIGN_API_BASE_URL");
         TryAlias(configuration, extras, "Cors:AllowedOrigins", "CORS_ALLOWED_ORIGINS");
         TryAlias(

@@ -123,8 +123,29 @@ Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-sepa
 
 `https://YOUR_DOMAIN/api/sms/webhooks/twilio`
 
-5. Twilio must be able to validate `X-Twilio-Signature`. Invalid signatures return 401/403.
-6. Send a test SMS: lookup, memory, reply, outbound send should all succeed.
+5. Twilio signs the **public URL it POSTed to**. Behind Render, the API now reconstructs that URL from `TWILIO_WEBHOOK_URL`, `Sms__PublicBaseUrl` / `RENDER_EXTERNAL_URL`, and `X-Forwarded-*`. Invalid signatures return 403.
+6. Text the Twilio number from a real phone. Sending SMS from the Twilio Console **Send a message** box only uses Twilio's API — it never hits REIGN and is not a live webhook test.
+
+The Twilio phone number (or Messaging Service) **A Message Comes In** webhook must be:
+
+- Method: **HTTP POST**
+- URL: `https://reign-ai-2.onrender.com/api/sms/webhooks/twilio`
+
+Do not point Twilio at `/api/sms/incoming` (Development simulator only).
+
+Set on the API service:
+
+| Key | Value |
+| --- | --- |
+| `Sms__Provider` | `Twilio` |
+| `TWILIO_ACCOUNT_SID` | live Account SID (same project as the number) |
+| `TWILIO_AUTH_TOKEN` | live Auth Token (must match the SID; test tokens fail live signatures) |
+| `TWILIO_FROM_NUMBER` | the dedicated Twilio number in E.164 (`+1…`), not the owner cell |
+| `TWILIO_WEBHOOK_URL` | `https://reign-ai-2.onrender.com/api/sms/webhooks/twilio` |
+| `Sms__BusinessPhoneNumber` | same dedicated Twilio number |
+| `Sms__OwnerPhoneNumber` | owner personal cell (never used as From) |
+
+If inbound shows 403 in Twilio Debugger, the signed URL did not match. Confirm the webhook URL above, then check API logs for `Tried N public URL candidates`. If inbound is 200 but there is no reply, the From number is not a Twilio number or Twilio rejected the outbound send — logs include `outbound send failed`.
 
 ## Health
 

@@ -73,6 +73,30 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Public_base_url_falls_back_to_render_external_url()
+    {
+        var previousUrl = Environment.GetEnvironmentVariable("RENDER_EXTERNAL_URL");
+        var previousPublic = Environment.GetEnvironmentVariable("REIGN_PUBLIC_BASE_URL");
+        try
+        {
+            Environment.SetEnvironmentVariable("REIGN_PUBLIC_BASE_URL", null);
+            Environment.SetEnvironmentVariable("RENDER_EXTERNAL_URL", "https://reign-ai-2.onrender.com");
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:PublicBaseUrl"] = ""
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal("https://reign-ai-2.onrender.com", manager["Sms:PublicBaseUrl"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("RENDER_EXTERNAL_URL", previousUrl);
+            Environment.SetEnvironmentVariable("REIGN_PUBLIC_BASE_URL", previousPublic);
+        }
+    }
+
+    [Fact]
     public void Database_connection_detects_postgres_and_leaves_sqlite_as_local_fallback()
     {
         Assert.True(DatabaseConnection.IsPostgreSql("Host=localhost;Database=reign;Username=postgres;Password=postgres"));

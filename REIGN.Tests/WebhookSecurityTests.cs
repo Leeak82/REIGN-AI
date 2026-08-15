@@ -27,6 +27,66 @@ public class WebhookSecurityTests
     }
 
     [Fact]
+    public void Twilio_signature_accepts_public_url_when_request_host_is_render_internal()
+    {
+        var token = "test-auth-token";
+        var publicUrl = "https://reign-ai-2.onrender.com/api/sms/webhooks/twilio";
+        var parameters = new Dictionary<string, string>
+        {
+            ["From"] = "+15555550123",
+            ["Body"] = "Hi"
+        };
+        var signature = TwilioRequestValidator.ComputeSignature(token, publicUrl, parameters);
+
+        var candidates = TwilioWebhookUrlResolver.Candidates(
+            requestScheme: "http",
+            requestHost: "[::]:10000",
+            requestPath: "/api/sms/webhooks/twilio",
+            requestQuery: "",
+            webhookPublicUrl: null,
+            publicBaseUrl: null,
+            forwardedProto: "https",
+            forwardedHost: "reign-ai-2.onrender.com",
+            renderExternalUrl: "https://reign-ai-2.onrender.com");
+
+        Assert.Contains(publicUrl, candidates);
+        Assert.True(TwilioRequestValidator.IsValidAny(token, candidates, parameters, signature, out var matched));
+        Assert.Equal(publicUrl, matched);
+        Assert.False(TwilioRequestValidator.IsValid(token, "http://[::]:10000/api/sms/webhooks/twilio", parameters, signature));
+    }
+
+    [Fact]
+    public void Twilio_webhook_url_resolver_appends_path_to_origin_only_base()
+    {
+        var candidates = TwilioWebhookUrlResolver.Candidates(
+            requestScheme: "http",
+            requestHost: "localhost:10000",
+            requestPath: "/api/sms/webhooks/twilio",
+            requestQuery: "",
+            webhookPublicUrl: null,
+            publicBaseUrl: "https://reign-ai-2.onrender.com");
+
+        Assert.Contains("https://reign-ai-2.onrender.com/api/sms/webhooks/twilio", candidates);
+        Assert.Contains("http://reign-ai-2.onrender.com/api/sms/webhooks/twilio", candidates);
+        Assert.Contains("https://reign-ai-2.onrender.com/api/sms/webhooks/twilio/", candidates);
+    }
+
+    [Fact]
+    public void Twilio_webhook_url_resolver_uses_configured_webhook_url_first()
+    {
+        var configured = "https://reign-ai-2.onrender.com/api/sms/webhooks/twilio";
+        var candidates = TwilioWebhookUrlResolver.Candidates(
+            requestScheme: "http",
+            requestHost: "[::]:10000",
+            requestPath: "/api/sms/webhooks/twilio",
+            requestQuery: "",
+            webhookPublicUrl: configured,
+            publicBaseUrl: "https://other.example");
+
+        Assert.Equal(configured, candidates[0]);
+    }
+
+    [Fact]
     public void Vonage_jwt_validates_signature_and_payload_hash()
     {
         var secret = "vonage-signature-secret-32-bytes-min";
