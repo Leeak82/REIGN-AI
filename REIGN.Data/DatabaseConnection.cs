@@ -48,7 +48,44 @@ public static class DatabaseConnection
             }
         }
 
-        return null;
+        return ComposeFromSupabaseEnvironment();
+    }
+
+    /// <summary>
+    /// When ConnectionStrings__Reign is missing, build a Session pooler URL from
+    /// SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD (and optional host/region).
+    /// </summary>
+    public static string? ComposeFromSupabaseEnvironment()
+    {
+        var password = FirstEnvironmentValue("SUPABASE_DB_PASSWORD", "POSTGRES_PASSWORD", "PGPASSWORD");
+        var projectRef = FirstEnvironmentValue("SUPABASE_PROJECT_REF");
+        if (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(projectRef))
+        {
+            return null;
+        }
+
+        var host = FirstEnvironmentValue("SUPABASE_POOLER_HOST")
+            ?? $"aws-0-{InferSupabaseRegion()}.pooler.supabase.com";
+
+        var builder = new NpgsqlConnectionStringBuilder
+        {
+            Host = host.Trim(),
+            Port = 5432,
+            Database = "postgres",
+            Username = $"postgres.{projectRef.Trim()}",
+            Password = SanitizeValue(password),
+            SslMode = SslMode.Require,
+            Timeout = 30,
+            GssEncryptionMode = GssEncryptionMode.Disable
+        };
+
+        return builder.ConnectionString;
+    }
+
+    public static string MissingPostgresMessage()
+    {
+        return
+            "PostgreSQL is not configured. On the Render API service → Environment, set ConnectionStrings__Reign to the Supabase Session pooler string, or set both SUPABASE_PROJECT_REF and SUPABASE_DB_PASSWORD. DATABASE_URL is also accepted. Do not put the password in Docker or git.";
     }
 
     public static bool IsPostgreSql(string? connectionString)
@@ -418,5 +455,19 @@ public static class DatabaseConnection
 
         var match = SupabaseProjectRefInText.Match(text);
         return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private static string? FirstEnvironmentValue(params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return SanitizeValue(value);
+            }
+        }
+
+        return null;
     }
 }

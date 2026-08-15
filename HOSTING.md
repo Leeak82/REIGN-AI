@@ -46,7 +46,15 @@ Host=aws-0-us-west-2.pooler.supabase.com;Port=5432;Database=postgres;Username=po
 | `SUPABASE_POOLER_HOST` | Use the exact Session pooler hostname from the dashboard |
 | `SUPABASE_PROJECT_REF` | Connection string is already the pooler host but username is still `postgres` |
 
-If logs show `postgres.YOUR_PROJECT@aws-0-…pooler…` and then `28P01`, the username is correct and the **database password** is wrong. Reset it in Supabase → Project Settings → Database (not the anon/service_role API key). Set `SUPABASE_DB_PASSWORD` on Render, or replace only `Password=` in `ConnectionStrings__Reign`. Do not wrap the value in quotes.
+You can omit `ConnectionStrings__Reign` if both of these are set:
+
+| Key | Value |
+| --- | --- |
+| `SUPABASE_PROJECT_REF` | `ifjgbajbasuoiuozkjox` (from `db.<ref>.supabase.co`) |
+| `SUPABASE_DB_PASSWORD` | the database password from Supabase (no quotes) |
+| `SUPABASE_POOLER_HOST` | exact Session pooler host from Connect (optional) |
+
+An empty `ConnectionStrings__Reign` is treated as missing. Do not delete the variable unless those two `SUPABASE_*` keys are set.
 
 Do **not** use the Transaction pooler on port **6543** with Entity Framework. The API rewrites 6543 to 5432 (session mode).
 

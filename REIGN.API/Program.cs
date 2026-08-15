@@ -22,8 +22,11 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
-var connection = builder.Configuration.GetConnectionString("Reign")
-    ?? DatabaseConnection.ResolveFromEnvironment();
+var connection = builder.Configuration.GetConnectionString("Reign");
+if (string.IsNullOrWhiteSpace(connection))
+{
+    connection = DatabaseConnection.ResolveFromEnvironment();
+}
 string? sqliteStorageWarning = null;
 if (string.IsNullOrWhiteSpace(connection))
 {
@@ -33,8 +36,7 @@ if (string.IsNullOrWhiteSpace(connection))
     }
     else
     {
-        throw new InvalidOperationException(
-            "PostgreSQL is not configured. In the Render API service → Environment, add ConnectionStrings__Reign (or DATABASE_URL) with the Supabase or Render Postgres connection string, then redeploy. Do not put the password in Docker or git.");
+        throw new InvalidOperationException(DatabaseConnection.MissingPostgresMessage());
     }
 }
 

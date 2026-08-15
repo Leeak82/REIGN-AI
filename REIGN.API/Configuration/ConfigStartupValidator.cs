@@ -15,7 +15,7 @@ public static class ConfigStartupValidator
         if (string.IsNullOrWhiteSpace(connection))
         {
             logger.LogWarning(
-                "ConnectionStrings:Reign is not set. Local development can use SQLite. Production requires ConnectionStrings__Reign pointing at PostgreSQL.");
+            "ConnectionStrings:Reign is not set. Local development can use SQLite. Production requires ConnectionStrings__Reign or SUPABASE_PROJECT_REF plus SUPABASE_DB_PASSWORD.");
         }
         else
         {

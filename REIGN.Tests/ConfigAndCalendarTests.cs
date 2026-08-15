@@ -196,6 +196,53 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Resolve_composes_session_pooler_from_supabase_project_ref_and_password()
+    {
+        var previous = new Dictionary<string, string?>
+        {
+            ["ConnectionStrings__Reign"] = Environment.GetEnvironmentVariable("ConnectionStrings__Reign"),
+            ["CONNECTIONSTRINGS__REIGN"] = Environment.GetEnvironmentVariable("CONNECTIONSTRINGS__REIGN"),
+            ["DATABASE_URL"] = Environment.GetEnvironmentVariable("DATABASE_URL"),
+            ["REIGN_CONNECTION_STRING"] = Environment.GetEnvironmentVariable("REIGN_CONNECTION_STRING"),
+            ["SUPABASE_DB_URL"] = Environment.GetEnvironmentVariable("SUPABASE_DB_URL"),
+            ["SUPABASE_DB_PASSWORD"] = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD"),
+            ["SUPABASE_PROJECT_REF"] = Environment.GetEnvironmentVariable("SUPABASE_PROJECT_REF"),
+            ["SUPABASE_POOLER_HOST"] = Environment.GetEnvironmentVariable("SUPABASE_POOLER_HOST"),
+            ["SUPABASE_REGION"] = Environment.GetEnvironmentVariable("SUPABASE_REGION"),
+            ["POSTGRES_PASSWORD"] = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD"),
+            ["PGPASSWORD"] = Environment.GetEnvironmentVariable("PGPASSWORD")
+        };
+        try
+        {
+            foreach (var key in previous.Keys)
+            {
+                Environment.SetEnvironmentVariable(key, null);
+            }
+
+            Assert.Null(DatabaseConnection.ResolveFromEnvironment());
+            Assert.Contains("SUPABASE_PROJECT_REF", DatabaseConnection.MissingPostgresMessage());
+
+            Environment.SetEnvironmentVariable("SUPABASE_DB_PASSWORD", "new-db-password");
+            Assert.Null(DatabaseConnection.ResolveFromEnvironment());
+
+            Environment.SetEnvironmentVariable("SUPABASE_PROJECT_REF", "ifjgbajbasuoiuozkjox");
+            var composed = DatabaseConnection.ResolveFromEnvironment();
+            Assert.NotNull(composed);
+            Assert.Contains("Host=aws-0-us-west-2.pooler.supabase.com", composed);
+            Assert.Contains("Username=postgres.ifjgbajbasuoiuozkjox", composed);
+            Assert.Contains("Password=new-db-password", composed);
+            Assert.DoesNotContain("new-db-password", DatabaseConnection.DescribeEndpoint(composed));
+        }
+        finally
+        {
+            foreach (var pair in previous)
+            {
+                Environment.SetEnvironmentVariable(pair.Key, pair.Value);
+            }
+        }
+    }
+
+    [Fact]
     public void Sqlite_storage_creates_missing_parent_directory()
     {
         var root = Path.Combine(Path.GetTempPath(), "reign-sqlite-" + Guid.NewGuid().ToString("N"));
