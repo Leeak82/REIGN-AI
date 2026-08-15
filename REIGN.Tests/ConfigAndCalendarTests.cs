@@ -144,7 +144,27 @@ public class ConfigAndCalendarTests
             Assert.Contains("Username=postgres.fromenvref", poolerBareUser);
             Environment.SetEnvironmentVariable("SUPABASE_PROJECT_REF", null);
 
-            Assert.Contains("postgres.<project-ref>", DatabaseConnection.AuthFailedMessage("postgres@pooler/postgres"));
+            Assert.Contains("database password", DatabaseConnection.AuthFailedMessage("postgres.abc@pooler/postgres"));
+
+            var quoted = DatabaseConnection.Normalize(
+                "\"Host=db.abc123.supabase.co;Database=postgres;Username=postgres;Password=s3cret\"");
+            Assert.Contains("Password=s3cret", quoted);
+            Assert.DoesNotContain("Password=\"s3cret\"", quoted);
+            Assert.Equal("database password is set (6 characters)", DatabaseConnection.DescribeSecret(quoted));
+
+            var previousPassword = Environment.GetEnvironmentVariable("SUPABASE_DB_PASSWORD");
+            try
+            {
+                Environment.SetEnvironmentVariable("SUPABASE_DB_PASSWORD", "\"override-secret\"");
+                var overridden = DatabaseConnection.Normalize(
+                    "Host=db.abc123.supabase.co;Database=postgres;Username=postgres;Password=old");
+                Assert.Contains("Password=override-secret", overridden);
+                Assert.DoesNotContain("Password=old", overridden);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("SUPABASE_DB_PASSWORD", previousPassword);
+            }
             Assert.True(DatabaseConnection.IsPasswordAuthFailure(
                 new InvalidOperationException("wrapper", new Exception("28P01: password authentication failed for user \"postgres\""))));
 

@@ -46,7 +46,7 @@ Host=aws-0-us-west-2.pooler.supabase.com;Port=5432;Database=postgres;Username=po
 | `SUPABASE_POOLER_HOST` | Use the exact Session pooler hostname from the dashboard |
 | `SUPABASE_PROJECT_REF` | Connection string is already the pooler host but username is still `postgres` |
 
-`28P01 password authentication failed for user "postgres"` means the pooler was reached with the direct-connection username. Use `postgres.YOUR_PROJECT` or set `SUPABASE_PROJECT_REF`. Also confirm the password in Render has no wrapping quotes.
+If logs show `postgres.YOUR_PROJECT@aws-0-…pooler…` and then `28P01`, the username is correct and the **database password** is wrong. Reset it in Supabase → Project Settings → Database (not the anon/service_role API key). Set `SUPABASE_DB_PASSWORD` on Render, or replace only `Password=` in `ConnectionStrings__Reign`. Do not wrap the value in quotes.
 
 Do **not** use the Transaction pooler on port **6543** with Entity Framework. The API rewrites 6543 to 5432 (session mode).
 

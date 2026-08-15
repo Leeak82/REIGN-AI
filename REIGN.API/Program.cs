@@ -117,8 +117,9 @@ var postgresEndpoint = DatabaseConnection.IsPostgreSql(connection)
 if (postgresEndpoint != null)
 {
     app.Logger.LogInformation(
-        "PostgreSQL endpoint {Endpoint} is configured.",
-        postgresEndpoint);
+        "PostgreSQL endpoint {Endpoint} is configured. {PasswordStatus}.",
+        postgresEndpoint,
+        DatabaseConnection.DescribeSecret(connection));
 }
 else
 {

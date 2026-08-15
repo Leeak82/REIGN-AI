@@ -32,7 +32,7 @@ public static class DatabaseConnection
             var value = Environment.GetEnvironmentVariable(name);
             if (!string.IsNullOrWhiteSpace(value))
             {
-                return value.Trim();
+                return SanitizeValue(value);
             }
         }
 
@@ -44,7 +44,7 @@ public static class DatabaseConnection
                 && entry.Value is string value
                 && !string.IsNullOrWhiteSpace(value))
             {
-                return value.Trim();
+                return SanitizeValue(value);
             }
         }
 
@@ -73,8 +73,9 @@ public static class DatabaseConnection
 
     public static string Normalize(string connectionString)
     {
-        var builder = Parse(connectionString.Trim());
+        var builder = Parse(connectionString);
         ApplySupabasePooler(builder, connectionString);
+        ApplyPasswordOverride(builder);
         ApplyRenderDefaults(builder);
         builder.Timeout = Math.Max(builder.Timeout, 30);
         builder.GssEncryptionMode = GssEncryptionMode.Disable;
@@ -97,9 +98,65 @@ public static class DatabaseConnection
         }
     }
 
+    public static string SanitizeValue(string value)
+    {
+        var result = value.Trim().Trim('\uFEFF').Trim();
+        if (result.Length >= 2)
+        {
+            var first = result[0];
+            var last = result[^1];
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\''))
+            {
+                result = result[1..^1].Trim();
+            }
+        }
+
+        return result;
+    }
+
+    public static void ApplyPasswordOverride(NpgsqlConnectionStringBuilder builder)
+    {
+        foreach (var name in new[] { "SUPABASE_DB_PASSWORD", "POSTGRES_PASSWORD", "PGPASSWORD" })
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            builder.Password = SanitizeValue(value);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(builder.Password))
+        {
+            builder.Password = SanitizeValue(builder.Password);
+        }
+    }
+
+    public static string DescribeSecret(string? connectionString)
+    {
+        try
+        {
+            var builder = Parse(connectionString ?? "");
+            ApplyPasswordOverride(builder);
+            var password = builder.Password ?? "";
+            if (password.Length == 0)
+            {
+                return "database password is empty";
+            }
+
+            return $"database password is set ({password.Length} characters)";
+        }
+        catch
+        {
+            return "database password could not be read";
+        }
+    }
+
     public static NpgsqlConnectionStringBuilder Parse(string connectionString)
     {
-        var value = connectionString.Trim();
+        var value = SanitizeValue(connectionString);
         if (!value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
             && !value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
@@ -331,7 +388,7 @@ public static class DatabaseConnection
     public static string AuthFailedMessage(string endpoint)
     {
         return
-            $"Password authentication failed for {endpoint}. The Supabase Session pooler requires Username=postgres.<project-ref> (not postgres). Set that in ConnectionStrings__Reign or set SUPABASE_PROJECT_REF. Confirm the database password in Render has no extra quotes or spaces. If the password was pasted into chat, rotate it in Supabase and update the env var.";
+            $"Password authentication failed for {endpoint}. Host and username are correct. Supabase rejected the database password (the pooler reports this as user postgres). In Supabase → Project Settings → Database, reset the database password — not the anon or service_role API key. Put the new password in Render as SUPABASE_DB_PASSWORD, or replace only the Password= value in ConnectionStrings__Reign. Do not wrap the env value in quotes. Then redeploy.";
     }
 
     public static bool IsPasswordAuthFailure(Exception ex)
