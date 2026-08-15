@@ -1,7 +1,10 @@
+using REIGN.Web;
 using REIGN.Web.Components;
 using REIGN.Web.Services;
 
+HostingFileWatch.DisableForProductionHosts();
 var builder = WebApplication.CreateBuilder(args);
+HostingFileWatch.DisableReloadOnChange(builder.Configuration);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

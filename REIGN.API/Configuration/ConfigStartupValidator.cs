@@ -23,7 +23,7 @@ public static class ConfigStartupValidator
         if (string.IsNullOrWhiteSpace(connection))
         {
             logger.LogWarning(
-                "ConnectionStrings:Reign is not set. REIGN will use a local SQLite file under the API content root. Set ConnectionStrings__Reign (or REIGN_CONNECTION_STRING) before live deployment.");
+            "ConnectionStrings:Reign is not set. Local development can use SQLite. Production requires ConnectionStrings__Reign or SUPABASE_PROJECT_REF plus SUPABASE_DB_PASSWORD.");
         }
         else
         {

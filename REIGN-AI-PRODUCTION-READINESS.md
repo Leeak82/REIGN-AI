@@ -46,7 +46,7 @@ Set these in the host secret store. Do not put values in source files.
 
 | Purpose | Primary key | Alias |
 | --- | --- | --- |
-| Database | `ConnectionStrings__Reign` | `REIGN_CONNECTION_STRING` |
+| Database | `ConnectionStrings__Reign` | PostgreSQL (Render Internal Database URL). Local only: omit for SQLite. |
 | Groq | `Ai__ApiKey` | `GROQ_API_KEY` |
 | SMS provider | `Sms__Provider` | `Twilio` or `Vonage` for live traffic |
 | Business number | `Sms__BusinessPhoneNumber` | `REIGN_BUSINESS_PHONE` |
@@ -68,7 +68,7 @@ Set these in the host secret store. Do not put values in source files.
 3. Create a Google Cloud OAuth client with redirect URI `/api/integrations/google/callback`, then open `/api/integrations/google/authorize` once and confirm `hasStoredGrant`.
 4. Set `Sms__Provider` and `GoogleCalendar__Provider` away from Simulated.
 5. Set `GROQ_API_KEY` (or accept the built-in fallback assistant).
-6. Set `ConnectionStrings__Reign` to durable storage. SQLite is fine for a single instance; use a hosted file or Postgres later if the process is ephemeral.
+6. Set `ConnectionStrings__Reign` to the Render PostgreSQL Internal Database URL. See `HOSTING.md`.
 7. Set `ReignApi__BaseUrl` on the Web app to the live API origin.
 8. Disable `Sms__AllowInternalSimulator` or set `Sms__InternalApiKey`.
 9. Confirm host egress to `api.groq.com`, `oauth2.googleapis.com`, `www.googleapis.com`, and the SMS provider API.

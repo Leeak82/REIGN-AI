@@ -1,185 +1,108 @@
-# REIGN AI Host Deployment
+# REIGN AI hosting — PostgreSQL on Render
 
-Use this after `DEPLOYMENT.md`. Secrets stay in the host environment, never in git.
-
-Container image (all three hosts):
-
-```bash
-docker build -t reign-api -f REIGN.API/Dockerfile .
-```
-
-Native publish:
-
-```bash
-dotnet publish REIGN.API/REIGN.API.csproj -c Release -o ./publish
-```
-
-| Item | Value |
-| --- | --- |
-| Build (Docker) | `docker build -t reign-api -f REIGN.API/Dockerfile .` (repo root) |
-| Start (Docker) | `docker run --env-file .env -p 8080:8080 reign-api` |
-| Start (published) | `dotnet ./publish/REIGN.API.dll` |
-| Default port | `8080` (`PORT` or `WEBSITES_PORT` overrides) |
-| Health check | `GET /health` |
-
-`GET /health` returns API status, database connectivity, and whether Groq / SMS / calendar credentials are present. It never returns secret values.
-
-## Environment variables
-
-Required for live traffic (empty values keep Simulated SMS/calendar and Groq fallback):
+Production uses PostgreSQL via Npgsql. Set **only**:
 
 ```
-GROQ_API_KEY
-GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET
-GOOGLE_REDIRECT_URI=https://YOUR_API_HOST/api/integrations/google/callback
-TWILIO_ACCOUNT_SID
-TWILIO_AUTH_TOKEN
-TWILIO_PHONE_NUMBER
-ConnectionStrings__Reign=Data Source=/data/REIGN.db
-SMS_PROVIDER=Twilio
-Sms__Provider=Twilio
-GoogleCalendar__Provider=Google
-CORS_ALLOWED_ORIGINS=https://YOUR_WEB_HOST
-REIGN_API_BASE_URL=https://YOUR_API_HOST/
+ConnectionStrings__Reign=<Postgres connection string>
 ```
 
-Do not set `CORS_ALLOWED_ORIGINS=*`. Production CORS allows only explicit https origins. Local development still allows localhost automatically.
-
-Persist SQLite on a volume. Without a durable `ConnectionStrings__Reign` path the database resets when the container is replaced.
-
----
-
-## Azure App Service
-
-Recommended: Linux Web App for Containers, image built from `REIGN.API/Dockerfile`.
-
-**Build command**
-
-```bash
-docker build -t reign-api -f REIGN.API/Dockerfile .
-```
-
-Push the image to Azure Container Registry, then assign it to the Web App.
-
-**Start command**
-
-Leave empty. The image entrypoint is `dotnet REIGN.API.dll`.
-
-If you publish without Docker:
-
-```
-dotnet REIGN.API.dll --urls http://0.0.0.0:8080
-```
-
-**Port**
-
-Set `WEBSITES_PORT=8080` (or `PORT=8080`). The process listens on that port.
-
-**Health check URL**
-
-`/health`
-
-In Azure: App settings → Health check path = `/health`.
-
-**App settings**
-
-Set the environment variables listed above in Configuration → Application settings. Mark secrets as slot-sticky as needed. Do not put them in `appsettings.json`.
-
-**Notes**
-
-- Mount persistent storage for SQLite (`/data`) or the database will be lost on restart.
-- Add the production Google redirect URI: `https://YOUR_API_HOST/api/integrations/google/callback`.
-- Allow outbound HTTPS to `api.groq.com`, `oauth2.googleapis.com`, `www.googleapis.com`, and Twilio.
-
----
+Do not put the connection string in source files.
 
 ## Render
 
-Recommended: Docker web service. Dockerfile path `REIGN.API/Dockerfile`, build context repository root.
+1. Dashboard → **New** → **PostgreSQL**. Use the free instance.
+2. Open the database → copy **Internal Database URL** (same region as the web service).
+3. On the **same** REIGN API web service (not the Postgres addon, not a different service) → **Environment** → **Add Environment Variable**:
 
-**Build command**
+| Key | Value |
+| --- | --- |
+| `ConnectionStrings__Reign` | Supabase or Render Postgres connection string (one line) |
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE` | `false` |
 
-Docker: leave the native build command empty. Render builds the Dockerfile.
+Use two underscores: `ConnectionStrings__Reign`. `DATABASE_URL` is also accepted.
 
-Native (if you do not use Docker):
+Save, then **Manual Deploy**. The Docker image does not contain the database password. If this variable is missing, the container exits immediately.
+
+### Supabase (free Postgres)
+
+Direct `db.<project-ref>.supabase.co:5432` is **IPv6-only** on many projects. Render cannot open that socket (`Network is unreachable` to an address like `2600:1f14:…`).
+
+Set `ConnectionStrings__Reign` to either form. The API rewrites a direct `db.*` host to the **Session pooler** (IPv4, port **5432**) and changes username `postgres` to `postgres.<project-ref>`.
+
+```
+Host=db.YOUR_PROJECT.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=YOUR_PASSWORD;SSL Mode=Require
+```
+
+Or paste the Session pooler string from Supabase → Project Settings → Database:
+
+```
+Host=aws-0-us-west-2.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.YOUR_PROJECT;Password=YOUR_PASSWORD;SSL Mode=Require
+```
+
+| Optional override | When to set it |
+| --- | --- |
+| `SUPABASE_REGION` | Automatic rewrite guessed the wrong region (default `us-west-2`) |
+| `SUPABASE_POOLER_HOST` | Use the exact Session pooler hostname from the dashboard |
+| `SUPABASE_PROJECT_REF` | Connection string is already the pooler host but username is still `postgres` |
+
+You can omit `ConnectionStrings__Reign` if both of these are set:
+
+| Key | Value |
+| --- | --- |
+| `SUPABASE_PROJECT_REF` | `ifjgbajbasuoiuozkjox` (from `db.<ref>.supabase.co`) |
+| `SUPABASE_DB_PASSWORD` | the database password from Supabase (no quotes) |
+| `SUPABASE_POOLER_HOST` | exact Session pooler host from Connect (optional) |
+
+An empty `ConnectionStrings__Reign` is treated as missing. Do not delete the variable unless those two `SUPABASE_*` keys are set.
+
+Do **not** use the Transaction pooler on port **6543** with Entity Framework. The API rewrites 6543 to 5432 (session mode).
+
+If the IPv6 you see in logs starts with `2600:1f14:`, the project is in `us-west-2`.
+
+### Render Postgres
+
+Use the **Internal Database URL** (`postgresql://USER:PASSWORD@dpg-xxxx-a/reign`) if you stay on Render Postgres.
+That hostname only works from a Render service in the **same region**.
+
+A `SocketException` / `AwaitableSocketAsyncEventArgs` at startup means the API cannot open a TCP connection to Postgres. Typical causes:
+
+- `ConnectionStrings__Reign` is localhost, a laptop IP, or empty-and-wrong
+- Supabase **direct** `db.*:5432` was used and the IPv6 rewrite/region is wrong — set `SUPABASE_REGION`
+- The **External** Render URL was used without SSL, or the **Internal** URL was used from a different region
+- The Postgres instance is not in the same Render account/region as the API
+
+Fix: save `ConnectionStrings__Reign`, then redeploy. External `*.render.com` URLs are supported with SSL.
+
+4. Redeploy the API. Startup creates the schema from the current EF model, then seeds QV / HH / HR.
+5. Confirm `GET /api/health` returns `"status":"ok"` and `"databaseStatus":"configured"`.
+
+You do not need a `/data` disk for PostgreSQL.
+
+## Docker
 
 ```bash
-dotnet publish REIGN.API/REIGN.API.csproj -c Release -o ./publish
+docker build -t reign-api -f Dockerfile .
 ```
 
-**Start command**
-
-Docker: leave empty (image entrypoint).
-
-Native:
+Pass the connection string at runtime:
 
 ```bash
-dotnet ./publish/REIGN.API.dll --urls http://0.0.0.0:$PORT
+docker run -e ASPNETCORE_ENVIRONMENT=Production \
+  -e ConnectionStrings__Reign='Host=...;Database=reign;Username=...;Password=...' \
+  -p 8080:8080 reign-api
 ```
 
-**Port**
+## Local development
 
-Docker: set the service port to `8080`.
+Leave `ConnectionStrings__Reign` empty. The API uses SQLite `REIGN.db` under the API content root. Existing SQLite migrations still apply locally and in tests.
 
-Native: Render injects `PORT`; the API honors it.
-
-**Health check URL**
-
-`/health`
-
-**Environment**
-
-Add the variables from the table above in the Render dashboard. Attach a persistent disk at `/data` and set:
+To point local at Postgres:
 
 ```
-ConnectionStrings__Reign=Data Source=/data/REIGN.db
+ConnectionStrings__Reign=Host=localhost;Port=5432;Database=reign;Username=postgres;Password=postgres
 ```
 
----
+## Other hosts
 
-## Railway
-
-Recommended: Dockerfile builder, `REIGN.API/Dockerfile`.
-
-**Build command**
-
-Railway builds the Dockerfile. No extra build command.
-
-Native:
-
-```bash
-dotnet publish REIGN.API/REIGN.API.csproj -c Release -o ./publish
-```
-
-**Start command**
-
-Docker: image entrypoint `dotnet REIGN.API.dll`.
-
-Native:
-
-```bash
-dotnet ./publish/REIGN.API.dll --urls http://0.0.0.0:$PORT
-```
-
-**Port**
-
-Railway injects `PORT`. The API listens on it. Default image port is `8080` when `PORT` is unset.
-
-**Health check URL**
-
-`/health`
-
-Set Railway healthcheck path to `/health`.
-
-**Variables**
-
-Add the environment variables in the Railway service variables UI. Use a volume for `/data` and point `ConnectionStrings__Reign` at it.
-
----
-
-## After the host is up
-
-1. `curl https://YOUR_API_HOST/health`
-2. Confirm startup logs: `REIGN startup status: database=... groq=... sms=... calendar=...` — never secret values
-3. Follow `PRODUCTION-LAUNCH-CHECKLIST.md`
+Azure and Railway notes (ports, health path) are in `DEPLOYMENT.md`. Production database on those hosts should still be PostgreSQL via `ConnectionStrings__Reign`, not SQLite `/data/REIGN.db`.
