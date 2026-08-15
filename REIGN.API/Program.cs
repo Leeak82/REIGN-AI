@@ -22,19 +22,35 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
-var dbPath = builder.Configuration.GetConnectionString("Reign");
-if (string.IsNullOrWhiteSpace(dbPath))
+var connection = builder.Configuration.GetConnectionString("Reign");
+string? sqliteStorageWarning = null;
+if (string.IsNullOrWhiteSpace(connection))
 {
-    dbPath = $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "REIGN.db")}";
+    if (builder.Environment.IsDevelopment())
+    {
+        connection = $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "REIGN.db")}";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Set ConnectionStrings__Reign to the PostgreSQL connection string (Render Internal Database URL).");
+    }
 }
 
-dbPath = SqliteStorage.EnsureWritableFile(
-    dbPath,
-    builder.Environment.ContentRootPath,
-    out var sqliteStorageWarning);
-
 builder.Services.AddDbContext<ReignDbContext>(options =>
-    options.UseSqlite(dbPath));
+{
+    if (DatabaseConnection.IsPostgreSql(connection))
+    {
+        options.UseNpgsql(DatabaseConnection.Normalize(connection));
+        return;
+    }
+
+    var sqlite = SqliteStorage.EnsureWritableFile(
+        connection,
+        builder.Environment.ContentRootPath,
+        out sqliteStorageWarning);
+    options.UseSqlite(sqlite);
+});
 
 builder.Services.Configure<SmsOptions>(builder.Configuration.GetSection(SmsOptions.SectionName));
 builder.Services.Configure<GoogleCalendarOptions>(builder.Configuration.GetSection(GoogleCalendarOptions.SectionName));
@@ -94,7 +110,10 @@ if (!string.IsNullOrWhiteSpace(sqliteStorageWarning))
     app.Logger.LogWarning("{Message}", sqliteStorageWarning);
 }
 
-app.Logger.LogInformation("SQLite data source is ready.");
+app.Logger.LogInformation(
+    DatabaseConnection.IsPostgreSql(connection)
+        ? "PostgreSQL connection is configured."
+        : "SQLite local fallback is configured.");
 ConfigStartupValidator.ValidateAndLog(app);
 
 using (var scope = app.Services.CreateScope())

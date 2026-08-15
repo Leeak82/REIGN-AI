@@ -18,7 +18,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
 WORKDIR /app
 
-# SQLite needs a writable directory. Render can mount a disk at /data.
+# Optional local SQLite fallback directory. Production uses PostgreSQL via ConnectionStrings__Reign.
 USER root
 RUN mkdir -p /data && chown -R $APP_UID /data
 USER $APP_UID

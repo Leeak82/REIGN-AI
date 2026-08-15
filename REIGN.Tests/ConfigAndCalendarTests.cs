@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using REIGN.API.Calendar;
 using REIGN.API.Configuration;
+using REIGN.Data;
 using Xunit;
 
 namespace REIGN.Tests;
@@ -35,6 +36,21 @@ public class ConfigAndCalendarTests
         {
             Environment.SetEnvironmentVariable("REIGN_TEST_GROQ_ALIAS", previous);
         }
+    }
+
+    [Fact]
+    public void Database_connection_detects_postgres_and_leaves_sqlite_as_local_fallback()
+    {
+        Assert.True(DatabaseConnection.IsPostgreSql("Host=localhost;Database=reign;Username=postgres;Password=postgres"));
+        Assert.True(DatabaseConnection.IsPostgreSql("postgresql://reign:secret@dpg-xxxx-a/reign"));
+        Assert.False(DatabaseConnection.IsPostgreSql("Data Source=/data/REIGN.db"));
+        Assert.False(DatabaseConnection.IsPostgreSql(""));
+
+        var normalized = DatabaseConnection.Normalize("postgresql://reign:s3cret@dpg-xxxx.render.com/reign");
+        Assert.Contains("Host=dpg-xxxx.render.com", normalized);
+        Assert.Contains("Database=reign", normalized);
+        Assert.Contains("Username=reign", normalized);
+        Assert.Contains("Password=s3cret", normalized);
     }
 
     [Fact]
