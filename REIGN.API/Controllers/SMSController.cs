@@ -30,13 +30,18 @@ public class SMSController : ControllerBase
     /// <summary>
     /// Internal simulator / application endpoint. This is not a provider webhook.
     /// Provider inbound traffic must use /api/sms/webhooks/twilio or /api/sms/webhooks/vonage.
+    /// Hidden from Swagger so production Try it out is not mistaken for live Twilio.
     /// </summary>
+    [ApiExplorerSettings(IgnoreApi = true)]
     [HttpPost("incoming")]
     public async Task<IActionResult> Incoming([FromBody] SMSRequest request)
     {
         if (!IsInternalSimulatorAllowed())
         {
-            return Unauthorized(new { error = "Internal SMS simulator is disabled or missing X-Reign-Internal-Key." });
+            return Unauthorized(new
+            {
+                error = "POST /api/sms/incoming is the Development simulator and is disabled in production. Live Twilio must HTTP POST to /api/sms/webhooks/twilio. Sending SMS from the Twilio Console or trying this path in Swagger does not test live inbound SMS."
+            });
         }
 
         if (request == null || string.IsNullOrWhiteSpace(request.Phone) || string.IsNullOrWhiteSpace(request.Message))
@@ -69,6 +74,7 @@ public class SMSController : ControllerBase
         });
     }
 
+    [ApiExplorerSettings(IgnoreApi = true)]
     [HttpGet("simulated")]
     public IActionResult SimulatedOutbox()
     {

@@ -25,6 +25,10 @@ public class SmsWebhookController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Twilio inbound webhook. Configure the phone number A Message Comes In
+    /// callback to HTTP POST this URL. Not the Swagger Try it out for /api/sms/incoming.
+    /// </summary>
     [HttpPost("twilio")]
     public async Task<IActionResult> Twilio()
     {
