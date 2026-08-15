@@ -26,6 +26,8 @@ USER $APP_UID
 # Render supplies PORT; default to 8080 for local/container use.
 ENV ASPNETCORE_HTTP_PORTS=8080
 ENV ASPNETCORE_URLS=http://+:8080
+# Prefer IPv4. Supabase db.* hosts are IPv6-only; the session pooler is dual-stack.
+ENV DOTNET_SYSTEM_NET_DISABLEIPV6=1
 EXPOSE 8080
 
 COPY --from=build /app/publish .

@@ -3,7 +3,7 @@
 Production uses PostgreSQL via Npgsql. Set **only**:
 
 ```
-ConnectionStrings__Reign=<Render Internal Database URL>
+ConnectionStrings__Reign=<Postgres connection string>
 ```
 
 Do not put the connection string in source files.
@@ -26,13 +26,30 @@ Save, then **Manual Deploy**. The Docker image does not contain the database pas
 
 ### Supabase (free Postgres)
 
-On the API service, set `ConnectionStrings__Reign` to the Supabase URI or Npgsql form. Do not commit it.
+Direct `db.<project-ref>.supabase.co:5432` is **IPv6-only** on many projects. Render cannot open that socket (`Network is unreachable` to an address like `2600:1f14:…`).
+
+Set `ConnectionStrings__Reign` to either form. The API rewrites a direct `db.*` host to the **Session pooler** (IPv4, port **5432**) and changes username `postgres` to `postgres.<project-ref>`.
 
 ```
 Host=db.YOUR_PROJECT.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=YOUR_PASSWORD;SSL Mode=Require
 ```
 
-If Render still throws a socket error, use Supabase **Session pooler** (port **6543**) from Project Settings → Database. Direct `db.*.supabase.co:5432` is IPv6-only on some projects and fails from Render.
+Or paste the Session pooler string from Supabase → Project Settings → Database:
+
+```
+Host=aws-0-us-west-2.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.YOUR_PROJECT;Password=YOUR_PASSWORD;SSL Mode=Require
+```
+
+| Optional override | When to set it |
+| --- | --- |
+| `SUPABASE_REGION` | Automatic rewrite guessed the wrong region (default `us-west-2`) |
+| `SUPABASE_POOLER_HOST` | Use the exact Session pooler hostname from the dashboard |
+
+Do **not** use the Transaction pooler on port **6543** with Entity Framework. The API rewrites 6543 to 5432 (session mode).
+
+If the IPv6 you see in logs starts with `2600:1f14:`, the project is in `us-west-2`.
+
+### Render Postgres
 
 Use the **Internal Database URL** (`postgresql://USER:PASSWORD@dpg-xxxx-a/reign`) if you stay on Render Postgres.
 That hostname only works from a Render service in the **same region**.
@@ -40,10 +57,11 @@ That hostname only works from a Render service in the **same region**.
 A `SocketException` / `AwaitableSocketAsyncEventArgs` at startup means the API cannot open a TCP connection to Postgres. Typical causes:
 
 - `ConnectionStrings__Reign` is localhost, a laptop IP, or empty-and-wrong
-- The **External** URL was used without SSL, or the **Internal** URL was used from a different region
+- Supabase **direct** `db.*:5432` was used and the IPv6 rewrite/region is wrong — set `SUPABASE_REGION`
+- The **External** Render URL was used without SSL, or the **Internal** URL was used from a different region
 - The Postgres instance is not in the same Render account/region as the API
 
-Fix: paste the Internal Database URL into `ConnectionStrings__Reign`, save env, and redeploy. External `*.render.com` URLs are supported with SSL.
+Fix: save `ConnectionStrings__Reign`, then redeploy. External `*.render.com` URLs are supported with SSL.
 
 4. Redeploy the API. Startup creates the schema from the current EF model, then seeds QV / HH / HR.
 5. Confirm `GET /api/health` returns `"status":"ok"` and `"databaseStatus":"configured"`.

@@ -25,6 +25,12 @@ public static class HostingFileWatch
             Environment.SetEnvironmentVariable("ASPNETCORE_hostBuilder__reloadConfigOnChange", "false");
             Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "true");
         }
+
+        if (onRender)
+        {
+            // Supabase pooler is dual-stack; prefer IPv4 so Npgsql does not try AAAA first.
+            Environment.SetEnvironmentVariable("DOTNET_SYSTEM_NET_DISABLEIPV6", "1");
+        }
     }
 
     public static void DisableReloadOnChange(ConfigurationManager configuration)

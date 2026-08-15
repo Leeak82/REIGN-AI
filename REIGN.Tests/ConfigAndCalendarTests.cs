@@ -63,9 +63,27 @@ public class ConfigAndCalendarTests
         Assert.Contains("Username=reign", external);
         Assert.Contains("SSL Mode=Require", external);
 
-        var supabase = DatabaseConnection.Normalize(
-            "Host=db.example.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=placeholder;SSL Mode=Prefer");
+        var previousRegion = Environment.GetEnvironmentVariable("SUPABASE_REGION");
+        var previousPooler = Environment.GetEnvironmentVariable("SUPABASE_POOLER_HOST");
+        string supabase;
+        try
+        {
+            Environment.SetEnvironmentVariable("SUPABASE_REGION", null);
+            Environment.SetEnvironmentVariable("SUPABASE_POOLER_HOST", null);
+            supabase = DatabaseConnection.Normalize(
+                "Host=db.example.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=placeholder;SSL Mode=Prefer");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SUPABASE_REGION", previousRegion);
+            Environment.SetEnvironmentVariable("SUPABASE_POOLER_HOST", previousPooler);
+        }
+
         Assert.Contains("SSL Mode=Require", supabase);
+        Assert.Contains("Host=aws-0-us-west-2.pooler.supabase.com", supabase);
+        Assert.Contains("Username=postgres.example", supabase);
+        Assert.Contains("Port=5432", supabase);
+        Assert.DoesNotContain("db.example.supabase.co", supabase);
 
         var internalUrl = DatabaseConnection.Parse("postgresql://reign:s3cret@dpg-xxxx-a/reign");
         DatabaseConnection.ApplyRenderDefaults(internalUrl);
@@ -74,6 +92,73 @@ public class ConfigAndCalendarTests
 
         Assert.Equal("dpg-xxxx-a:5432/reign", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
         Assert.DoesNotContain("s3cret", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
+    }
+
+    [Fact]
+    public void Supabase_direct_host_rewrites_to_session_pooler()
+    {
+        var previousRegion = Environment.GetEnvironmentVariable("SUPABASE_REGION");
+        var previousPooler = Environment.GetEnvironmentVariable("SUPABASE_POOLER_HOST");
+        try
+        {
+            Environment.SetEnvironmentVariable("SUPABASE_POOLER_HOST", null);
+            Environment.SetEnvironmentVariable("SUPABASE_REGION", null);
+
+            var rewritten = DatabaseConnection.Normalize(
+                "Host=db.abcdefghijklmnopabcd.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=placeholder;SSL Mode=Prefer");
+            Assert.Contains("Host=aws-0-us-west-2.pooler.supabase.com", rewritten);
+            Assert.Contains("Username=postgres.abcdefghijklmnopabcd", rewritten);
+            Assert.Contains("Port=5432", rewritten);
+            Assert.Contains("SSL Mode=Require", rewritten);
+            Assert.DoesNotContain("db.abcdefghijklmnopabcd.supabase.co", rewritten);
+            Assert.DoesNotContain("placeholder", DatabaseConnection.DescribeEndpoint(rewritten));
+
+            var uri = DatabaseConnection.Normalize(
+                "postgresql://postgres:s3cret@db.abc123.supabase.co:5432/postgres");
+            Assert.Contains("Host=aws-0-us-west-2.pooler.supabase.com", uri);
+            Assert.Contains("Username=postgres.abc123", uri);
+
+            Environment.SetEnvironmentVariable("SUPABASE_REGION", "eu-west-1");
+            var eu = DatabaseConnection.Normalize(
+                "Host=db.abc123.supabase.co;Database=postgres;Username=postgres;Password=x");
+            Assert.Contains("Host=aws-0-eu-west-1.pooler.supabase.com", eu);
+
+            Environment.SetEnvironmentVariable("SUPABASE_REGION", null);
+            Environment.SetEnvironmentVariable("SUPABASE_POOLER_HOST", "aws-0-us-east-1.pooler.supabase.com");
+            var overrideHost = DatabaseConnection.Normalize(
+                "Host=db.abc123.supabase.co;Database=postgres;Username=postgres;Password=x");
+            Assert.Contains("Host=aws-0-us-east-1.pooler.supabase.com", overrideHost);
+
+            var alreadyPooled = DatabaseConnection.Normalize(
+                "Host=aws-0-us-west-2.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.abc123;Password=x");
+            Assert.Contains("Host=aws-0-us-west-2.pooler.supabase.com", alreadyPooled);
+            Assert.Contains("Port=5432", alreadyPooled);
+            Assert.Contains("Username=postgres.abc123", alreadyPooled);
+
+            var customUser = DatabaseConnection.Normalize(
+                "Host=db.abc123.supabase.co;Database=postgres;Username=postgres.abc123;Password=x");
+            Assert.Contains("Username=postgres.abc123", customUser);
+
+            Assert.Equal(
+                "us-west-2",
+                DatabaseConnection.RegionFromAddress(System.Net.IPAddress.Parse("2600:1f14:90b:6000:bda3:eaaf:4da0:216c")));
+            Assert.Equal(
+                "us-east-1",
+                DatabaseConnection.RegionFromAddress(System.Net.IPAddress.Parse("2600:1f13::1")));
+            Assert.Null(DatabaseConnection.RegionFromAddress(System.Net.IPAddress.Parse("1.2.3.4")));
+
+            Assert.Contains(
+                "IPv6-only",
+                DatabaseConnection.UnreachableMessage("aws-0-us-west-2.pooler.supabase.com:5432/postgres"));
+            Assert.Contains(
+                "Internal Database URL",
+                DatabaseConnection.UnreachableMessage("dpg-xxxx-a:5432/reign"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SUPABASE_REGION", previousRegion);
+            Environment.SetEnvironmentVariable("SUPABASE_POOLER_HOST", previousPooler);
+        }
     }
 
     [Fact]

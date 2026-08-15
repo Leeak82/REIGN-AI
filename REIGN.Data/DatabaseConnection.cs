@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text.RegularExpressions;
 using Npgsql;
 
 namespace REIGN.Data;
@@ -7,6 +9,10 @@ namespace REIGN.Data;
 /// </summary>
 public static class DatabaseConnection
 {
+    private static readonly Regex SupabaseDirectHost = new(
+        @"^db\.([a-z0-9]+)\.supabase\.co$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     public static string? ResolveFromEnvironment()
     {
         foreach (var name in new[]
@@ -63,6 +69,7 @@ public static class DatabaseConnection
     public static string Normalize(string connectionString)
     {
         var builder = Parse(connectionString.Trim());
+        ApplySupabasePooler(builder);
         ApplyRenderDefaults(builder);
         builder.Timeout = Math.Max(builder.Timeout, 30);
         return builder.ConnectionString;
@@ -140,7 +147,8 @@ public static class DatabaseConnection
     {
         var host = builder.Host ?? "";
         var renderExternal = host.Contains("render.com", StringComparison.OrdinalIgnoreCase);
-        var supabase = host.Contains("supabase.co", StringComparison.OrdinalIgnoreCase);
+        var supabase = host.Contains("supabase.co", StringComparison.OrdinalIgnoreCase)
+            || host.Contains("supabase.com", StringComparison.OrdinalIgnoreCase);
         var renderInternal = host.StartsWith("dpg-", StringComparison.OrdinalIgnoreCase) && !renderExternal;
 
         if (renderExternal || supabase)
@@ -154,5 +162,107 @@ public static class DatabaseConnection
             // Internal Render hostnames are private DNS and do not use public TLS.
             builder.SslMode = SslMode.Disable;
         }
+    }
+
+    /// <summary>
+    /// Direct db.&lt;ref&gt;.supabase.co:5432 is IPv6-only on many projects. Render cannot
+    /// open that socket (Network is unreachable). Rewrite to the Session pooler (IPv4, port 5432).
+    /// Transaction pooler port 6543 is also rewritten to 5432 so EF Core prepared statements work.
+    /// </summary>
+    public static void ApplySupabasePooler(NpgsqlConnectionStringBuilder builder)
+    {
+        var host = builder.Host ?? "";
+        if (host.Contains("pooler.supabase.com", StringComparison.OrdinalIgnoreCase))
+        {
+            if (builder.Port == 6543)
+            {
+                builder.Port = 5432;
+            }
+
+            builder.SslMode = SslMode.Require;
+            return;
+        }
+
+        var match = SupabaseDirectHost.Match(host);
+        if (!match.Success)
+        {
+            return;
+        }
+
+        var projectRef = match.Groups[1].Value;
+        var poolerHost = Environment.GetEnvironmentVariable("SUPABASE_POOLER_HOST");
+        if (string.IsNullOrWhiteSpace(poolerHost))
+        {
+            var region = InferSupabaseRegion();
+            poolerHost = $"aws-0-{region}.pooler.supabase.com";
+        }
+
+        builder.Host = poolerHost.Trim();
+        builder.Port = 5432;
+        builder.SslMode = SslMode.Require;
+
+        if (string.IsNullOrWhiteSpace(builder.Username)
+            || builder.Username.Equals("postgres", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.Username = $"postgres.{projectRef}";
+        }
+    }
+
+    public static string InferSupabaseRegion()
+    {
+        var configured = Environment.GetEnvironmentVariable("SUPABASE_REGION");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured.Trim();
+        }
+
+        // Matches the IPv6 prefix 2600:1f14 on this project's direct host.
+        return "us-west-2";
+    }
+
+    public static string? RegionFromAddress(IPAddress address)
+    {
+        if (address.AddressFamily != AddressFamily.InterNetworkV6)
+        {
+            return null;
+        }
+
+        var value = address.ToString();
+        if (value.StartsWith("2600:1f14:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "us-west-2";
+        }
+
+        if (value.StartsWith("2600:1f18:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "us-west-1";
+        }
+
+        if (value.StartsWith("2600:1f13:", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("2600:1f10:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "us-east-1";
+        }
+
+        if (value.StartsWith("2a05:d014:", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("2a05:d018:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "eu-west-1";
+        }
+
+        return null;
+    }
+
+    public static string UnreachableMessage(string endpoint)
+    {
+        if (endpoint.Contains("supabase", StringComparison.OrdinalIgnoreCase)
+            || endpoint.Contains("pooler", StringComparison.OrdinalIgnoreCase))
+        {
+            return
+                $"Cannot reach the database at {endpoint}. Direct db.*.supabase.co:5432 is IPv6-only and unreachable from Render. Use the Supabase Session pooler (aws-0-<region>.pooler.supabase.com port 5432, username postgres.<project-ref>), or set SUPABASE_REGION / SUPABASE_POOLER_HOST if the automatic rewrite picked the wrong region. Do not use the Transaction pooler on port 6543 with Entity Framework. Do not use localhost.";
+        }
+
+        return
+            $"Cannot reach the database at {endpoint}. On Render, set ConnectionStrings__Reign to the Internal Database URL from a PostgreSQL instance in the same region as this service. Do not use localhost. External *.render.com URLs require SSL.";
     }
 }

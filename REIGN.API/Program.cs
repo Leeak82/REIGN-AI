@@ -111,11 +111,14 @@ if (!string.IsNullOrWhiteSpace(sqliteStorageWarning))
     app.Logger.LogWarning("{Message}", sqliteStorageWarning);
 }
 
-if (DatabaseConnection.IsPostgreSql(connection))
+var postgresEndpoint = DatabaseConnection.IsPostgreSql(connection)
+    ? DatabaseConnection.DescribeEndpoint(DatabaseConnection.Normalize(connection))
+    : null;
+if (postgresEndpoint != null)
 {
     app.Logger.LogInformation(
         "PostgreSQL endpoint {Endpoint} is configured.",
-        DatabaseConnection.DescribeEndpoint(connection));
+        postgresEndpoint);
 }
 else
 {
@@ -134,12 +137,8 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex) when (IsSocketFailure(ex))
     {
-        var endpoint = DatabaseConnection.IsPostgreSql(connection)
-            ? DatabaseConnection.DescribeEndpoint(connection)
-            : "local SQLite";
-        throw new InvalidOperationException(
-            $"Cannot reach the database at {endpoint}. On Render, set ConnectionStrings__Reign to the Internal Database URL from a PostgreSQL instance in the same region as this service. Do not use localhost. External *.render.com URLs require SSL.",
-            ex);
+        var endpoint = postgresEndpoint ?? "local SQLite";
+        throw new InvalidOperationException(DatabaseConnection.UnreachableMessage(endpoint), ex);
     }
 }
 
