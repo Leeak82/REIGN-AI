@@ -20,7 +20,17 @@ DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false
 ConnectionStrings__Reign=<Internal Database URL>
 ```
 
-Use the **Internal Database URL** (`postgresql://USER:PASSWORD@dpg-xxxx-a/reign`).
+### Supabase (free Postgres)
+
+On the API service, set `ConnectionStrings__Reign` to the Supabase URI or Npgsql form. Do not commit it.
+
+```
+Host=db.YOUR_PROJECT.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=YOUR_PASSWORD;SSL Mode=Require
+```
+
+If Render still throws a socket error, use Supabase **Session pooler** (port **6543**) from Project Settings → Database. Direct `db.*.supabase.co:5432` is IPv6-only on some projects and fails from Render.
+
+Use the **Internal Database URL** (`postgresql://USER:PASSWORD@dpg-xxxx-a/reign`) if you stay on Render Postgres.
 That hostname only works from a Render service in the **same region**.
 
 A `SocketException` / `AwaitableSocketAsyncEventArgs` at startup means the API cannot open a TCP connection to Postgres. Typical causes:

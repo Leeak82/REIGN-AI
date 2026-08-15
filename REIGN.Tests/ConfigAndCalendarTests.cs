@@ -52,6 +52,10 @@ public class ConfigAndCalendarTests
         Assert.Contains("Username=reign", external);
         Assert.Contains("SSL Mode=Require", external);
 
+        var supabase = DatabaseConnection.Normalize(
+            "Host=db.example.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=placeholder;SSL Mode=Prefer");
+        Assert.Contains("SSL Mode=Require", supabase);
+
         var internalUrl = DatabaseConnection.Parse("postgresql://reign:s3cret@dpg-xxxx-a/reign");
         DatabaseConnection.ApplyRenderDefaults(internalUrl);
         Assert.Equal("dpg-xxxx-a", internalUrl.Host);

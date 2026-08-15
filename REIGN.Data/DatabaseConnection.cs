@@ -107,9 +107,10 @@ public static class DatabaseConnection
     {
         var host = builder.Host ?? "";
         var renderExternal = host.Contains("render.com", StringComparison.OrdinalIgnoreCase);
+        var supabase = host.Contains("supabase.co", StringComparison.OrdinalIgnoreCase);
         var renderInternal = host.StartsWith("dpg-", StringComparison.OrdinalIgnoreCase) && !renderExternal;
 
-        if (renderExternal)
+        if (renderExternal || supabase)
         {
             builder.SslMode = SslMode.Require;
             return;
