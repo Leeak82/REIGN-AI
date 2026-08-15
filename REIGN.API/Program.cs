@@ -11,7 +11,9 @@ using REIGN.Core.AI;
 using REIGN.Data.Schema;
 using REIGN.Data.Seed;
 
+HostingFileWatch.DisableForProductionHosts();
 var builder = WebApplication.CreateBuilder(args);
+HostingFileWatch.DisableReloadOnChange(builder.Configuration);
 ConfigEnvironmentAliases.Apply(builder.Configuration);
 
 builder.Services.AddProblemDetails();
@@ -96,11 +98,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler();
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.MapControllers();
 
