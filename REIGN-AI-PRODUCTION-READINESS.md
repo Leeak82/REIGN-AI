@@ -33,7 +33,7 @@ Catalog is unchanged: Quick Visit $150 / 20 minutes, Half Hour $300 / 30 minutes
 ### Production cleanup
 - Blazor template `Counter` and `Weather` pages are removed.
 - Navigation is Home, Dashboard, AI, Assistant, Inbox, Integrations.
-- Web API base URL comes from `ReignApi__BaseUrl` / `REIGN_API_BASE_URL` (local default `http://localhost:5204/`).
+- Web API base URL comes from `ReignApi__BaseUrl` / `REIGN_API_BASE_URL` (local default `http://localhost:5012/`).
 
 ### Validation
 - `dotnet build`: 0 errors

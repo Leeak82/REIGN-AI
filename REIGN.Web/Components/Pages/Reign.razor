@@ -2,9 +2,16 @@
 
 @using REIGN.Web.Services
 @inject ReignApiClient ReignClient
+@inject IWebHostEnvironment HostEnvironment
 
 <h1>Miss Reign AI</h1>
 
+@if (!HostEnvironment.IsDevelopment())
+{
+    <p>The development assistant tester is not available in production. Customer SMS is handled by Twilio or Vonage.</p>
+}
+else
+{
 @if (!string.IsNullOrWhiteSpace(Error))
 {
     <div class="alert alert-danger">@Error</div>
@@ -31,6 +38,7 @@
     {
         <small>Intent: @Intent@(Persisted ? " · saved" : "")</small>
     }
+}
 }
 
 @code {

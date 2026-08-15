@@ -7,15 +7,22 @@ publish/
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
 *.bak
 *.tmp
 *.backup.txt
+*.backup
 reign-tree.txt
+reign_tree.txt
+reign_files.txt
 
 appsettings.Development.json
+appsettings.*.local.json
 
 node_modules/
 .env
 .env.*
 !.env.example
 .openclaw/
+memory/

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using REIGN.API.Options;
 using REIGN.Core.AI;
+using REIGN.Data;
 
 namespace REIGN.API.Controllers;
 
@@ -11,6 +13,7 @@ public class HealthController : ControllerBase
 {
     private readonly IAiProvider _ai;
     private readonly IConfiguration _configuration;
+    private readonly ReignDbContext _db;
     private readonly AiOptions _aiOptions;
     private readonly SmsOptions _sms;
     private readonly GoogleCalendarOptions _google;
@@ -18,15 +21,38 @@ public class HealthController : ControllerBase
     public HealthController(
         IAiProvider ai,
         IConfiguration configuration,
+        ReignDbContext db,
         IOptions<AiOptions> aiOptions,
         IOptions<SmsOptions> sms,
         IOptions<GoogleCalendarOptions> google)
     {
         _ai = ai;
         _configuration = configuration;
+        _db = db;
         _aiOptions = aiOptions.Value;
         _sms = sms.Value;
         _google = google.Value;
+    }
+
+    [HttpGet("/health")]
+    public async Task<IActionResult> Production()
+    {
+        var database = await ProbeDatabaseAsync();
+        var groqConfigured = GroqConfigured();
+        var smsConfigured = SmsConfigured();
+        var calendarConfigured = CalendarConfigured();
+        var healthy = database == "connected";
+
+        var body = new
+        {
+            status = healthy ? "healthy" : "unhealthy",
+            database,
+            groqConfigured,
+            smsConfigured,
+            calendarConfigured
+        };
+
+        return healthy ? Ok(body) : StatusCode(503, body);
     }
 
     [HttpGet]
@@ -40,11 +66,59 @@ public class HealthController : ControllerBase
             databaseStatus = !string.IsNullOrWhiteSpace(_configuration.GetConnectionString("Reign"))
                 ? "configured"
                 : "not configured",
-            groqConfigured = _ai.IsConfigured || !string.IsNullOrWhiteSpace(_aiOptions.ApiKey),
-            smsConfigured = !string.IsNullOrWhiteSpace(_sms.Provider),
-            calendarConfigured =
-                !string.IsNullOrWhiteSpace(_google.ClientId) &&
-                !string.IsNullOrWhiteSpace(_google.ClientSecret)
+            groqConfigured = _ai.IsConfigured || GroqConfigured(),
+            smsConfigured = SmsConfigured(),
+            calendarConfigured = CalendarConfigured()
         });
+    }
+
+    private async Task<string> ProbeDatabaseAsync()
+    {
+        try
+        {
+            return await _db.Database.CanConnectAsync() ? "connected" : "disconnected";
+        }
+        catch
+        {
+            return "disconnected";
+        }
+    }
+
+    private bool GroqConfigured() =>
+        !string.IsNullOrWhiteSpace(_aiOptions.ApiKey);
+
+    private bool SmsConfigured()
+    {
+        var provider = _sms.Provider ?? "Simulated";
+        if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (provider.Equals("Twilio", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(_sms.Twilio.AccountSid) &&
+                   !string.IsNullOrWhiteSpace(_sms.Twilio.AuthToken);
+        }
+
+        if (provider.Equals("Vonage", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(_sms.Vonage.ApiKey) &&
+                   !string.IsNullOrWhiteSpace(_sms.Vonage.ApiSecret);
+        }
+
+        return false;
+    }
+
+    private bool CalendarConfigured()
+    {
+        var provider = _google.Provider ?? "Simulated";
+        if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(_google.ClientId) &&
+               !string.IsNullOrWhiteSpace(_google.ClientSecret);
     }
 }

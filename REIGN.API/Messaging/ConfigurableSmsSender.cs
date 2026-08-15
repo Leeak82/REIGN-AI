@@ -1,3 +1,4 @@
+using REIGN.API.Configuration;
 using Microsoft.Extensions.Options;
 using REIGN.API.Options;
 
@@ -12,14 +13,16 @@ public class ConfigurableSmsSender : ISmsSender
         SimulatedSmsSender simulated,
         TwilioSmsSender twilio,
         VonageSmsSender vonage,
-        TextNowUnsupportedSmsSender textNow)
+        TextNowUnsupportedSmsSender textNow,
+        IHostEnvironment environment)
     {
-        _inner = options.Value.Provider.Trim().ToLowerInvariant() switch
+        var provider = SmsProviderSelection.Resolve(options.Value.Provider, environment.IsDevelopment());
+        _inner = provider.Trim().ToLowerInvariant() switch
         {
             "twilio" => twilio,
             "vonage" => vonage,
             "textnow" => textNow,
-            _ => simulated
+            _ => environment.IsDevelopment() ? simulated : twilio
         };
     }
 

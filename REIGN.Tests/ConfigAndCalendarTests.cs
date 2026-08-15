@@ -39,6 +39,38 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Production_sms_defaults_to_twilio_and_keeps_vonage()
+    {
+        Assert.Equal("Simulated", SmsProviderSelection.Resolve("Simulated", isDevelopment: true));
+        Assert.Equal("Simulated", SmsProviderSelection.Resolve("", isDevelopment: true));
+        Assert.Equal("Twilio", SmsProviderSelection.Resolve("Simulated", isDevelopment: false));
+        Assert.Equal("Twilio", SmsProviderSelection.Resolve("", isDevelopment: false));
+        Assert.Equal("Vonage", SmsProviderSelection.Resolve("Vonage", isDevelopment: false));
+        Assert.Equal("Twilio", SmsProviderSelection.Resolve("Twilio", isDevelopment: true));
+    }
+
+    [Fact]
+    public void Sms_provider_environment_variable_overrides_appsettings()
+    {
+        var previous = Environment.GetEnvironmentVariable("SMS_PROVIDER");
+        try
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", "Vonage");
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:Provider"] = "Simulated"
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal("Vonage", manager["Sms:Provider"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", previous);
+        }
+    }
+
+    [Fact]
     public void Database_connection_detects_postgres_and_leaves_sqlite_as_local_fallback()
     {
         Assert.True(DatabaseConnection.IsPostgreSql("Host=localhost;Database=reign;Username=postgres;Password=postgres"));
@@ -280,8 +312,77 @@ public class ConfigAndCalendarTests
         Assert.Contains(logger.Messages, m => m.Contains("Groq API key is present", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(logger.Messages, m => m.Contains("Twilio", StringComparison.OrdinalIgnoreCase) && m.Contains("missing", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(logger.Messages, m => m.Contains("GoogleCalendar__ClientId", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(logger.Messages, m => m.Contains("REIGN startup status", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, m => m.Contains("database=not configured", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, m => m.Contains("groq=configured", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, m => m.Contains("sms=not configured", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, m => m.Contains("calendar=not configured", StringComparison.Ordinal));
         Assert.DoesNotContain(logger.Messages, m => m.Contains("super-secret-groq-key"));
         Assert.DoesNotContain(logger.Messages, m => m.Contains("super-secret-twilio-token"));
+    }
+
+    [Fact]
+    public void Development_cors_includes_localhost_and_rejects_wildcard()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Cors:AllowedOrigins"] = "https://app.example.com, *"
+        }).Build();
+
+        var resolved = CorsOriginPolicy.Resolve(configuration, isDevelopment: true);
+
+        Assert.True(resolved.RejectedWildcard);
+        Assert.Contains("http://localhost:5012", resolved.Origins);
+        Assert.Contains("https://localhost:5001", resolved.Origins);
+        Assert.Contains("https://app.example.com", resolved.Origins);
+        Assert.DoesNotContain("*", resolved.Origins);
+    }
+
+    [Fact]
+    public void Production_cors_uses_configured_origins_only_and_rejects_wildcard()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Cors:AllowedOrigins"] = "*, https://reign.example.com/"
+        }).Build();
+
+        var resolved = CorsOriginPolicy.Resolve(configuration, isDevelopment: false);
+
+        Assert.True(resolved.RejectedWildcard);
+        Assert.Equal(new[] { "https://reign.example.com" }, resolved.Origins);
+        Assert.DoesNotContain(resolved.Origins, origin => origin.Contains("localhost", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Production_cors_without_origins_does_not_allow_any_origin()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+        var resolved = CorsOriginPolicy.Resolve(configuration, isDevelopment: false);
+        Assert.False(resolved.RejectedWildcard);
+        Assert.Empty(resolved.Origins);
+    }
+
+    [Fact]
+    public void Container_listen_accepts_valid_port_values_only()
+    {
+        var previousPort = Environment.GetEnvironmentVariable("PORT");
+        var previousAzure = Environment.GetEnvironmentVariable("WEBSITES_PORT");
+        try
+        {
+            Environment.SetEnvironmentVariable("WEBSITES_PORT", null);
+
+            Environment.SetEnvironmentVariable("PORT", "8080");
+            Assert.True(ContainerListen.TryGetPort(out var port));
+            Assert.Equal(8080, port);
+
+            Environment.SetEnvironmentVariable("PORT", "not-a-port");
+            Assert.False(ContainerListen.TryGetPort(out _));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PORT", previousPort);
+            Environment.SetEnvironmentVariable("WEBSITES_PORT", previousAzure);
+        }
     }
 
     [Fact]

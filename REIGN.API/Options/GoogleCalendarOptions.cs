@@ -13,7 +13,7 @@ public class GoogleCalendarOptions
 
     public string ClientSecret { get; set; } = "";
 
-    public string RedirectUri { get; set; } = "http://localhost:5204/api/integrations/google/callback";
+    public string RedirectUri { get; set; } = "https://localhost:5001/api/integrations/google/callback";
 
     public string CalendarId { get; set; } = "primary";
 

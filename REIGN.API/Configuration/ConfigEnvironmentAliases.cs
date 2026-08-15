@@ -31,6 +31,7 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:InternalApiKey", "REIGN_INTERNAL_API_KEY");
         TryAlias(configuration, extras, "Sms:PublicBaseUrl", "REIGN_PUBLIC_BASE_URL");
         TryAlias(configuration, extras, "ReignApi:BaseUrl", "REIGN_API_BASE_URL");
+        TryAlias(configuration, extras, "Cors:AllowedOrigins", "CORS_ALLOWED_ORIGINS");
         TryAlias(
             configuration,
             extras,
@@ -40,10 +41,31 @@ public static class ConfigEnvironmentAliases
             "REIGN_CONNECTION_STRING",
             "SUPABASE_DB_URL");
 
+        var smsProvider = Environment.GetEnvironmentVariable("SMS_PROVIDER");
+        if (!string.IsNullOrWhiteSpace(smsProvider))
+        {
+            extras["Sms:Provider"] = smsProvider.Trim();
+        }
+
         if (extras.Count > 0)
         {
             configuration.AddInMemoryCollection(extras);
         }
+    }
+
+    public static void ApplyRuntimeSmsDefaults(ConfigurationManager configuration, IHostEnvironment environment)
+    {
+        var extras = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        extras["Sms:Provider"] = SmsProviderSelection.Resolve(
+            configuration["Sms:Provider"],
+            environment.IsDevelopment());
+
+        if (!environment.IsDevelopment())
+        {
+            extras["Sms:AllowInternalSimulator"] = "false";
+        }
+
+        configuration.AddInMemoryCollection(extras);
     }
 
     public static void TryAlias(

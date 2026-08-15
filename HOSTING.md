@@ -102,3 +102,7 @@ To point local at Postgres:
 ```
 ConnectionStrings__Reign=Host=localhost;Port=5432;Database=reign;Username=postgres;Password=postgres
 ```
+
+## Other hosts
+
+Azure and Railway notes (ports, health path) are in `DEPLOYMENT.md`. Production database on those hosts should still be PostgreSQL via `ConnectionStrings__Reign`, not SQLite `/data/REIGN.db`.

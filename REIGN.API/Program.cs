@@ -15,6 +15,8 @@ HostingFileWatch.DisableForProductionHosts();
 var builder = WebApplication.CreateBuilder(args);
 HostingFileWatch.DisableReloadOnChange(builder.Configuration);
 ConfigEnvironmentAliases.Apply(builder.Configuration);
+ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(builder.Configuration, builder.Environment);
+ContainerListen.Apply(builder);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -61,6 +63,20 @@ builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var cors = CorsOriginPolicy.Resolve(builder.Configuration, builder.Environment.IsDevelopment());
+if (cors.Origins.Count > 0)
+{
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy(CorsOriginPolicy.PolicyName, policy =>
+        {
+            policy.WithOrigins(cors.Origins.ToArray())
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+    });
+}
 
 builder.Services.AddSingleton<REIGN.Core.Services.ConversationAIService>();
 builder.Services.AddSingleton<IReignAssistant, ReignAssistant>();
@@ -157,6 +173,11 @@ if (!app.Environment.IsDevelopment())
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+if (cors.Origins.Count > 0)
+{
+    app.UseCors(CorsOriginPolicy.PolicyName);
+}
 
 app.MapControllers();
 
