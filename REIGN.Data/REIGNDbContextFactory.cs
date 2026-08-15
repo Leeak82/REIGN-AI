@@ -8,10 +8,20 @@ public class REIGNDbContextFactory : IDesignTimeDbContextFactory<ReignDbContext>
     public ReignDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<ReignDbContext>();
-        var connection = Environment.GetEnvironmentVariable("REIGN_CONNECTION")
-            ?? $"Data Source={Path.Combine(Directory.GetCurrentDirectory(), "REIGN.db")}";
+        var connection = Environment.GetEnvironmentVariable("ConnectionStrings__Reign");
+        if (string.IsNullOrWhiteSpace(connection))
+        {
+            connection = $"Data Source={Path.Combine(Directory.GetCurrentDirectory(), "REIGN.db")}";
+        }
 
-        optionsBuilder.UseSqlite(connection);
+        if (DatabaseConnection.IsPostgreSql(connection))
+        {
+            optionsBuilder.UseNpgsql(DatabaseConnection.Normalize(connection));
+        }
+        else
+        {
+            optionsBuilder.UseSqlite(connection);
+        }
 
         return new ReignDbContext(optionsBuilder.Options);
     }

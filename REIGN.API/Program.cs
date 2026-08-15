@@ -11,7 +11,9 @@ using REIGN.Core.AI;
 using REIGN.Data.Schema;
 using REIGN.Data.Seed;
 
+HostingFileWatch.DisableForProductionHosts();
 var builder = WebApplication.CreateBuilder(args);
+HostingFileWatch.DisableReloadOnChange(builder.Configuration);
 ConfigEnvironmentAliases.Apply(builder.Configuration);
 
 builder.Services.AddProblemDetails();
@@ -20,14 +22,36 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
-var dbPath = builder.Configuration.GetConnectionString("Reign");
-if (string.IsNullOrWhiteSpace(dbPath))
+var connection = builder.Configuration.GetConnectionString("Reign")
+    ?? DatabaseConnection.ResolveFromEnvironment();
+string? sqliteStorageWarning = null;
+if (string.IsNullOrWhiteSpace(connection))
 {
-    dbPath = $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "REIGN.db")}";
+    if (builder.Environment.IsDevelopment())
+    {
+        connection = $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "REIGN.db")}";
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "PostgreSQL is not configured. In the Render API service → Environment, add ConnectionStrings__Reign (or DATABASE_URL) with the Supabase or Render Postgres connection string, then redeploy. Do not put the password in Docker or git.");
+    }
 }
 
 builder.Services.AddDbContext<ReignDbContext>(options =>
-    options.UseSqlite(dbPath));
+{
+    if (DatabaseConnection.IsPostgreSql(connection))
+    {
+        options.UseNpgsql(DatabaseConnection.Normalize(connection));
+        return;
+    }
+
+    var sqlite = SqliteStorage.EnsureWritableFile(
+        connection,
+        builder.Environment.ContentRootPath,
+        out sqliteStorageWarning);
+    options.UseSqlite(sqlite);
+});
 
 builder.Services.Configure<SmsOptions>(builder.Configuration.GetSection(SmsOptions.SectionName));
 builder.Services.Configure<GoogleCalendarOptions>(builder.Configuration.GetSection(GoogleCalendarOptions.SectionName));
@@ -82,13 +106,41 @@ builder.Services.AddScoped<ResilientAiProvider>();
 builder.Services.AddScoped<IAiProvider>(sp => sp.GetRequiredService<ResilientAiProvider>());
 
 var app = builder.Build();
+if (!string.IsNullOrWhiteSpace(sqliteStorageWarning))
+{
+    app.Logger.LogWarning("{Message}", sqliteStorageWarning);
+}
+
+if (DatabaseConnection.IsPostgreSql(connection))
+{
+    app.Logger.LogInformation(
+        "PostgreSQL endpoint {Endpoint} is configured.",
+        DatabaseConnection.DescribeEndpoint(connection));
+}
+else
+{
+    app.Logger.LogInformation("SQLite local fallback is configured.");
+}
+
 ConfigStartupValidator.ValidateAndLog(app);
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ReignDbContext>();
-    await SqliteSchemaUpgrades.ApplyAsync(db);
-    await ServiceCatalogBootstrapper.EnsureAsync(db);
+    try
+    {
+        await SqliteSchemaUpgrades.ApplyAsync(db);
+        await ServiceCatalogBootstrapper.EnsureAsync(db);
+    }
+    catch (Exception ex) when (IsSocketFailure(ex))
+    {
+        var endpoint = DatabaseConnection.IsPostgreSql(connection)
+            ? DatabaseConnection.DescribeEndpoint(connection)
+            : "local SQLite";
+        throw new InvalidOperationException(
+            $"Cannot reach the database at {endpoint}. On Render, set ConnectionStrings__Reign to the Internal Database URL from a PostgreSQL instance in the same region as this service. Do not use localhost. External *.render.com URLs require SSL.",
+            ex);
+    }
 }
 
 if (!app.Environment.IsDevelopment())
@@ -96,14 +148,30 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler();
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.MapControllers();
 
 app.Run();
+
+static bool IsSocketFailure(Exception ex)
+{
+    for (var current = ex; current != null; current = current.InnerException)
+    {
+        if (current is System.Net.Sockets.SocketException)
+        {
+            return true;
+        }
+
+        if (current.GetType().Name.Contains("Socket", StringComparison.OrdinalIgnoreCase)
+            && current.Message.Contains("Socket", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 public partial class Program { }

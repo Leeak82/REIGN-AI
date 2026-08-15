@@ -6,6 +6,14 @@ public static class SqliteSchemaUpgrades
 {
     public static async Task ApplyAsync(ReignDbContext db, CancellationToken cancellationToken = default)
     {
+        var provider = db.Database.ProviderName ?? "";
+        if (provider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+        {
+            // Existing migration files are SQLite-specific. PostgreSQL uses the current model.
+            await db.Database.EnsureCreatedAsync(cancellationToken);
+            return;
+        }
+
         if (db.Database.IsRelational())
         {
             await db.Database.MigrateAsync(cancellationToken);
@@ -15,7 +23,7 @@ public static class SqliteSchemaUpgrades
             await db.Database.EnsureCreatedAsync(cancellationToken);
         }
 
-        if (db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) != true)
+        if (!provider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }

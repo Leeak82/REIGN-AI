@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using REIGN.API.Calendar;
 using REIGN.API.Configuration;
+using REIGN.Data;
 using Xunit;
 
 namespace REIGN.Tests;
@@ -34,6 +35,65 @@ public class ConfigAndCalendarTests
         finally
         {
             Environment.SetEnvironmentVariable("REIGN_TEST_GROQ_ALIAS", previous);
+        }
+    }
+
+    [Fact]
+    public void Database_connection_detects_postgres_and_leaves_sqlite_as_local_fallback()
+    {
+        Assert.True(DatabaseConnection.IsPostgreSql("Host=localhost;Database=reign;Username=postgres;Password=postgres"));
+        Assert.True(DatabaseConnection.IsPostgreSql("postgresql://reign:secret@dpg-xxxx-a/reign"));
+        Assert.False(DatabaseConnection.IsPostgreSql("Data Source=/data/REIGN.db"));
+        Assert.False(DatabaseConnection.IsPostgreSql(""));
+
+        var previous = Environment.GetEnvironmentVariable("DATABASE_URL");
+        try
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", "Host=db.example.supabase.co;Database=postgres;Username=postgres;Password=x");
+            Assert.Contains("supabase.co", DatabaseConnection.ResolveFromEnvironment());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DATABASE_URL", previous);
+        }
+
+        var external = DatabaseConnection.Normalize("postgresql://reign:s3cret@dpg-xxxx.render.com/reign");
+        Assert.Contains("Host=dpg-xxxx.render.com", external);
+        Assert.Contains("Database=reign", external);
+        Assert.Contains("Username=reign", external);
+        Assert.Contains("SSL Mode=Require", external);
+
+        var supabase = DatabaseConnection.Normalize(
+            "Host=db.example.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=placeholder;SSL Mode=Prefer");
+        Assert.Contains("SSL Mode=Require", supabase);
+
+        var internalUrl = DatabaseConnection.Parse("postgresql://reign:s3cret@dpg-xxxx-a/reign");
+        DatabaseConnection.ApplyRenderDefaults(internalUrl);
+        Assert.Equal("dpg-xxxx-a", internalUrl.Host);
+        Assert.Equal(Npgsql.SslMode.Disable, internalUrl.SslMode);
+
+        Assert.Equal("dpg-xxxx-a:5432/reign", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
+        Assert.DoesNotContain("s3cret", DatabaseConnection.DescribeEndpoint("postgresql://reign:s3cret@dpg-xxxx-a/reign"));
+    }
+
+    [Fact]
+    public void Sqlite_storage_creates_missing_parent_directory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "reign-sqlite-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(root, "data", "REIGN.db");
+        try
+        {
+            var resolved = SqliteStorage.EnsureWritableFile($"Data Source={file}", Path.GetTempPath(), out var warning);
+            Assert.Null(warning);
+            Assert.Contains("REIGN.db", resolved, StringComparison.Ordinal);
+            Assert.True(Directory.Exists(Path.GetDirectoryName(file)));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
         }
     }
 
