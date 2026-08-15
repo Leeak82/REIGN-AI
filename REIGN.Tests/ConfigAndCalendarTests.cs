@@ -38,6 +38,27 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Sqlite_storage_creates_missing_parent_directory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "reign-sqlite-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(root, "data", "REIGN.db");
+        try
+        {
+            var resolved = SqliteStorage.EnsureWritableFile($"Data Source={file}", Path.GetTempPath(), out var warning);
+            Assert.Null(warning);
+            Assert.Contains("REIGN.db", resolved, StringComparison.Ordinal);
+            Assert.True(Directory.Exists(Path.GetDirectoryName(file)));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Startup_validator_reports_missing_credentials_without_printing_secret_values()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

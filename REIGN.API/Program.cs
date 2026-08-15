@@ -28,6 +28,11 @@ if (string.IsNullOrWhiteSpace(dbPath))
     dbPath = $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "REIGN.db")}";
 }
 
+dbPath = SqliteStorage.EnsureWritableFile(
+    dbPath,
+    builder.Environment.ContentRootPath,
+    out var sqliteStorageWarning);
+
 builder.Services.AddDbContext<ReignDbContext>(options =>
     options.UseSqlite(dbPath));
 
@@ -84,6 +89,12 @@ builder.Services.AddScoped<ResilientAiProvider>();
 builder.Services.AddScoped<IAiProvider>(sp => sp.GetRequiredService<ResilientAiProvider>());
 
 var app = builder.Build();
+if (!string.IsNullOrWhiteSpace(sqliteStorageWarning))
+{
+    app.Logger.LogWarning("{Message}", sqliteStorageWarning);
+}
+
+app.Logger.LogInformation("SQLite data source is ready.");
 ConfigStartupValidator.ValidateAndLog(app);
 
 using (var scope = app.Services.CreateScope())
