@@ -87,9 +87,29 @@ public static class ConfigStartupValidator
                     "Vonage signed webhooks are required, but Sms__Vonage__SignatureSecret is missing. POST /api/sms/webhooks/vonage will reject inbound traffic.");
             }
         }
+        else if (smsProvider.Equals("SmsGate", StringComparison.OrdinalIgnoreCase) ||
+                 smsProvider.Equals("Android", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Missing(configuration, "Sms:SmsGate:Username") || Missing(configuration, "Sms:SmsGate:Password"))
+            {
+                logger.LogError(
+                    "Sms:Provider is SmsGate, but Sms__SmsGate__Username and/or Sms__SmsGate__Password are missing. Install SMS Gateway for Android, then set those credentials.");
+            }
+            else
+            {
+                logger.LogInformation("SmsGate credentials are present.");
+            }
+
+            if (configuration.GetValue("Sms:SmsGate:RequireSignedWebhooks", true) &&
+                Missing(configuration, "Sms:SmsGate:SigningKey"))
+            {
+                logger.LogError(
+                    "SmsGate signed webhooks are required, but Sms__SmsGate__SigningKey is missing. POST /api/sms/webhooks/smsgate will reject inbound traffic.");
+            }
+        }
         else if (smsProvider.Equals("TextNow", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogError("TextNow has no supported application SMS API. Set Sms__Provider to Simulated, Twilio, or Vonage.");
+            logger.LogError("TextNow has no supported application SMS API. Set Sms__Provider to Simulated, Twilio, Vonage, or SmsGate.");
         }
 
         if (Missing(configuration, "Sms:BusinessPhoneNumber"))
@@ -159,7 +179,7 @@ public static class ConfigStartupValidator
 
         if (smsProvider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogWarning("Production is using Simulated SMS. Set Sms__Provider to Twilio or Vonage before live customer traffic.");
+            logger.LogWarning("Production is using Simulated SMS. Set Sms__Provider to Twilio, Vonage, or SmsGate before live customer traffic.");
         }
 
         if (calendarProvider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
@@ -194,6 +214,13 @@ public static class ConfigStartupValidator
         {
             return !Missing(configuration, "Sms:Vonage:ApiKey")
                 && !Missing(configuration, "Sms:Vonage:ApiSecret");
+        }
+
+        if (provider.Equals("SmsGate", StringComparison.OrdinalIgnoreCase) ||
+            provider.Equals("Android", StringComparison.OrdinalIgnoreCase))
+        {
+            return !Missing(configuration, "Sms:SmsGate:Username")
+                && !Missing(configuration, "Sms:SmsGate:Password");
         }
 
         return false;

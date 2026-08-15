@@ -87,6 +87,42 @@ public class WebhookSecurityTests
     }
 
     [Fact]
+    public void SmsGate_hmac_validates_raw_body_plus_timestamp()
+    {
+        var key = "smsgate-signing-key";
+        var body = """{"event":"sms:received","payload":{"sender":"+15555550123","message":"Book QV","recipient":"+15555550100"}}""";
+        var timestamp = "1700000000";
+        var signature = SmsGateWebhookValidator.ComputeSignature(key, body, timestamp);
+        var now = DateTimeOffset.FromUnixTimeSeconds(1700000000);
+
+        Assert.True(SmsGateWebhookValidator.IsValid(key, body, timestamp, signature, now));
+        Assert.False(SmsGateWebhookValidator.IsValid(key, body, timestamp, "deadbeef", now));
+        Assert.False(SmsGateWebhookValidator.IsValid("other-key", body, timestamp, signature, now));
+        Assert.False(SmsGateWebhookValidator.IsValid(key, body, "100", signature, now));
+    }
+
+    [Fact]
+    public void SmsGate_parser_reads_received_and_ignores_other_events()
+    {
+        var received = SmsGateWebhookValidator.TryParseReceived(
+            """{"event":"sms:received","id":"wh1","payload":{"messageId":"m1","sender":"+15555550123","recipient":"+15555550100","message":"Hi Miss Reign"}}""");
+        Assert.NotNull(received);
+        Assert.Equal("+15555550123", received!.From);
+        Assert.Equal("+15555550100", received.To);
+        Assert.Equal("Hi Miss Reign", received.Body);
+        Assert.Equal("m1", received.ProviderMessageId);
+        Assert.Equal("SmsGate", received.Provider);
+
+        var legacy = SmsGateWebhookValidator.TryParseReceived(
+            """{"event":"sms:received","payload":{"phoneNumber":"+15555550999","message":"QV"}}""");
+        Assert.NotNull(legacy);
+        Assert.Equal("+15555550999", legacy!.From);
+
+        Assert.Null(SmsGateWebhookValidator.TryParseReceived(
+            """{"event":"sms:sent","payload":{"sender":"+15555550100","recipient":"+15555550123"}}"""));
+    }
+
+    [Fact]
     public void Vonage_jwt_validates_signature_and_payload_hash()
     {
         var secret = "vonage-signature-secret-32-bytes-min";

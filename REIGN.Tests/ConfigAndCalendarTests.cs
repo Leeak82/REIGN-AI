@@ -48,6 +48,7 @@ public class ConfigAndCalendarTests
         Assert.Equal("Twilio", SmsProviderSelection.Resolve("Simulated", isDevelopment: false));
         Assert.Equal("Twilio", SmsProviderSelection.Resolve("", isDevelopment: false));
         Assert.Equal("Vonage", SmsProviderSelection.Resolve("Vonage", isDevelopment: false));
+        Assert.Equal("SmsGate", SmsProviderSelection.Resolve("SmsGate", isDevelopment: false));
         Assert.Equal("Twilio", SmsProviderSelection.Resolve("Twilio", isDevelopment: true));
     }
 
@@ -345,6 +346,25 @@ public class ConfigAndCalendarTests
         Assert.Contains(logger.Messages, m => m.Contains("calendar=not configured", StringComparison.Ordinal));
         Assert.DoesNotContain(logger.Messages, m => m.Contains("super-secret-groq-key"));
         Assert.DoesNotContain(logger.Messages, m => m.Contains("super-secret-twilio-token"));
+    }
+
+    [Fact]
+    public void Startup_validator_reports_smsgate_without_printing_password()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Sms:Provider"] = "SmsGate",
+            ["Sms:SmsGate:Username"] = "gate-user",
+            ["Sms:SmsGate:Password"] = "super-secret-smsgate-password"
+        }).Build();
+
+        var logger = new ListLogger();
+        ConfigStartupValidator.Validate(configuration, logger, isProduction: true);
+
+        Assert.Contains(logger.Messages, m => m.Contains("SmsGate credentials are present", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(logger.Messages, m => m.Contains("SigningKey", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(logger.Messages, m => m.Contains("super-secret-smsgate-password"));
+        Assert.Contains(logger.Messages, m => m.Contains("sms=configured", StringComparison.Ordinal));
     }
 
     [Fact]

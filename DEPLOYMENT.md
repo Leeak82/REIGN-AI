@@ -147,6 +147,10 @@ Set on the API service:
 
 If inbound shows 403 in Twilio Debugger, the signed URL did not match. Confirm the webhook URL above, then check API logs for `Tried N public URL candidates`. If inbound is 200 but there is no reply, the From number is not a Twilio number or Twilio rejected the outbound send — logs include `outbound send failed`.
 
+## SmsGate (Android, open source)
+
+Free path for unknown customers: a dedicated Android phone + SIM running [SMS Gateway for Android](https://sms-gate.app/). Set `Sms__Provider=SmsGate`, `SMSGATE_USERNAME`, `SMSGATE_PASSWORD`, `SMSGATE_SIGNING_KEY`, and `SMSGATE_FROM_NUMBER`. Register HTTP POST `https://YOUR_HOST/api/sms/webhooks/smsgate` as the `sms:received` webhook. Details are in `HOSTING.md`.
+
 ## Health
 
 `GET /health` reports API status, database connectivity, and whether Groq / SMS / calendar credentials are present. It never returns secret values.

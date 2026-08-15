@@ -5,9 +5,10 @@ public class SmsOptions
     public const string SectionName = "Sms";
 
     /// <summary>
-    /// Simulated (Development/tests only), Twilio, Vonage, or TextNow.
-    /// Production defaults to Twilio unless SMS_PROVIDER is Vonage.
+    /// Simulated (Development/tests only), Twilio, Vonage, SmsGate, or TextNow.
+    /// Production defaults to Twilio unless SMS_PROVIDER is Vonage or SmsGate.
     /// TextNow has no supported application SMS API and will not send or receive.
+    /// SmsGate is the open-source Android SMS gateway (a real SIM on a phone).
     /// </summary>
     public string Provider { get; set; } = "Simulated";
 
@@ -37,6 +38,8 @@ public class SmsOptions
     public TwilioSmsOptions Twilio { get; set; } = new();
 
     public VonageSmsOptions Vonage { get; set; } = new();
+
+    public SmsGateOptions SmsGate { get; set; } = new();
 }
 
 public class TwilioSmsOptions
@@ -71,5 +74,30 @@ public class VonageSmsOptions
     /// When true (default), Messages API JWTs are required on /api/sms/webhooks/vonage.
     /// Classic SMS inbound uses a shared InternalApiKey or signature secret query/form `sig`.
     /// </summary>
+    public bool RequireSignedWebhooks { get; set; } = true;
+}
+
+/// <summary>
+/// Open-source Android SMS gateway (https://sms-gate.app / capcom6/android-sms-gateway).
+/// Uses a real SIM on a phone. Not a carrier CPaaS.
+/// </summary>
+public class SmsGateOptions
+{
+    public string Username { get; set; } = "";
+
+    public string Password { get; set; } = "";
+
+    /// <summary>
+    /// Cloud default is https://api.sms-gate.app/3rdparty/v1. Local mode is the phone's LAN URL.
+    /// </summary>
+    public string BaseUrl { get; set; } = "https://api.sms-gate.app/3rdparty/v1";
+
+    /// <summary>
+    /// HMAC-SHA256 signing key from the app Settings → Webhooks → Signing Key.
+    /// </summary>
+    public string SigningKey { get; set; } = "";
+
+    public string FromNumber { get; set; } = "";
+
     public bool RequireSignedWebhooks { get; set; } = true;
 }

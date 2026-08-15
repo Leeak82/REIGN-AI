@@ -8,7 +8,7 @@ public class TextNowUnsupportedSmsSender : ISmsSender
 {
     public const string Reason =
         "TextNow does not provide a legitimate supported SMS API for applications. " +
-        "Use Simulated for local development, or Twilio/Vonage with a dedicated business number.";
+        "Use Simulated for local development, Twilio/Vonage with a dedicated business number, or SmsGate with an Android SIM.";
 
     public string ProviderName => "TextNow";
 

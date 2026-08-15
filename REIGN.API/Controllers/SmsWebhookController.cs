@@ -76,6 +76,40 @@ public class SmsWebhookController : ControllerBase
         return Content("<Response></Response>", "text/xml");
     }
 
+    [HttpPost("smsgate")]
+    public async Task<IActionResult> SmsGate()
+    {
+        Request.EnableBuffering();
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+        var rawBody = await reader.ReadToEndAsync();
+        Request.Body.Position = 0;
+
+        if (_options.SmsGate.RequireSignedWebhooks)
+        {
+            if (string.IsNullOrWhiteSpace(_options.SmsGate.SigningKey))
+            {
+                return StatusCode(503, new { error = "SmsGate SigningKey is not configured. Set Sms__SmsGate__SigningKey." });
+            }
+
+            var signature = Request.Headers["X-Signature"].ToString();
+            var timestamp = Request.Headers["X-Timestamp"].ToString();
+            if (!SmsGateWebhookValidator.IsValid(_options.SmsGate.SigningKey, rawBody, timestamp, signature))
+            {
+                _logger.LogWarning("Rejected SmsGate webhook with invalid HMAC signature.");
+                return StatusCode(StatusCodes.Status403Forbidden);
+            }
+        }
+
+        var incoming = SmsGateWebhookValidator.TryParseReceived(rawBody);
+        if (incoming == null)
+        {
+            return Ok(new { ok = true, ignored = true });
+        }
+
+        await ProcessSafelyAsync("SmsGate", incoming);
+        return Ok(new { ok = true });
+    }
+
     [HttpPost("vonage")]
     public async Task<IActionResult> Vonage()
     {

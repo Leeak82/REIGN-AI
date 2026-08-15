@@ -111,6 +111,7 @@ builder.Services.AddSingleton<SimulatedSmsSender>();
 builder.Services.AddSingleton<TextNowUnsupportedSmsSender>();
 builder.Services.AddHttpClient<TwilioSmsSender>();
 builder.Services.AddHttpClient<VonageSmsSender>();
+builder.Services.AddHttpClient<SmsGateSmsSender>();
 builder.Services.AddScoped<ConfigurableSmsSender>();
 builder.Services.AddScoped<ISmsSender>(sp => sp.GetRequiredService<ConfigurableSmsSender>());
 

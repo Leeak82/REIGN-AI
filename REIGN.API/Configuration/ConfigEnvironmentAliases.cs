@@ -22,6 +22,11 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:Twilio:AuthToken", "TWILIO_AUTH_TOKEN");
         TryAlias(configuration, extras, "Sms:Twilio:FromNumber", "TWILIO_FROM_NUMBER", "TWILIO_PHONE_NUMBER");
         TryAlias(configuration, extras, "Sms:Twilio:WebhookPublicUrl", "TWILIO_WEBHOOK_URL");
+        TryAlias(configuration, extras, "Sms:SmsGate:Username", "SMSGATE_USERNAME");
+        TryAlias(configuration, extras, "Sms:SmsGate:Password", "SMSGATE_PASSWORD");
+        TryAlias(configuration, extras, "Sms:SmsGate:BaseUrl", "SMSGATE_BASE_URL");
+        TryAlias(configuration, extras, "Sms:SmsGate:SigningKey", "SMSGATE_SIGNING_KEY");
+        TryAlias(configuration, extras, "Sms:SmsGate:FromNumber", "SMSGATE_FROM_NUMBER");
         TryAlias(configuration, extras, "Sms:Vonage:ApiKey", "VONAGE_API_KEY");
         TryAlias(configuration, extras, "Sms:Vonage:ApiSecret", "VONAGE_API_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:SignatureSecret", "VONAGE_SIGNATURE_SECRET");

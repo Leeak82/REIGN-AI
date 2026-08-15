@@ -109,6 +109,13 @@ public class HealthController : ControllerBase
                    !string.IsNullOrWhiteSpace(_sms.Vonage.ApiSecret);
         }
 
+        if (provider.Equals("SmsGate", StringComparison.OrdinalIgnoreCase) ||
+            provider.Equals("Android", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(_sms.SmsGate.Username) &&
+                   !string.IsNullOrWhiteSpace(_sms.SmsGate.Password);
+        }
+
         return false;
     }
 

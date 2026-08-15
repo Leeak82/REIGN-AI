@@ -13,6 +13,7 @@ public class ConfigurableSmsSender : ISmsSender
         SimulatedSmsSender simulated,
         TwilioSmsSender twilio,
         VonageSmsSender vonage,
+        SmsGateSmsSender smsGate,
         TextNowUnsupportedSmsSender textNow,
         IHostEnvironment environment)
     {
@@ -21,6 +22,7 @@ public class ConfigurableSmsSender : ISmsSender
         {
             "twilio" => twilio,
             "vonage" => vonage,
+            "smsgate" or "android" or "android-sms-gateway" => smsGate,
             "textnow" => textNow,
             _ => environment.IsDevelopment() ? simulated : twilio
         };

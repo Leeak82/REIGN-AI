@@ -29,7 +29,7 @@ public class SMSController : ControllerBase
 
     /// <summary>
     /// Internal simulator / application endpoint. This is not a provider webhook.
-    /// Provider inbound traffic must use /api/sms/webhooks/twilio or /api/sms/webhooks/vonage.
+    /// Provider inbound traffic must use /api/sms/webhooks/twilio, /api/sms/webhooks/smsgate, or /api/sms/webhooks/vonage.
     /// Hidden from Swagger so production Try it out is not mistaken for live Twilio.
     /// </summary>
     [ApiExplorerSettings(IgnoreApi = true)]
