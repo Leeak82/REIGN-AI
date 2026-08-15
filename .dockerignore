@@ -1,0 +1,14 @@
+.git
+.github
+.gitignore
+.openclaw
+.env
+.env.*
+*.db
+*.sqlite
+bin/
+obj/
+**/bin/
+**/obj/
+**/appsettings.Development.json
+**/appsettings.*.local.json
