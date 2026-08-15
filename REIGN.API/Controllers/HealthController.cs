@@ -36,28 +36,15 @@ public class HealthController : ControllerBase
         {
             status = "ok",
             service = "REIGN.API",
-            Status = "REIGN API Online",
             utc = DateTime.UtcNow,
-            Time = DateTime.UtcNow,
-            databaseConfigured = !string.IsNullOrWhiteSpace(_configuration.GetConnectionString("Reign")),
-            ai = new
-            {
-                provider = _ai.ProviderName,
-                groqConfigured = _ai.IsConfigured || !string.IsNullOrWhiteSpace(_aiOptions.ApiKey),
-                fallbackAvailable = true
-            },
-            sms = new
-            {
-                provider = _sms.Provider,
-                businessNumberConfigured = !string.IsNullOrWhiteSpace(_sms.BusinessPhoneNumber)
-            },
-            calendar = new
-            {
-                provider = _google.Provider,
-                oauthClientConfigured =
-                    !string.IsNullOrWhiteSpace(_google.ClientId) &&
-                    !string.IsNullOrWhiteSpace(_google.ClientSecret)
-            }
+            databaseStatus = !string.IsNullOrWhiteSpace(_configuration.GetConnectionString("Reign"))
+                ? "configured"
+                : "not configured",
+            groqConfigured = _ai.IsConfigured || !string.IsNullOrWhiteSpace(_aiOptions.ApiKey),
+            smsConfigured = !string.IsNullOrWhiteSpace(_sms.Provider),
+            calendarConfigured =
+                !string.IsNullOrWhiteSpace(_google.ClientId) &&
+                !string.IsNullOrWhiteSpace(_google.ClientSecret)
         });
     }
 }
