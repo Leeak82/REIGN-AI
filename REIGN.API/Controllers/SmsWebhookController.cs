@@ -55,7 +55,8 @@ public class SmsWebhookController : ControllerBase
                 "Rejected Twilio webhook with invalid signature. Tried {Count} public URL candidates: {Urls}. Sending SMS from the Twilio Console does not hit this endpoint; the phone number A Message Comes In webhook must POST to https://YOUR_HOST/api/sms/webhooks/twilio using the same Auth Token as TWILIO_AUTH_TOKEN.",
                 candidates.Count,
                 string.Join(" | ", candidates));
-            return Forbid();
+            // StatusCode(403), not Forbid(): there is no authentication scheme, and Forbid() becomes a 500.
+            return StatusCode(StatusCodes.Status403Forbidden);
         }
 
         var incoming = new IncomingSmsMessage

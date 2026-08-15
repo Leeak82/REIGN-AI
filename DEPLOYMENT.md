@@ -123,7 +123,7 @@ Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-sepa
 
 `https://YOUR_DOMAIN/api/sms/webhooks/twilio`
 
-5. Twilio signs the **public URL it POSTed to**. Behind Render, the API now reconstructs that URL from `TWILIO_WEBHOOK_URL`, `Sms__PublicBaseUrl` / `RENDER_EXTERNAL_URL`, and `X-Forwarded-*`. Invalid signatures return 403.
+5. Twilio signs the **public URL it POSTed to**. Behind Render, the API now reconstructs that URL from `TWILIO_WEBHOOK_URL`, `Sms__PublicBaseUrl` / `RENDER_EXTERNAL_URL`, and `X-Forwarded-*`. Invalid signatures return **403** (not 500). `TWILIO_WEBHOOK_URL` must be exactly `https://YOUR_HOST/api/sms/webhooks/twilio` with no extra path or `/incoming`.
 6. Text the Twilio number from a real phone. Sending SMS from the Twilio Console **Send a message** box only uses Twilio's API — it never hits REIGN and is not a live webhook test.
 
 The Twilio phone number (or Messaging Service) **A Message Comes In** webhook must be:
