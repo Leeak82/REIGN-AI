@@ -167,6 +167,12 @@ using (var scope = app.Services.CreateScope())
             "{Message} The API will stay up so Render does not crash-loop. Booking and SMS persistence will fail until SUPABASE_DB_PASSWORD (or Password= in ConnectionStrings__Reign) matches the reset Supabase database password. Do not keep redeploying with the rejected password.",
             DatabaseConnection.AuthFailedMessage(endpoint));
     }
+    catch (Exception ex) when (PostgresModel.IsMissingRelation(ex))
+    {
+        app.Logger.LogCritical(
+            ex,
+            "PostgreSQL is missing the Businesses table after schema setup. The API will stay up. Redeploy once after this build so CREATE TABLE can run.");
+    }
 }
 
 if (!app.Environment.IsDevelopment())

@@ -1,8 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using REIGN.API.Calendar;
 using REIGN.API.Configuration;
 using REIGN.Data;
+using REIGN.Data.Schema;
 using Xunit;
 
 namespace REIGN.Tests;
@@ -398,6 +400,22 @@ public class ConfigAndCalendarTests
             var utc = new DateTime(2026, 8, 15, 18, 0, 0, DateTimeKind.Utc);
             Assert.Equal("2026-08-15T14:00:00", CalendarTime.ToWallClockRfc3339(utc, tz));
         }
+    }
+
+    [Fact]
+    public void Postgres_create_script_includes_businesses_table()
+    {
+        var options = new DbContextOptionsBuilder<ReignDbContext>()
+            .UseNpgsql("Host=localhost;Database=reign;Username=postgres;Password=postgres")
+            .Options;
+        using var db = new ReignDbContext(options);
+        var script = db.Database.GenerateCreateScript();
+        Assert.Contains("Businesses", script, StringComparison.Ordinal);
+        var batches = PostgresModel.SplitCreateScript(script);
+        Assert.Contains(batches, batch => batch.Contains("CREATE TABLE", StringComparison.OrdinalIgnoreCase)
+            && batch.Contains("Businesses", StringComparison.Ordinal));
+        Assert.True(PostgresModel.IsMissingRelation(
+            new InvalidOperationException("wrapper", new Exception("42P01: relation \"Businesses\" does not exist"))));
     }
 
     private sealed class ListLogger : ILogger

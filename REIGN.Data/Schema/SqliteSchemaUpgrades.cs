@@ -10,7 +10,8 @@ public static class SqliteSchemaUpgrades
         if (provider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
         {
             // Existing migration files are SQLite-specific. PostgreSQL uses the current model.
-            await db.Database.EnsureCreatedAsync(cancellationToken);
+            // EnsureCreated no-ops when the Supabase database already has any public tables.
+            await PostgresModel.EnsureCreatedAsync(db, cancellationToken);
             return;
         }
 
