@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject ReignApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime Js
 
 <PageTitle>Inbox — REIGN AI</PageTitle>
 
@@ -33,7 +34,7 @@
         <div class="ws-col-head">
             <h3>Conversations</h3>
             <input class="input" style="margin-top:10px;" placeholder="Search…"
-                   value="@Search" @oninput="e => Search = e.Value?.ToString() ?? string.Empty" />
+                   @oninput="e => Search = e.Value?.ToString() ?? string.Empty" />
             <div class="conv-filters">
                 @foreach (var f in Filters)
                 {
@@ -131,7 +132,7 @@
             </div>
 
             <div class="composer">
-                <textarea class="textarea" placeholder="Reply as the business…" @bind="Draft" @bind:event="oninput"></textarea>
+                <textarea id="composer" class="textarea" placeholder="Reply as the business…" @oninput="e => Draft = e.Value?.ToString() ?? string.Empty"></textarea>
                 <button class="btn btn-ghost" title="AI Assist" @onclick="AiAssist" disabled="@(Busy || Selected == null)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/></svg>
                     AI Assist
@@ -183,7 +184,7 @@
 
                 <div class="panel-section">
                     <h4>REIGN</h4>
-                    <div class="kv"><span class="k">Current intent</span><span class="v">@(Selected.CurrentIntent ?? "—")</span></div>
+                    <div class="kv"><span class="k">Current intent</span><span class="v">@(string.IsNullOrWhiteSpace(Selected.CurrentIntent) ? "—" : Fmt.Label(Selected.CurrentIntent))</span></div>
                     <div class="kv"><span class="k">Pending service</span><span class="v">@(Selected.PendingServiceName ?? "—")</span></div>
                     <div class="kv"><span class="k">Human needed</span><span class="v">@(Selected.HumanOverrideActive ? "Yes" : "No")</span></div>
                 </div>
@@ -363,6 +364,7 @@
         {
             Notice = await Api.SendOwnerSms(Selected.PhoneNumber, Draft.Trim());
             Draft = "";
+            await ClearComposer();
             await Refresh(quiet: true);
         }
         finally
@@ -395,6 +397,7 @@
             {
                 Draft = result.Reply ?? "";
                 Notice = "REIGN drafted a suggestion — review before sending.";
+                await SetComposer(Draft);
             }
         }
         finally
@@ -402,6 +405,19 @@
             Busy = false;
         }
     }
+
+    private async Task SetComposer(string value)
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("reignUi.setValue", "composer", value);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task ClearComposer() => SetComposer("");
 
     private async Task ResumeAi()
     {

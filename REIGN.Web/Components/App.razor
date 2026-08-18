@@ -19,6 +19,14 @@
 <body>
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
+    <script>
+        window.reignUi = {
+            setValue: function (id, value) {
+                var el = document.getElementById(id);
+                if (el) { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); }
+            }
+        };
+    </script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

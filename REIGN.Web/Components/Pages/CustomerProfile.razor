@@ -53,7 +53,7 @@ else
                 </div>
                 <div class="panel-section">
                     <h4>REIGN</h4>
-                    <div class="kv"><span class="k">Current intent</span><span class="v">@(Profile.CurrentIntent ?? "—")</span></div>
+                    <div class="kv"><span class="k">Current intent</span><span class="v">@(string.IsNullOrWhiteSpace(Profile.CurrentIntent) ? "—" : Fmt.Label(Profile.CurrentIntent))</span></div>
                     <div class="kv"><span class="k">Pending service</span><span class="v">@(Profile.PendingServiceName ?? "—")</span></div>
                     <div class="kv"><span class="k">Conversation</span><span class="v">@(Profile.ConversationStatus ?? "—")</span></div>
                     <div class="kv"><span class="k">Turns</span><span class="v">@Profile.TurnCount</span></div>

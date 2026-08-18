@@ -11,7 +11,7 @@
         <p>Everyone who has texted your business.</p>
     </div>
     <input class="input" style="max-width:280px;" placeholder="Search name or phone…"
-           value="@Search" @oninput="e => Search = e.Value?.ToString() ?? string.Empty" />
+           @oninput="e => Search = e.Value?.ToString() ?? string.Empty" />
 </div>
 
 @if (Error)

@@ -49,4 +49,11 @@ public static class Fmt
 
     public static string AppointmentTime(DateTime time) =>
         time.ToString("MMM d, yyyy h:mm tt");
+
+    public static string Label(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        var words = raw.Replace('_', ' ').Replace('-', ' ').ToLowerInvariant();
+        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(words);
+    }
 }

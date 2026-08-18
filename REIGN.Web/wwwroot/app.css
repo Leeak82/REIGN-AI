@@ -46,6 +46,7 @@ html, body {
     font-size: 15px;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
 }
 
 body {
@@ -1641,5 +1642,14 @@ table.table {
 
     .table-cards td:last-child {
         padding-bottom: 14px !important;
+    }
+
+    .page-head.row-flex {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .page-head.row-flex .input {
+        max-width: none !important;
     }
 }

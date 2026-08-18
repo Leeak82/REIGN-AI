@@ -32,7 +32,7 @@ else
                   Icon="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
         <StatCard Label="Waiting"
                   Value="@WaitingCount.ToString()"
-                  Note="Latest message is from the customer"
+                  Note="@(WaitingCount == 0 ? "Nobody is waiting right now" : "Latest message is from the customer")"
                   Icon="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
                   Color="linear-gradient(135deg,#f59e0b,#fbbf24)" IconColor="#fbbf24" />
         <StatCard Label="Appointments Today"
@@ -89,7 +89,7 @@ else
                                 }
                                 @if (!string.IsNullOrWhiteSpace(c.Customer.CurrentIntent))
                                 {
-                                    <StatusBadge Text="@c.Customer.CurrentIntent" Kind="neutral" />
+                                    <StatusBadge Text="@Fmt.Label(c.Customer.CurrentIntent)" Kind="neutral" />
                                 }
                             </div>
                         </div>

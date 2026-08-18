@@ -16,8 +16,8 @@ public static class BusinessSeed
         {
             Id = BusinessId,
             Name = "REIGN",
-            OwnerName = "Jessica",
-            Phone = "(555) 555-REIGN",
+            OwnerName = "Miss Reign",
+            Phone = "+15555550100",
             Email = "hello@reign.ai",
             Address = "100 Main Street",
             Industry = "Appointment Services",

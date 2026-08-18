@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject ReignApiClient Api
+@inject IJSRuntime Js
 
 <div class="shell">
     <input type="checkbox" id="nav-toggle" class="nav-toggle" title="Toggle navigation" />
@@ -17,8 +18,8 @@
 
             <div class="top-search">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                <input placeholder="Search customers by name or phone…"
-                       value="@Query"
+                <input id="global-search"
+                       placeholder="Search customers by name or phone…"
                        @oninput="OnSearchInput"
                        @onfocus="() => SearchOpen = !string.IsNullOrWhiteSpace(Query)"
                        @onblur="CloseSearchDelayed" />
@@ -210,10 +211,17 @@
         SearchOpen = false;
     }
 
-    private void ClearSearch()
+    private async Task ClearSearch()
     {
         Query = "";
         SearchOpen = false;
+        try
+        {
+            await Js.InvokeVoidAsync("reignUi.setValue", "global-search", "");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private void ToggleNotifications()
