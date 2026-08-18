@@ -1,0 +1,92 @@
+@page "/settings"
+
+@inject ReignApiClient Api
+
+<PageTitle>Settings — REIGN AI</PageTitle>
+
+<div class="page-head">
+    <h1>Settings</h1>
+    <p>How REIGN is configured for your business.</p>
+</div>
+
+@if (Loading)
+{
+    <div class="loading"><span class="spinner"></span> Loading settings…</div>
+}
+else
+{
+    <div class="grid grid-2" style="align-items:start;max-width:1000px;">
+        <div class="card">
+            <div class="card-title">Business</div>
+            <div class="card-sub">Identity REIGN uses with customers</div>
+            @if (Business == null)
+            {
+                <p class="small faint">Business profile unavailable.</p>
+            }
+            else
+            {
+                <div class="kv"><span class="k">Business</span><span class="v">@Business.Name</span></div>
+                <div class="kv"><span class="k">Assistant name</span><span class="v">@(Business.Assistant ?? "REIGN")</span></div>
+                <div class="kv"><span class="k">Time zone</span><span class="v">@(Business.TimeZone ?? "—")</span></div>
+                <div class="kv"><span class="k">Hours</span><span class="v">@(Business.Hours ?? "—")</span></div>
+                <a class="btn btn-ghost btn-sm mt-1" href="business">Edit via API configuration</a>
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-title">Providers</div>
+            <div class="card-sub">Where REIGN is connected</div>
+            @if (Integrations != null)
+            {
+                <div class="kv">
+                    <span class="k">SMS</span>
+                    <span class="v">@Integrations.Sms.ActiveProvider
+                        <StatusBadge Text="@(Integrations.Sms.CredentialsPresent && !Integrations.Sms.Simulated ? "Live" : Integrations.Sms.Simulated ? "Simulated" : "Not configured")"
+                                     Kind="@(Integrations.Sms.CredentialsPresent && !Integrations.Sms.Simulated ? "success" : "warning")" />
+                    </span>
+                </div>
+                <div class="kv">
+                    <span class="k">Calendar</span>
+                    <span class="v">@Integrations.GoogleCalendar.ActiveProvider
+                        <StatusBadge Text="@(!Integrations.GoogleCalendar.Simulated && Integrations.GoogleCalendar.HasStoredGrant ? "Connected" : "Not connected")"
+                                     Kind="@(!Integrations.GoogleCalendar.Simulated && Integrations.GoogleCalendar.HasStoredGrant ? "success" : "warning")" />
+                    </span>
+                </div>
+            }
+            @if (AiStatus != null)
+            {
+                <div class="kv">
+                    <span class="k">AI</span>
+                    <span class="v">@AiStatus.Provider
+                        <StatusBadge Text="@(AiStatus.GroqConfigured ? "Configured" : "Fallback")"
+                                     Kind="@(AiStatus.GroqConfigured ? "success" : "warning")" />
+                    </span>
+                </div>
+            }
+            <a class="btn btn-ghost btn-sm mt-1" href="integrations">Manage integrations</a>
+        </div>
+    </div>
+
+    <div class="card mt-2" style="max-width:1000px;">
+        <div class="card-title">About configuration</div>
+        <p class="small dim" style="margin:8px 0 0;">
+            REIGN's providers, phone numbers, and credentials are managed through API configuration on the
+            server — never in the browser — so secrets stay safe. Contact your administrator to change them.
+        </p>
+    </div>
+}
+
+@code {
+    private bool Loading = true;
+    private ReignApiClient.BusinessDto? Business;
+    private ReignApiClient.IntegrationStatusDto? Integrations;
+    private ReignApiClient.AiStatusDto? AiStatus;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Business = (await Api.GetBusinesses()).FirstOrDefault();
+        Integrations = await Api.GetIntegrationStatus();
+        AiStatus = await Api.GetAiStatus();
+        Loading = false;
+    }
+}

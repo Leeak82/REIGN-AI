@@ -1,0 +1,20 @@
+<div class="stat-card" style="--stat-color: @Color; --stat-icon: @IconColor;">
+    <div class="stat-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="@Icon"/></svg>
+        @Label
+    </div>
+    <div class="stat-value">@Value</div>
+    @if (!string.IsNullOrWhiteSpace(Note))
+    {
+        <div class="stat-note">@Note</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "0";
+    [Parameter] public string? Note { get; set; }
+    [Parameter] public string Icon { get; set; } = "M22 12h-4l-3 9L9 3l-3 9H2";
+    [Parameter] public string Color { get; set; } = "linear-gradient(135deg, #6366f1, #a855f7)";
+    [Parameter] public string IconColor { get; set; } = "#818cf8";
+}

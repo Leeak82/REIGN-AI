@@ -1,44 +1,57 @@
 @page "/reign"
 
-@using REIGN.Web.Services
 @inject ReignApiClient ReignClient
 @inject IWebHostEnvironment HostEnvironment
 
-<h1>Miss Reign AI</h1>
+<PageTitle>Assistant — REIGN AI</PageTitle>
+
+<div class="page-head">
+    <h1>Assistant Tester</h1>
+    <p>Development tool for simulating a customer conversation.</p>
+</div>
 
 @if (!HostEnvironment.IsDevelopment())
 {
-    <p>The development assistant tester is not available in production. Customer SMS is handled by Twilio or Vonage.</p>
+    <div class="card">
+        <EmptyState Title="Development only"
+                    Description="The assistant tester is hidden in production. Customer SMS is handled by the configured provider."
+                    Icon="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    </div>
 }
 else
 {
-@if (!string.IsNullOrWhiteSpace(Error))
-{
-    <div class="alert alert-danger">@Error</div>
-}
-
-<div class="mb-2">
-    <input class="form-control" @bind="Phone" placeholder="Phone Number" />
-</div>
-
-<div class="mb-2">
-    <textarea class="form-control" @bind="Message" placeholder="Type a message"></textarea>
-</div>
-
-<button class="btn btn-primary" @onclick="Send" disabled="@Busy">
-    Send
-</button>
-
-@if (!string.IsNullOrWhiteSpace(Reply))
-{
-    <hr />
-    <h3>Miss Reign:</h3>
-    <p>@Reply</p>
-    @if (!string.IsNullOrWhiteSpace(Intent))
+    @if (!string.IsNullOrWhiteSpace(Error))
     {
-        <small>Intent: @Intent@(Persisted ? " · saved" : "")</small>
+        <div class="error-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+            <span class="msg">@Error</span>
+        </div>
     }
-}
+
+    <div class="card" style="max-width:640px;">
+        <label class="field-label">Phone number</label>
+        <input class="input mb-2" @bind="Phone" placeholder="Phone Number" />
+
+        <label class="field-label">Customer message</label>
+        <textarea class="textarea" @bind="Message" placeholder="Type a message"></textarea>
+
+        <div class="mt-1">
+            <button class="btn btn-primary" @onclick="Send" disabled="@Busy">Send</button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Reply))
+        {
+            <div class="divider"></div>
+            <div class="bubble-row out" style="max-width:100%;">
+                <span class="bubble-tag">REIGN</span>
+                <div class="bubble">@Reply</div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Intent))
+            {
+                <p class="small faint mt-1" style="margin-bottom:0;">Intent: @Intent@(Persisted ? " · saved" : "")</p>
+            }
+        }
+    </div>
 }
 
 @code {

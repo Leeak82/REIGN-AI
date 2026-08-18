@@ -1,0 +1,59 @@
+@page "/services"
+
+@inject ReignApiClient Api
+
+<PageTitle>Services — REIGN AI</PageTitle>
+
+<div class="page-head">
+    <h1>Services</h1>
+    <p>What your business offers. REIGN quotes these exact services and prices to customers.</p>
+</div>
+
+@if (Loading)
+{
+    <div class="loading"><span class="spinner"></span> Loading services…</div>
+}
+else if (Catalog == null || Catalog.Services.Count == 0)
+{
+    <div class="card">
+        <EmptyState Title="No services configured"
+                    Description="REIGN's service catalog is empty. Configure services in the API to show them here."
+                    Icon="m12 2 8.5 4.7v9.6L12 21l-8.5-4.7V6.7Z" />
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(Catalog.Summary))
+    {
+        <div class="card mb-2">
+            <div class="card-title">Catalog</div>
+            <p class="dim" style="margin:6px 0 0;">@Catalog.Summary</p>
+        </div>
+    }
+
+    <div class="grid grid-3">
+        @foreach (var s in Catalog.Services)
+        {
+            <div class="service-card">
+                <div class="row-flex" style="justify-content:space-between;">
+                    <span class="service-code">@s.Code</span>
+                    <StatusBadge Text="Active" Kind="success" />
+                </div>
+                <div class="service-name">@s.Name</div>
+                <div class="service-price">@Fmt.Money(s.Price)</div>
+                <div class="service-meta">@s.DurationMinutes minutes</div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool Loading = true;
+    private ReignApiClient.CatalogDto? Catalog;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Catalog = await Api.GetCatalog();
+        Loading = false;
+    }
+}

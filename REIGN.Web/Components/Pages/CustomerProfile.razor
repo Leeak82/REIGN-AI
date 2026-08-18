@@ -1,0 +1,136 @@
+@page "/customers/{Phone}"
+
+@inject ReignApiClient Api
+
+<PageTitle>@(Profile == null ? "Customer" : Fmt.DisplayName(Profile.Name, Profile.PhoneNumber)) — REIGN AI</PageTitle>
+
+@if (Loading)
+{
+    <div class="loading"><span class="spinner"></span> Loading customer…</div>
+}
+else if (Profile == null)
+{
+    <div class="page-head">
+        <h1>Customer not found</h1>
+        <p>REIGN has no record of this customer.</p>
+    </div>
+    <div class="card">
+        <EmptyState Title="No customer found"
+                    Description="This customer may not have texted your REIGN number yet."
+                    Icon="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+        <div style="text-align:center;"><a class="btn btn-ghost" href="customers">Back to customers</a></div>
+    </div>
+}
+else
+{
+    <div class="page-head row-flex">
+        <span class="avatar gradient" style="width:52px;height:52px;font-size:18px;">@Fmt.Initials(Profile.Name, Profile.PhoneNumber)</span>
+        <div class="grow">
+            <h1>@Fmt.DisplayName(Profile.Name, Profile.PhoneNumber)</h1>
+            <p>@Profile.PhoneNumber</p>
+        </div>
+        @if (Profile.HumanOverrideActive)
+        {
+            <StatusBadge Text="Human required" Kind="warning" />
+        }
+        else
+        {
+            <StatusBadge Text="AI handling" Kind="accent" />
+        }
+        <a class="btn btn-primary" href="inbox?phone=@Uri.EscapeDataString(Profile.PhoneNumber)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+            Open conversation
+        </a>
+    </div>
+
+    <div class="grid" style="grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items:start;">
+        <div>
+            <div class="card" style="padding:0;">
+                <div class="panel-section">
+                    <h4>Contact</h4>
+                    <div class="kv"><span class="k">Name</span><span class="v">@(Profile.Name ?? "—")</span></div>
+                    <div class="kv"><span class="k">Phone</span><span class="v">@Profile.PhoneNumber</span></div>
+                </div>
+                <div class="panel-section">
+                    <h4>REIGN</h4>
+                    <div class="kv"><span class="k">Current intent</span><span class="v">@(Profile.CurrentIntent ?? "—")</span></div>
+                    <div class="kv"><span class="k">Pending service</span><span class="v">@(Profile.PendingServiceName ?? "—")</span></div>
+                    <div class="kv"><span class="k">Conversation</span><span class="v">@(Profile.ConversationStatus ?? "—")</span></div>
+                    <div class="kv"><span class="k">Turns</span><span class="v">@Profile.TurnCount</span></div>
+                    @if (Profile.LastCustomerMessageAt != null)
+                    {
+                        <div class="kv"><span class="k">Last heard</span><span class="v">@Fmt.TimeAgo(Profile.LastCustomerMessageAt.Value)</span></div>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Profile.MemorySummary))
+                {
+                    <div class="panel-section">
+                        <h4>What REIGN remembers</h4>
+                        <p class="small dim" style="margin:0;white-space:pre-wrap;">@Profile.MemorySummary</p>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Profile.Notes))
+                {
+                    <div class="panel-section">
+                        <h4>Notes</h4>
+                        <p class="small dim" style="margin:0;white-space:pre-wrap;">@Profile.Notes</p>
+                    </div>
+                }
+            </div>
+
+            <div class="card mt-2" style="padding:0;">
+                <div class="panel-section">
+                    <h4>Appointments</h4>
+                    @if (Profile.Appointments.Count == 0)
+                    {
+                        <p class="small faint" style="margin:0;">No appointments yet.</p>
+                    }
+                    @foreach (var a in Profile.Appointments)
+                    {
+                        <div class="kv">
+                            <span class="k">@a.Service<br /><span class="small faint">@Fmt.AppointmentTime(a.AppointmentTime)</span></span>
+                            <span class="v"><StatusBadge Text="@a.Status" Kind="@StatusBadge.KindForAppointment(a.Status)" /></span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="padding:0;">
+            <div class="ws-col-head">
+                <div class="card-title">Conversation history</div>
+                <div class="card-sub" style="margin:2px 0 0;">Every message REIGN has with this customer</div>
+            </div>
+            <div class="chat-scroll" style="max-height:70vh;">
+                @if (Profile.Messages.Count == 0)
+                {
+                    <EmptyState Title="No messages yet"
+                                Description="The conversation history appears here after the first text." />
+                }
+                @foreach (var m in Profile.Messages)
+                {
+                    var outbound = m.Direction == "Outbound";
+                    <div class="bubble-row @(outbound ? "out" : "in")">
+                        <span class="bubble-tag">@(outbound ? (m.IsOwnerOverride ? "OWNER" : "REIGN") : "CUSTOMER")</span>
+                        <div class="bubble">@m.Body</div>
+                        <span class="bubble-time">@Fmt.TimeAgo(m.CreatedAt)</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Phone { get; set; } = "";
+
+    private bool Loading = true;
+    private ReignApiClient.CustomerProfileDto? Profile;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Loading = true;
+        Profile = await Api.GetCustomerProfile(Phone);
+        Loading = false;
+    }
+}

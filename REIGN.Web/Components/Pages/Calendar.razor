@@ -1,0 +1,150 @@
+@page "/calendar"
+
+@inject ReignApiClient Api
+
+<PageTitle>Calendar — REIGN AI</PageTitle>
+
+<div class="page-head">
+    <h1>Calendar</h1>
+    <p>Appointments REIGN has booked for your business.</p>
+</div>
+
+@if (Error)
+{
+    <div class="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+        <span class="msg">Something went wrong. REIGN couldn't load appointments.</span>
+        <button class="btn btn-ghost btn-sm" @onclick="Load">Try again</button>
+    </div>
+}
+
+<div class="card mb-2 row-flex">
+    <span class="health-icon @(GoogleConnected ? "ok" : "warn")" style="width:42px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4m8-4v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+    </span>
+    <div class="grow">
+        <div class="health-name">Google Calendar</div>
+        <div class="health-detail">
+            @(Status == null ? "Checking connection…"
+                : GoogleConnected
+                    ? $"Connected via {Status.GoogleCalendar.ActiveProvider}"
+                    : "Not connected")
+        </div>
+    </div>
+    @if (Status != null && !GoogleConnected)
+    {
+        <a class="btn btn-primary btn-sm" href="@AuthorizeUrl">Connect Google Calendar</a>
+    }
+    else if (Status != null)
+    {
+        <StatusBadge Text="Connected" Kind="success" />
+    }
+</div>
+
+@if (Loading)
+{
+    <div class="loading"><span class="spinner"></span> Loading appointments…</div>
+}
+else if (Appointments.Count == 0)
+{
+    <div class="card">
+        <EmptyState Title="No appointments yet"
+                    Description="When REIGN books a customer, the appointment appears here."
+                    Icon="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table table-cards">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Service</th>
+                    <th>Time</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in Appointments)
+                {
+                    <tr>
+                        <td data-label="Customer">
+                            <span class="cell-main">@a.Customer</span>
+                            @if (!string.IsNullOrWhiteSpace(a.Phone))
+                            {
+                                <div class="small faint">@a.Phone</div>
+                            }
+                        </td>
+                        <td data-label="Service">@a.Service</td>
+                        <td data-label="Time">@Fmt.AppointmentTime(a.AppointmentTime)</td>
+                        <td data-label="Price">@Fmt.Money(a.Price)</td>
+                        <td data-label="Status">
+                            <StatusBadge Text="@a.Status" Kind="@StatusBadge.KindForAppointment(a.Status)" />
+                        </td>
+                        <td>
+                            @if (a.Status != "Confirmed" && a.Status != "Cancelled")
+                            {
+                                <div class="row-flex">
+                                    <button class="btn btn-success btn-sm" @onclick="() => Confirm(a.Id)">Confirm</button>
+                                    <button class="btn btn-danger btn-sm" @onclick="() => Cancel(a.Id)">Cancel</button>
+                                </div>
+                            }
+                            else if (a.Status == "Confirmed")
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => Cancel(a.Id)">Cancel</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool Loading = true;
+    private bool Error;
+    private List<ReignApiClient.AppointmentDto> Appointments = new();
+    private ReignApiClient.IntegrationStatusDto? Status;
+
+    private bool GoogleConnected =>
+        Status != null && !Status.GoogleCalendar.Simulated && Status.GoogleCalendar.HasStoredGrant;
+
+    private string AuthorizeUrl => $"{Api.BaseAddress}api/integrations/google/authorize";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        Loading = true;
+        Error = false;
+        try
+        {
+            Appointments = await Api.GetAppointments();
+            Status = await Api.GetIntegrationStatus();
+        }
+        catch
+        {
+            Error = true;
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private async Task Confirm(Guid id)
+    {
+        await Api.ConfirmAppointment(id);
+        await Load();
+    }
+
+    private async Task Cancel(Guid id)
+    {
+        await Api.CancelAppointment(id);
+        await Load();
+    }
+}

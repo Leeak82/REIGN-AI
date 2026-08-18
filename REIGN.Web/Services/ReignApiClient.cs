@@ -202,6 +202,123 @@ public async Task CancelAppointment(Guid id)
         }
     }
 
+    public async Task<List<RecentActivityDto>> GetRecentActivity()
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<List<RecentActivityDto>>("api/activity/recent")
+                ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    public async Task<HealthDto?> GetHealth()
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<HealthDto>("health");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<AiStatusDto?> GetAiStatus()
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<AiStatusDto>("api/ai/status");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<List<BusinessDto>> GetBusinesses()
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<List<BusinessDto>>("api/businesses")
+                ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    public async Task<string?> GetBusinessName()
+    {
+        var businesses = await GetBusinesses();
+        var name = businesses.FirstOrDefault()?.Name;
+        return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
+    public class RecentActivityDto
+    {
+        public DateTime Time { get; set; }
+
+        public string Customer { get; set; } = "";
+
+        public string Direction { get; set; } = "";
+
+        public string Message { get; set; } = "";
+    }
+
+    public class HealthDto
+    {
+        public string Status { get; set; } = "";
+
+        public string Database { get; set; } = "";
+
+        public bool GroqConfigured { get; set; }
+
+        public bool SmsConfigured { get; set; }
+
+        public bool CalendarConfigured { get; set; }
+    }
+
+    public class AiStatusDto
+    {
+        public string Provider { get; set; } = "";
+
+        public bool GroqConfigured { get; set; }
+
+        public string Model { get; set; } = "";
+
+        public bool FallbackAvailable { get; set; }
+    }
+
+    public class BusinessDto
+    {
+        public Guid Id { get; set; }
+
+        public string Name { get; set; } = "";
+
+        public string? OwnerName { get; set; }
+
+        public string? Phone { get; set; }
+
+        public string? Email { get; set; }
+
+        public string? Hours { get; set; }
+
+        public string? TimeZone { get; set; }
+
+        public string? Assistant { get; set; }
+
+        public string? Offering { get; set; }
+
+        public string? Catalog { get; set; }
+
+        public bool Active { get; set; }
+    }
+
     public async Task<CatalogDto?> GetCatalog()
     {
         try
@@ -247,7 +364,11 @@ public async Task CancelAppointment(Guid id)
 
         public string? Notes { get; set; }
 
+        public bool HumanOverrideActive { get; set; }
+
         public string? CurrentIntent { get; set; }
+
+        public string? LastIntent { get; set; }
 
         public string? PendingServiceName { get; set; }
 
@@ -256,6 +377,12 @@ public async Task CancelAppointment(Guid id)
         public string? MemorySummary { get; set; }
 
         public int TurnCount { get; set; }
+
+        public DateTime? LastCustomerMessageAt { get; set; }
+
+        public List<MessageDto> Messages { get; set; } = [];
+
+        public List<AppointmentDto> Appointments { get; set; } = [];
     }
 
     public async Task<ChatResult> AskOwnerAsync(string message)
@@ -336,9 +463,15 @@ public async Task CancelAppointment(Guid id)
     {
         public Guid Id { get; set; }
 
+        public string? Customer { get; set; }
+
         public string Direction { get; set; } = "";
 
         public string Body { get; set; } = "";
+
+        public string? Source { get; set; }
+
+        public bool IsOwnerOverride { get; set; }
 
         public DateTime CreatedAt { get; set; }
     }
@@ -353,6 +486,8 @@ public async Task CancelAppointment(Guid id)
 
         public string Customer { get; set; } = "";
 
+        public string? Phone { get; set; }
+
         public string Service { get; set; } = "";
 
         public DateTime AppointmentTime { get; set; }
@@ -360,6 +495,8 @@ public async Task CancelAppointment(Guid id)
         public string Status { get; set; } = "";
 
         public decimal Price { get; set; }
+
+        public int DurationMinutes { get; set; }
     }
 
     public class OwnerSendResponse
@@ -391,6 +528,10 @@ public async Task CancelAppointment(Guid id)
         public bool Simulated { get; set; }
 
         public bool CredentialsPresent { get; set; }
+
+        public bool BusinessPhoneConfigured { get; set; }
+
+        public bool OwnerPhoneConfigured { get; set; }
     }
 
     public class GoogleStatusDto
@@ -404,5 +545,7 @@ public async Task CancelAppointment(Guid id)
         public bool OauthClientConfigured { get; set; }
 
         public bool HasStoredGrant { get; set; }
+
+        public string? CalendarId { get; set; }
     }
 }

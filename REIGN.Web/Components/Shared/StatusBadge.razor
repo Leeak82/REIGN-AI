@@ -1,0 +1,16 @@
+<span class="badge badge-@Kind"><span class="b-dot"></span>@Text</span>
+
+@code {
+    [Parameter] public string Text { get; set; } = "";
+
+    /// <summary>success | warning | danger | info | neutral | accent</summary>
+    [Parameter] public string Kind { get; set; } = "neutral";
+
+    public static string KindForAppointment(string? status) => status?.ToLowerInvariant() switch
+    {
+        "confirmed" or "completed" => "success",
+        "cancelled" => "danger",
+        "pending" => "warning",
+        _ => "neutral"
+    };
+}

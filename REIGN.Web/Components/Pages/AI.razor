@@ -1,68 +1,180 @@
 @page "/ai"
 
-@using REIGN.Web.Services
 @inject ReignApiClient Api
 @inject IWebHostEnvironment HostEnvironment
 
-<h1>REIGN AI</h1>
+<PageTitle>AI — REIGN AI</PageTitle>
 
-<p>Customer conversations go through intent, memory, Groq (or fallback), then persistence. Owner questions read live activity.</p>
+<div class="page-head">
+    <h1>AI</h1>
+    <p>The brain behind your customer conversations.</p>
+</div>
 
 @if (!string.IsNullOrWhiteSpace(Error))
 {
-    <div class="alert alert-danger">@Error</div>
+    <div class="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+        <span class="msg">@Error</span>
+    </div>
 }
 
-<div class="row">
-    @if (HostEnvironment.IsDevelopment())
-    {
-        <div class="col-md-6">
-            <div class="card p-3 mb-3">
-                <h3>Customer conversation</h3>
-                <p class="text-muted">Development SMS tester. Hidden in production.</p>
-                <input class="form-control mb-2" placeholder="Customer phone" @bind="Phone" />
-                <textarea class="form-control mb-2" placeholder="Customer message" @bind="CustomerMessage"></textarea>
-                <button class="btn btn-primary" @onclick="SendCustomer" disabled="@Busy">Send</button>
-                @if (!string.IsNullOrWhiteSpace(CustomerReply))
+<div class="grid" style="grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items:start;">
+    <div>
+        <div class="card mb-2">
+            <div class="row-flex">
+                <span class="health-icon @(AiOnline ? "ok" : "warn")">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.4-1.2 4-2.6 5.4-.9.9-1.4 1.6-1.4 2.6h-6c0-1-.5-1.7-1.4-2.6C6.2 13 5 11.4 5 9a7 7 0 0 1 7-7Z"/><path d="M9 21h6"/></svg>
+                </span>
+                <div class="grow">
+                    <div class="health-name">AI Status</div>
+                    <div class="health-detail">@(AiStatus == null ? "Checking…" : AiOnline ? "Answering customers now" : "Running on fallback responses")</div>
+                </div>
+                @if (AiStatus != null)
                 {
-                    <div class="alert alert-info mt-3">
-                        <strong>Intent:</strong> @LastIntent<br />
-                        <strong>Miss Reign:</strong> @CustomerReply
-                        @if (!string.IsNullOrWhiteSpace(Context))
-                        {
-                            <hr />
-                            <small>@Context</small>
-                        }
-                    </div>
+                    <StatusBadge Text="@(AiOnline ? "Online" : "Fallback")" Kind="@(AiOnline ? "success" : "warning")" />
                 }
             </div>
-        </div>
-    }
-    <div class="@(HostEnvironment.IsDevelopment() ? "col-md-6" : "col-md-12")">
-        <div class="card p-3 mb-3">
-            <h3>Owner activity</h3>
-            <textarea class="form-control mb-2" placeholder="Ask about customers, appointments, today" @bind="OwnerMessage"></textarea>
-            <button class="btn btn-secondary" @onclick="AskOwner" disabled="@Busy">Ask REIGN</button>
-            @if (!string.IsNullOrWhiteSpace(OwnerReply))
+
+            @if (AiStatus != null)
             {
-                <div class="alert alert-success mt-3">@OwnerReply</div>
+                <div class="divider"></div>
+                <div class="kv"><span class="k">Provider</span><span class="v">@AiStatus.Provider</span></div>
+                <div class="kv"><span class="k">Model</span><span class="v">@AiStatus.Model</span></div>
+                <div class="kv"><span class="k">Provider key</span><span class="v">@(AiStatus.GroqConfigured ? "Configured" : "Not configured")</span></div>
+                <div class="kv"><span class="k">Fallback replies</span><span class="v">@(AiStatus.FallbackAvailable ? "Available" : "Unavailable")</span></div>
             }
         </div>
+
+        <div class="card mb-2">
+            <div class="card-title">Conversations handled</div>
+            <div class="card-sub">Real counts from your REIGN data</div>
+            <div class="row-flex" style="gap:26px;">
+                <div>
+                    <div class="stat-value" style="font-size:26px;">@Customers.Count</div>
+                    <div class="small faint">Customers</div>
+                </div>
+                <div>
+                    <div class="stat-value" style="font-size:26px;">@Customers.Sum(c => c.Messages)</div>
+                    <div class="small faint">Messages</div>
+                </div>
+                <div>
+                    <div class="stat-value" style="font-size:26px;">@Recent.Count(r => r.Direction == "Outbound")</div>
+                    <div class="small faint">Recent AI replies</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="padding:0;">
+            <div class="ws-col-head">
+                <div class="card-title">Current activity</div>
+                <div class="card-sub" style="margin:2px 0 0;">Recent AI interactions</div>
+            </div>
+            @if (Recent.Count == 0)
+            {
+                <EmptyState Title="No AI activity yet"
+                            Description="REIGN's replies show up here as customers text in." />
+            }
+            else
+            {
+                @foreach (var r in Recent.Take(6))
+                {
+                    <div class="list-row" style="cursor:default;">
+                        <span class="feed-icon @(r.Direction == "Inbound" ? "in" : "out")" style="width:32px;height:32px;border-radius:9px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="@(r.Direction == "Inbound" ? "M12 5v14m0 0 5-5m-5 5-5-5" : "M12 19V5m0 0-5 5m5-5 5 5")"/></svg>
+                        </span>
+                        <div class="grow">
+                            <div class="small" style="font-weight:600;color:var(--text);">@r.Customer</div>
+                            <div class="small faint" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">@r.Message</div>
+                        </div>
+                        <span class="small faint">@Fmt.TimeAgo(r.Time)</span>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <div>
+        <div class="card mb-2">
+            <div class="card-title">Ask REIGN</div>
+            <div class="card-sub">Ask about customers, appointments, and today — answered from live data</div>
+            <textarea class="textarea" placeholder="e.g. Who am I seeing today?" @bind="OwnerMessage"></textarea>
+            <div class="mt-1">
+                <button class="btn btn-primary" @onclick="AskOwner" disabled="@Busy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/></svg>
+                    Ask REIGN
+                </button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(OwnerReply))
+            {
+                <div class="bubble-row out mt-2" style="max-width:100%;">
+                    <span class="bubble-tag">REIGN</span>
+                    <div class="bubble">@OwnerReply</div>
+                </div>
+            }
+        </div>
+
+        @if (HostEnvironment.IsDevelopment())
+        {
+            <div class="card">
+                <div class="card-title">Customer conversation tester</div>
+                <div class="card-sub">Development only — hidden in production</div>
+                <label class="field-label">Customer phone</label>
+                <input class="input mb-2" placeholder="+1…" @bind="Phone" />
+                <label class="field-label">Customer message</label>
+                <textarea class="textarea" placeholder="What the customer texted" @bind="CustomerMessage"></textarea>
+                <div class="mt-1">
+                    <button class="btn btn-ghost" @onclick="SendCustomer" disabled="@Busy">Simulate incoming SMS</button>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(CustomerReply))
+                {
+                    <div class="divider"></div>
+                    <div class="kv"><span class="k">Intent</span><span class="v">@(string.IsNullOrWhiteSpace(LastIntent) ? "—" : LastIntent)</span></div>
+                    <div class="bubble-row out mt-1" style="max-width:100%;">
+                        <span class="bubble-tag">REIGN</span>
+                        <div class="bubble">@CustomerReply</div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(Context))
+                    {
+                        <p class="small faint mt-1" style="margin-bottom:0;">@Context</p>
+                    }
+                }
+            </div>
+        }
     </div>
 </div>
 
 @code {
-    string Phone = "3605550100";
-    string CustomerMessage = "";
-    string CustomerReply = "";
-    string OwnerMessage = "";
-    string OwnerReply = "";
-    string LastIntent = "";
-    string Context = "";
-    string Error = "";
-    bool Busy;
+    private ReignApiClient.AiStatusDto? AiStatus;
+    private List<ReignApiClient.CustomerDto> Customers = new();
+    private List<ReignApiClient.RecentActivityDto> Recent = new();
 
-    async Task SendCustomer()
+    private string Phone = "3605550100";
+    private string CustomerMessage = "";
+    private string CustomerReply = "";
+    private string OwnerMessage = "";
+    private string OwnerReply = "";
+    private string LastIntent = "";
+    private string Context = "";
+    private string Error = "";
+    private bool Busy;
+
+    private bool AiOnline => AiStatus?.GroqConfigured == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            AiStatus = await Api.GetAiStatus();
+            Customers = await Api.GetCustomers();
+            Recent = await Api.GetRecentActivity();
+        }
+        catch
+        {
+            Error = "Something went wrong. REIGN couldn't load AI status.";
+        }
+    }
+
+    private async Task SendCustomer()
     {
         Error = "";
         if (string.IsNullOrWhiteSpace(Phone) || string.IsNullOrWhiteSpace(CustomerMessage))
@@ -95,7 +207,7 @@
         }
     }
 
-    async Task AskOwner()
+    private async Task AskOwner()
     {
         Error = "";
         if (string.IsNullOrWhiteSpace(OwnerMessage))

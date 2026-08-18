@@ -1,0 +1,126 @@
+@page "/customers"
+
+@inject ReignApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Customers — REIGN AI</PageTitle>
+
+<div class="page-head row-flex">
+    <div class="grow">
+        <h1>Customers</h1>
+        <p>Everyone who has texted your business.</p>
+    </div>
+    <input class="input" style="max-width:280px;" placeholder="Search name or phone…"
+           value="@Search" @oninput="e => Search = e.Value?.ToString() ?? string.Empty" />
+</div>
+
+@if (Error)
+{
+    <div class="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+        <span class="msg">Something went wrong. REIGN couldn't load customers.</span>
+        <button class="btn btn-ghost btn-sm" @onclick="Load">Try again</button>
+    </div>
+}
+
+@if (Loading)
+{
+    <div class="loading"><span class="spinner"></span> Loading customers…</div>
+}
+else if (Filtered.Count == 0)
+{
+    <div class="card">
+        <EmptyState Title="@(string.IsNullOrWhiteSpace(Search) ? "No customers yet" : $"No customers match \"{Search}\"")"
+                    Description="When someone texts your REIGN number, they appear here automatically."
+                    Icon="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" />
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="table table-cards">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th>Conversations</th>
+                    <th>Appointments</th>
+                    <th>Last contact</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in Filtered)
+                {
+                    <tr style="cursor:pointer;" @onclick="() => Open(c)">
+                        <td data-label="Customer">
+                            <div class="row-flex">
+                                <span class="avatar">@Fmt.Initials(c.Name, c.PhoneNumber)</span>
+                                <span class="cell-main">@Fmt.DisplayName(c.Name, c.PhoneNumber)</span>
+                            </div>
+                        </td>
+                        <td data-label="Phone">@c.PhoneNumber</td>
+                        <td data-label="Conversations">@c.Messages messages</td>
+                        <td data-label="Appointments">@c.Appointments</td>
+                        <td data-label="Last contact">@(LastContact(c) is { } t ? Fmt.TimeAgo(t) : "—")</td>
+                        <td data-label="Status">
+                            @if (c.HumanOverrideActive)
+                            {
+                                <StatusBadge Text="Human required" Kind="warning" />
+                            }
+                            else
+                            {
+                                <StatusBadge Text="AI handling" Kind="accent" />
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool Loading = true;
+    private bool Error;
+    private string Search = "";
+    private List<ReignApiClient.CustomerDto> AllCustomers = new();
+    private List<ReignApiClient.RecentActivityDto> Recent = new();
+
+    private List<ReignApiClient.CustomerDto> Filtered =>
+        string.IsNullOrWhiteSpace(Search)
+            
+            ? AllCustomers
+            : AllCustomers.Where(c =>
+                (c.Name?.Contains(Search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                c.PhoneNumber.Contains(Search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private DateTime? LastContact(ReignApiClient.CustomerDto c) =>
+        Recent.Where(r => r.Customer == c.PhoneNumber || r.Customer == c.Name)
+            .Select(r => (DateTime?)r.Time)
+            .FirstOrDefault();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        Loading = true;
+        Error = false;
+        try
+        {
+            AllCustomers = await Api.GetCustomers();
+            Recent = await Api.GetRecentActivity();
+        }
+        catch
+        {
+            Error = true;
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private void Open(ReignApiClient.CustomerDto c) =>
+        Nav.NavigateTo($"customers/{Uri.EscapeDataString(c.PhoneNumber)}");
+}

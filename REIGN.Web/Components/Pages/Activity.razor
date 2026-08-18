@@ -1,0 +1,117 @@
+@page "/activity"
+
+@implements IDisposable
+@inject ReignApiClient Api
+
+<PageTitle>Activity — REIGN AI</PageTitle>
+
+<div class="page-head row-flex">
+    <div class="grow">
+        <h1>Activity</h1>
+        <p>What REIGN is doing, in real time.</p>
+    </div>
+    <span class="badge badge-success"><span class="b-dot"></span>Live</span>
+</div>
+
+@if (Error)
+{
+    <div class="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+        <span class="msg">Something went wrong. REIGN couldn't load activity.</span>
+        <button class="btn btn-ghost btn-sm" @onclick="() => Load()">Try again</button>
+    </div>
+}
+
+<div class="grid" style="grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items:start;">
+    <div class="card">
+        @if (Loading && Feed.Count == 0)
+        {
+            <div class="loading"><span class="spinner"></span> Loading activity…</div>
+        }
+        else if (Feed.Count == 0)
+        {
+            <EmptyState Title="No activity yet"
+                        Description="When REIGN receives or sends messages, the events stream in here." />
+        }
+        else
+        {
+            <div class="feed">
+                @foreach (var e in Feed)
+                {
+                    var inbound = e.Direction == "Inbound";
+                    <div class="feed-item">
+                        <span class="feed-icon @(inbound ? "in" : "out")">
+                            @if (inbound)
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1Z"/></svg>
+                            }
+                            else
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                            }
+                        </span>
+                        <div class="feed-body">
+                            <div class="feed-title">
+                                @(inbound
+                                    ? $"REIGN received a message from {e.Customer}"
+                                    : $"REIGN responded to {e.Customer}")
+                            </div>
+                            <div class="feed-desc">@e.Message</div>
+                        </div>
+                        <span class="feed-time">@Fmt.TimeAgo(e.Time)</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Snapshot))
+    {
+        <div class="card">
+            <div class="card-title">REIGN Summary</div>
+            <div class="card-sub">Live snapshot from the owner assistant</div>
+            <p class="dim small" style="white-space:pre-wrap;margin:0;">@Snapshot</p>
+        </div>
+    }
+</div>
+
+@code {
+    private bool Loading = true;
+    private bool Error;
+    private string? Snapshot;
+    private List<ReignApiClient.RecentActivityDto> Feed = new();
+    private Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        _timer = new Timer(async _ =>
+        {
+            await Load(quiet: true);
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+    }
+
+    private async Task Load(bool quiet = false)
+    {
+        try
+        {
+            Feed = await Api.GetRecentActivity();
+            if (!quiet)
+            {
+                Snapshot = await Api.GetActivitySnapshot();
+            }
+            Error = false;
+        }
+        catch
+        {
+            if (!quiet) Error = true;
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

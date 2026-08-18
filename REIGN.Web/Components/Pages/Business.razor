@@ -1,0 +1,79 @@
+@page "/business"
+
+@inject ReignApiClient Api
+
+<PageTitle>Business Profile — REIGN AI</PageTitle>
+
+<div class="page-head">
+    <h1>Business Profile</h1>
+    <p>The business REIGN represents in every conversation.</p>
+</div>
+
+@if (Loading)
+{
+    <div class="loading"><span class="spinner"></span> Loading business profile…</div>
+}
+else if (Biz == null)
+{
+    <div class="error-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+        <span class="msg">Something went wrong. REIGN couldn't load the business profile.</span>
+        <button class="btn btn-ghost btn-sm" @onclick="Load">Try again</button>
+    </div>
+}
+else
+{
+    <div class="grid" style="grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items:start;">
+        <div class="card">
+            <div class="row-flex mb-2">
+                <span class="avatar gradient" style="width:52px;height:52px;font-size:18px;">@Fmt.Initials(Biz.Name)</span>
+                <div>
+                    <div class="card-title" style="font-size:19px;">@Biz.Name</div>
+                    @if (!string.IsNullOrWhiteSpace(Biz.Assistant))
+                    {
+                        <div class="small faint">Answered by @Biz.Assistant</div>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Biz.Offering))
+            {
+                <div class="divider"></div>
+                <div class="field-label">Offering</div>
+                <p class="dim" style="margin-top:0;">@Biz.Offering</p>
+            }
+
+            <div class="divider"></div>
+
+            <div class="kv"><span class="k">Owner</span><span class="v">@(Biz.OwnerName ?? "—")</span></div>
+            <div class="kv"><span class="k">Phone</span><span class="v">@(Biz.Phone ?? "—")</span></div>
+            <div class="kv"><span class="k">Email</span><span class="v">@(Biz.Email ?? "—")</span></div>
+            <div class="kv"><span class="k">Hours</span><span class="v">@(Biz.Hours ?? "—")</span></div>
+            <div class="kv"><span class="k">Time zone</span><span class="v">@(Biz.TimeZone ?? "—")</span></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Service catalog</div>
+            <div class="card-sub">What REIGN can book</div>
+            @if (!string.IsNullOrWhiteSpace(Biz.Catalog))
+            {
+                <p class="dim small" style="white-space:pre-wrap;">@Biz.Catalog</p>
+            }
+            <a class="btn btn-ghost btn-sm mt-1" href="services">View services</a>
+        </div>
+    </div>
+}
+
+@code {
+    private bool Loading = true;
+    private ReignApiClient.BusinessDto? Biz;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        Loading = true;
+        Biz = (await Api.GetBusinesses()).FirstOrDefault();
+        Loading = false;
+    }
+}
