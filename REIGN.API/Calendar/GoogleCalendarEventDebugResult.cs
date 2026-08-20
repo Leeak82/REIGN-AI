@@ -24,5 +24,11 @@ public sealed class GoogleCalendarEventDebugResult
 
     public string? HtmlLink { get; set; }
 
+    public string? OrganizerEmail { get; set; }
+
+    public string? CreatorEmail { get; set; }
+
+    public string? EventStatus { get; set; }
+
     public string? Error { get; set; }
 }

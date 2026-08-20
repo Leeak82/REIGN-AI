@@ -29,22 +29,48 @@ public class CalendarSyncResult
 
     public string? Error { get; set; }
 
-    public static CalendarSyncResult Ok(string provider, string? eventId, bool simulated = false) =>
+    public string? HtmlLink { get; set; }
+
+    public string? TimeZone { get; set; }
+
+    public string? CalendarId { get; set; }
+
+    public int? GoogleStatusCode { get; set; }
+
+    public static CalendarSyncResult Ok(
+        string provider,
+        string? eventId,
+        bool simulated = false,
+        string? htmlLink = null,
+        string? timeZone = null,
+        string? calendarId = null,
+        int? googleStatusCode = null) =>
         new()
         {
             Succeeded = true,
             Simulated = simulated,
             Provider = provider,
-            EventId = eventId
+            EventId = eventId,
+            HtmlLink = htmlLink,
+            TimeZone = timeZone,
+            CalendarId = calendarId,
+            GoogleStatusCode = googleStatusCode
         };
 
-    public static CalendarSyncResult Fail(string provider, string error, bool simulated = false) =>
+    public static CalendarSyncResult Fail(
+        string provider,
+        string error,
+        bool simulated = false,
+        int? googleStatusCode = null,
+        string? calendarId = null) =>
         new()
         {
             Succeeded = false,
             Simulated = simulated,
             Provider = provider,
-            Error = error
+            Error = error,
+            GoogleStatusCode = googleStatusCode,
+            CalendarId = calendarId
         };
 }
 

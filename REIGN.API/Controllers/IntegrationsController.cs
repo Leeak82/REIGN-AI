@@ -61,7 +61,9 @@ public class IntegrationsController : ControllerBase
                     !string.IsNullOrWhiteSpace(_google.ClientId) &&
                     !string.IsNullOrWhiteSpace(_google.ClientSecret),
                 hasStoredGrant = !_calendar.IsSimulated && _calendar.HasStoredGrant,
-                calendarId = _google.CalendarId
+                calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId,
+                timeZone = CalendarTime.ToGoogleTimeZoneId(_google.TimeZone),
+                requiredScope = GoogleCalendarService.RequiredScope
             }
         });
     }
@@ -82,7 +84,7 @@ public class IntegrationsController : ControllerBase
             $"?client_id={Uri.EscapeDataString(_google.ClientId)}" +
             $"&redirect_uri={Uri.EscapeDataString(_google.RedirectUri)}" +
             "&response_type=code" +
-            $"&scope={Uri.EscapeDataString("https://www.googleapis.com/auth/calendar.events")}" +
+            $"&scope={Uri.EscapeDataString(GoogleCalendarService.RequiredScope)}" +
             "&access_type=offline" +
             "&prompt=consent";
 
@@ -130,6 +132,22 @@ public class IntegrationsController : ControllerBase
         }
 
         var result = await _googleCalendar.GetEventDebugAsync(eventId, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Development-only diagnostic: identify the Google account/calendar the stored OAuth grant maps to.
+    /// </summary>
+    [HttpGet("google/debug-account")]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public async Task<IActionResult> GoogleDebugAccount(CancellationToken cancellationToken)
+    {
+        if (!_environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
+        var result = await _googleCalendar.GetAccountDebugAsync(cancellationToken);
         return Ok(result);
     }
 }

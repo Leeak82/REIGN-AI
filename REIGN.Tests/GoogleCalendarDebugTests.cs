@@ -205,6 +205,234 @@ public class GoogleCalendarDebugTests
         Assert.Equal("1tfftt6crrdcaju5iimch6r3lc", body.EventId);
     }
 
+    [Fact]
+    public async Task Debug_account_returns_primary_calendar_email_without_tokens()
+    {
+        const string accessToken = "SECRET_ACCESS_TOKEN_VALUE_XYZ";
+        await using var harness = await Harness.CreateAsync(
+            accessToken: accessToken,
+            accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
+
+        harness.Handler.Respond = request =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal("https://www.googleapis.com/calendar/v3/calendars/primary", request.RequestUri?.ToString());
+            return JsonResponse(HttpStatusCode.OK, """
+                {
+                  "id": "studio@example.com",
+                  "summary": "studio@example.com",
+                  "timeZone": "America/New_York"
+                }
+                """);
+        };
+
+        var result = await harness.Service.GetAccountDebugAsync();
+        Assert.Equal("Google", result.Provider);
+        Assert.Equal("primary", result.CalendarId);
+        Assert.Equal("studio@example.com", result.ResolvedCalendarId);
+        Assert.Equal("studio@example.com", result.Email);
+        Assert.Equal("America/New_York", result.TimeZone);
+        Assert.Equal(GoogleCalendarService.RequiredScope, result.RequiredScope);
+        Assert.True(result.ScopeSufficient);
+        Assert.False(result.ReconnectRequired);
+        Assert.Equal(200, result.GoogleStatusCode);
+        var json = JsonSerializer.Serialize(result, CamelCase);
+        Assert.DoesNotContain(accessToken, json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Debug_account_endpoint_is_not_found_outside_development()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var controller = CreateController(harness.Service, Environments.Production);
+        var result = await controller.GoogleDebugAccount(CancellationToken.None);
+        Assert.IsType<NotFoundResult>(result);
+        Assert.Empty(harness.Handler.Urls);
+    }
+
+    [Fact]
+    public async Task Insufficient_stored_scope_requires_reconnect_without_switching_provider()
+    {
+        await using var harness = await Harness.CreateAsync(
+            accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1),
+            scope: "https://www.googleapis.com/auth/gmail.readonly");
+        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.OK, """{ "id": "primary" }""");
+
+        var result = await harness.Service.GetAccountDebugAsync();
+        Assert.True(result.ReconnectRequired);
+        Assert.False(result.ScopeSufficient);
+        Assert.Contains("calendar.events", result.ReconnectReason, StringComparison.Ordinal);
+        Assert.Equal("Google", result.Provider);
+    }
+
+    [Fact]
+    public async Task Upsert_succeeds_only_after_google_get_back()
+    {
+        const string eventId = "1tfftt6crrdcaju5iimch6r3lc";
+        await using var harness = await Harness.CreateAsync(accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
+        harness.Handler.Respond = request =>
+        {
+            var url = request.RequestUri!.ToString();
+            if (request.Method == HttpMethod.Get && url.Contains("privateExtendedProperty", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "items": [] }""");
+            }
+
+            if (request.Method == HttpMethod.Post && url.EndsWith("/events", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, $$"""
+                    {
+                      "id": "{{eventId}}",
+                      "htmlLink": "https://www.google.com/calendar/event?eid=abc",
+                      "start": { "dateTime": "2026-08-21T14:00:00", "timeZone": "America/New_York" }
+                    }
+                    """);
+            }
+
+            if (request.Method == HttpMethod.Get && url.EndsWith($"/events/{eventId}", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, $$"""
+                    {
+                      "id": "{{eventId}}",
+                      "summary": "REIGN Quick Visit",
+                      "htmlLink": "https://www.google.com/calendar/event?eid=abc",
+                      "organizer": { "email": "studio@example.com" },
+                      "start": { "dateTime": "2026-08-21T14:00:00", "timeZone": "America/New_York" },
+                      "end": { "dateTime": "2026-08-21T14:20:00", "timeZone": "America/New_York" }
+                    }
+                    """);
+            }
+
+            return JsonResponse(HttpStatusCode.InternalServerError, """{ "error": "unexpected" }""");
+        };
+
+        var start = new DateTime(2026, 8, 21, 14, 0, 0, DateTimeKind.Unspecified);
+        var result = await harness.Service.UpsertAppointmentAsync(new CalendarEventRequest
+        {
+            AppointmentId = Guid.Parse("4ff7c1a6-470c-41d4-b9a5-9a2a906e1ec7"),
+            Summary = "REIGN Quick Visit",
+            Start = start,
+            End = start.AddMinutes(20),
+            Status = "Confirmed"
+        });
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(eventId, result.EventId);
+        Assert.Equal("https://www.google.com/calendar/event?eid=abc", result.HtmlLink);
+        Assert.Equal("America/New_York", result.TimeZone);
+        Assert.Equal("primary", result.CalendarId);
+        Assert.Contains(harness.Handler.Bodies, body =>
+            body.Contains("\"dateTime\":\"2026-08-21T14:00:00\"", StringComparison.Ordinal) &&
+            body.Contains("\"timeZone\":\"America/New_York\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Upsert_fails_when_google_returns_403()
+    {
+        await using var harness = await Harness.CreateAsync(accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
+        harness.Handler.Respond = request =>
+        {
+            var url = request.RequestUri!.ToString();
+            if (request.Method == HttpMethod.Get && url.Contains("privateExtendedProperty", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "items": [] }""");
+            }
+
+            return JsonResponse(HttpStatusCode.Forbidden, """
+                { "error": { "code": 403, "message": "Forbidden", "status": "PERMISSION_DENIED" } }
+                """);
+        };
+
+        var result = await harness.Service.UpsertAppointmentAsync(new CalendarEventRequest
+        {
+            AppointmentId = Guid.NewGuid(),
+            Summary = "REIGN Quick Visit",
+            Start = new DateTime(2026, 8, 21, 14, 0, 0, DateTimeKind.Unspecified),
+            End = new DateTime(2026, 8, 21, 14, 20, 0, DateTimeKind.Unspecified),
+            Status = "Confirmed"
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(403, result.GoogleStatusCode);
+        Assert.Contains("403", result.Error, StringComparison.Ordinal);
+        Assert.Null(result.EventId);
+        Assert.DoesNotContain(harness.Handler.Urls, url => url.Contains("/events/evt", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Upsert_fails_when_written_event_cannot_be_retrieved()
+    {
+        await using var harness = await Harness.CreateAsync(accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
+        harness.Handler.Respond = request =>
+        {
+            var url = request.RequestUri!.ToString();
+            if (request.Method == HttpMethod.Get && url.Contains("privateExtendedProperty", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "items": [] }""");
+            }
+
+            if (request.Method == HttpMethod.Post)
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "id": "ghost-event" }""");
+            }
+
+            return JsonResponse(HttpStatusCode.NotFound, """{ "error": { "code": 404, "message": "Not Found" } }""");
+        };
+
+        var result = await harness.Service.UpsertAppointmentAsync(new CalendarEventRequest
+        {
+            AppointmentId = Guid.NewGuid(),
+            Summary = "REIGN Quick Visit",
+            Start = new DateTime(2026, 8, 21, 14, 0, 0, DateTimeKind.Unspecified),
+            End = new DateTime(2026, 8, 21, 14, 20, 0, DateTimeKind.Unspecified),
+            Status = "Confirmed"
+        });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(404, result.GoogleStatusCode);
+        Assert.Contains("GET returned HTTP 404", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Upsert_put_404_creates_a_new_event()
+    {
+        await using var harness = await Harness.CreateAsync(accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
+        harness.Handler.Respond = request =>
+        {
+            var url = request.RequestUri!.ToString();
+            if (request.Method == HttpMethod.Put)
+            {
+                return JsonResponse(HttpStatusCode.NotFound, """{ "error": { "code": 404 } }""");
+            }
+
+            if (request.Method == HttpMethod.Post)
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "id": "new-event", "htmlLink": "https://www.google.com/calendar/event?eid=new" }""");
+            }
+
+            if (request.Method == HttpMethod.Get && url.EndsWith("/events/new-event", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "id": "new-event", "htmlLink": "https://www.google.com/calendar/event?eid=new" }""");
+            }
+
+            return JsonResponse(HttpStatusCode.InternalServerError, "{}");
+        };
+
+        var result = await harness.Service.UpsertAppointmentAsync(new CalendarEventRequest
+        {
+            AppointmentId = Guid.NewGuid(),
+            ExistingEventId = "stale-event",
+            Summary = "REIGN Quick Visit",
+            Start = new DateTime(2026, 8, 21, 14, 0, 0, DateTimeKind.Unspecified),
+            End = new DateTime(2026, 8, 21, 14, 20, 0, DateTimeKind.Unspecified),
+            Status = "Confirmed"
+        });
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("new-event", result.EventId);
+        Assert.Contains(harness.Handler.Urls, url => url.Contains("/events/stale-event", StringComparison.Ordinal));
+    }
+
     private static IntegrationsController CreateController(GoogleCalendarService google, string environmentName) =>
         new(
             sms: null!,
@@ -248,18 +476,25 @@ public class GoogleCalendarDebugTests
     {
         public List<string> Urls { get; } = [];
 
+        public List<string> Bodies { get; } = [];
+
         public Func<HttpRequestMessage, HttpResponseMessage> Respond { get; set; } =
             _ => new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{}", Encoding.UTF8, "application/json")
             };
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             Urls.Add(request.RequestUri?.ToString() ?? "");
-            return Task.FromResult(Respond(request));
+            if (request.Content != null)
+            {
+                Bodies.Add(await request.Content.ReadAsStringAsync(cancellationToken));
+            }
+
+            return Respond(request);
         }
     }
 
@@ -290,7 +525,8 @@ public class GoogleCalendarDebugTests
             string accessToken = "access-token",
             string refreshToken = "refresh-token",
             DateTimeOffset? accessExpiresAt = null,
-            bool storeGrant = true)
+            bool storeGrant = true,
+            string? scope = "https://www.googleapis.com/auth/calendar.events")
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -309,7 +545,8 @@ public class GoogleCalendarDebugTests
                     AccessToken = accessToken,
                     RefreshToken = refreshToken,
                     AccessTokenExpiresAt = accessExpiresAt ?? DateTimeOffset.UtcNow.AddHours(1),
-                    TokenType = "Bearer"
+                    TokenType = "Bearer",
+                    Scope = scope
                 });
                 await db.SaveChangesAsync();
             }
