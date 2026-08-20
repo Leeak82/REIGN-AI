@@ -92,7 +92,8 @@ public class CustomersController : ControllerBase
                     Service = x.Service?.Name,
                     x.AppointmentTime,
                     x.Status,
-                    x.Price
+                    x.Price,
+                    x.ExternalCalendarEventId
                 })
         });
     }

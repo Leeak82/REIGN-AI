@@ -36,7 +36,8 @@ public class CustomerAppointmentsController : ControllerBase
                 Service = x.Service != null ? x.Service.Name : "Unknown",
                 x.AppointmentTime,
                 x.Status,
-                x.Price
+                x.Price,
+                x.ExternalCalendarEventId
             })
             .ToListAsync();
 
