@@ -17,6 +17,16 @@ public class GoogleCalendarService : ICalendarService
 
     public const string RequiredScope = "https://www.googleapis.com/auth/calendar.events";
 
+    public static string BuildAuthorizationUrl(string clientId, string redirectUri) =>
+        "https://accounts.google.com/o/oauth2/v2/auth" +
+        $"?client_id={Uri.EscapeDataString(clientId)}" +
+        $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+        "&response_type=code" +
+        $"&scope={Uri.EscapeDataString(RequiredScope)}" +
+        "&access_type=offline" +
+        "&prompt=consent" +
+        "&include_granted_scopes=false";
+
     private readonly HttpClient _http;
     private readonly GoogleCalendarOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -230,7 +240,7 @@ public class GoogleCalendarService : ICalendarService
             RequiredScope = RequiredScope
         };
 
-        ApplyStoredScope(result);
+        AttachStoredScope(result);
 
         try
         {
@@ -238,29 +248,66 @@ public class GoogleCalendarService : ICalendarService
             if (access.Error != null)
             {
                 result.Error = access.Error;
+                result.ReconnectRequired = true;
+                result.ReconnectReason ??= "Google Calendar is not connected. Visit /api/integrations/google/authorize.";
                 return result;
             }
 
+            var liveScope = await FetchLiveScopeAsync(access.Token!, cancellationToken);
+            result.LiveScope = liveScope;
+            var liveCoversEvents = ScopeCoversCalendarEvents(liveScope);
+
             using var message = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"https://www.googleapis.com/calendar/v3/calendars/{Uri.EscapeDataString(calendarId)}");
+                $"https://www.googleapis.com/calendar/v3/calendars/{Uri.EscapeDataString(calendarId)}/events?maxResults=1&singleEvents=true");
             message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access.Token);
             using var response = await _http.SendAsync(message, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             result.GoogleStatusCode = (int)response.StatusCode;
 
-            if (!response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                result.Error = DescribeGoogleApiFailure((int)response.StatusCode, body);
+                result.ScopeSufficient = true;
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        if (item.TryGetProperty("organizer", out var organizer) && organizer.ValueKind == JsonValueKind.Object)
+                        {
+                            result.Email ??= GetJsonString(organizer, "email");
+                            result.CalendarSummary ??= GetJsonString(organizer, "displayName");
+                        }
+
+                        if (item.TryGetProperty("creator", out var creator) && creator.ValueKind == JsonValueKind.Object)
+                        {
+                            result.Email ??= GetJsonString(creator, "email");
+                        }
+
+                        if (item.TryGetProperty("start", out var startEl) && startEl.ValueKind == JsonValueKind.Object)
+                        {
+                            result.TimeZone = GetJsonString(startEl, "timeZone") ?? result.TimeZone;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(result.Email))
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                result.ResolvedCalendarId = result.Email ?? calendarId;
+                result.Email = EmailIfLooksLikeAddress(result.Email) ?? EmailIfLooksLikeAddress(result.ResolvedCalendarId);
                 return result;
             }
 
-            using var doc = JsonDocument.Parse(body);
-            var root = doc.RootElement;
-            result.ResolvedCalendarId = GetJsonString(root, "id");
-            result.CalendarSummary = GetJsonString(root, "summary");
-            result.TimeZone = GetJsonString(root, "timeZone") ?? result.TimeZone;
-            result.Email = EmailIfLooksLikeAddress(result.ResolvedCalendarId);
+            result.Error = DescribeGoogleApiFailure((int)response.StatusCode, body);
+            result.ScopeSufficient = false;
+            result.ReconnectRequired = true;
+            result.ReconnectReason =
+                liveCoversEvents
+                    ? result.Error
+                    : "Live access token does not include https://www.googleapis.com/auth/calendar.events. Visit /api/integrations/google/authorize to force a new consent grant. The database Scope column is not proof of the token's permissions.";
             return result;
         }
         catch (Exception ex)
@@ -450,6 +497,12 @@ public class GoogleCalendarService : ICalendarService
 
         using var dbScope = _scopeFactory.CreateScope();
         var db = dbScope.ServiceProvider.GetRequiredService<ReignDbContext>();
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new InvalidOperationException(
+                "Google OAuth did not return a refresh token. Revisit /api/integrations/google/authorize so prompt=consent can issue a new grant. The previous refresh token was not reused.");
+        }
+
         var existing = await db.IntegrationTokens.FirstOrDefaultAsync(x => x.Provider == ProviderKey, cancellationToken);
         if (existing == null)
         {
@@ -458,10 +511,7 @@ public class GoogleCalendarService : ICalendarService
         }
 
         existing.AccessToken = accessToken;
-        if (!string.IsNullOrWhiteSpace(refreshToken))
-        {
-            existing.RefreshToken = refreshToken;
-        }
+        existing.RefreshToken = refreshToken;
 
         existing.AccessTokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
         existing.Scope = scope;
@@ -574,18 +624,36 @@ public class GoogleCalendarService : ICalendarService
         }
     }
 
-    private void ApplyStoredScope(GoogleCalendarAccountDebugResult result)
+    private void AttachStoredScope(GoogleCalendarAccountDebugResult result)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ReignDbContext>();
         var token = db.IntegrationTokens.AsNoTracking().FirstOrDefault(x => x.Provider == ProviderKey);
         result.StoredScope = token?.Scope;
-        result.ScopeSufficient = ScopeCoversCalendarEvents(token?.Scope);
-        if (token != null && !string.IsNullOrWhiteSpace(token.Scope) && !result.ScopeSufficient)
+    }
+
+    private async Task<string?> FetchLiveScopeAsync(string accessToken, CancellationToken cancellationToken)
+    {
+        try
         {
-            result.ReconnectRequired = true;
-            result.ReconnectReason =
-                "Stored Google grant is missing https://www.googleapis.com/auth/calendar.events. Revisit /api/integrations/google/authorize. Existing credentials are preserved until a new consent completes.";
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/tokeninfo");
+            request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["access_token"] = accessToken
+            });
+            using var response = await _http.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            return GetJsonString(doc.RootElement, "scope");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Google tokeninfo scope lookup failed");
+            return null;
         }
     }
 
@@ -593,7 +661,7 @@ public class GoogleCalendarService : ICalendarService
     {
         if (string.IsNullOrWhiteSpace(scope))
         {
-            return true;
+            return false;
         }
 
         var parts = scope.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

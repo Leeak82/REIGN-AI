@@ -18,6 +18,8 @@ public sealed class GoogleCalendarAccountDebugResult
 
     public string? StoredScope { get; set; }
 
+    public string? LiveScope { get; set; }
+
     public bool ScopeSufficient { get; set; }
 
     public bool ReconnectRequired { get; set; }

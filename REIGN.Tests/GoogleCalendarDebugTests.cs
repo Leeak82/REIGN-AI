@@ -206,6 +206,47 @@ public class GoogleCalendarDebugTests
     }
 
     [Fact]
+    public void Authorization_url_forces_offline_consent_and_calendar_events_scope()
+    {
+        var url = GoogleCalendarService.BuildAuthorizationUrl(
+            "test-client-id",
+            "https://localhost:5001/api/integrations/google/callback");
+
+        Assert.StartsWith("https://accounts.google.com/o/oauth2/v2/auth?", url, StringComparison.Ordinal);
+        Assert.Contains("access_type=offline", url, StringComparison.Ordinal);
+        Assert.Contains("prompt=consent", url, StringComparison.Ordinal);
+        Assert.Contains("include_granted_scopes=false", url, StringComparison.Ordinal);
+        Assert.Contains(Uri.EscapeDataString(GoogleCalendarService.RequiredScope), url, StringComparison.Ordinal);
+        Assert.Contains("response_type=code", url, StringComparison.Ordinal);
+        Assert.Contains(Uri.EscapeDataString("https://localhost:5001/api/integrations/google/callback"), url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Authorize_endpoint_redirects_to_forced_consent_url()
+    {
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = "local-client-id",
+            ClientSecret = "local-client-secret",
+            RedirectUri = "https://localhost:5001/api/integrations/google/callback"
+        });
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Development },
+            logger: NullLogger<IntegrationsController>.Instance);
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains("prompt=consent", result.Url, StringComparison.Ordinal);
+        Assert.Contains("access_type=offline", result.Url, StringComparison.Ordinal);
+        Assert.Contains(Uri.EscapeDataString(GoogleCalendarService.RequiredScope), result.Url, StringComparison.Ordinal);
+        Assert.Contains("include_granted_scopes=false", result.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Debug_account_returns_primary_calendar_email_without_tokens()
     {
         const string accessToken = "SECRET_ACCESS_TOKEN_VALUE_XYZ";
@@ -215,13 +256,22 @@ public class GoogleCalendarDebugTests
 
         harness.Handler.Respond = request =>
         {
+            var url = request.RequestUri!.ToString();
+            if (url.Contains("oauth2.googleapis.com/tokeninfo", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "scope": "https://www.googleapis.com/auth/calendar.events" }""");
+            }
+
             Assert.Equal(HttpMethod.Get, request.Method);
-            Assert.Equal("https://www.googleapis.com/calendar/v3/calendars/primary", request.RequestUri?.ToString());
+            Assert.Contains("/calendars/primary/events", url, StringComparison.Ordinal);
             return JsonResponse(HttpStatusCode.OK, """
                 {
-                  "id": "studio@example.com",
-                  "summary": "studio@example.com",
-                  "timeZone": "America/New_York"
+                  "items": [
+                    {
+                      "organizer": { "email": "studio@example.com", "displayName": "Studio" },
+                      "start": { "timeZone": "America/New_York" }
+                    }
+                  ]
                 }
                 """);
         };
@@ -231,9 +281,10 @@ public class GoogleCalendarDebugTests
         Assert.Equal("primary", result.CalendarId);
         Assert.Equal("studio@example.com", result.ResolvedCalendarId);
         Assert.Equal("studio@example.com", result.Email);
-        Assert.Equal("studio@example.com", result.CalendarSummary);
+        Assert.Equal("Studio", result.CalendarSummary);
         Assert.Equal("America/New_York", result.TimeZone);
         Assert.Equal(GoogleCalendarService.RequiredScope, result.RequiredScope);
+        Assert.Equal(GoogleCalendarService.RequiredScope, result.LiveScope);
         Assert.True(result.ScopeSufficient);
         Assert.False(result.ReconnectRequired);
         Assert.Equal(200, result.GoogleStatusCode);
@@ -252,18 +303,81 @@ public class GoogleCalendarDebugTests
     }
 
     [Fact]
-    public async Task Insufficient_stored_scope_requires_reconnect_without_switching_provider()
+    public async Task Database_scope_column_is_not_treated_as_live_permission()
     {
         await using var harness = await Harness.CreateAsync(
             accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1),
-            scope: "https://www.googleapis.com/auth/gmail.readonly");
-        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.OK, """{ "id": "primary" }""");
+            scope: GoogleCalendarService.RequiredScope);
+
+        harness.Handler.Respond = request =>
+        {
+            var url = request.RequestUri!.ToString();
+            if (url.Contains("oauth2.googleapis.com/tokeninfo", StringComparison.Ordinal))
+            {
+                return JsonResponse(HttpStatusCode.OK, """{ "scope": "openid email" }""");
+            }
+
+            return JsonResponse(HttpStatusCode.Forbidden, """
+                { "error": { "code": 403, "message": "Request had insufficient authentication scopes.", "status": "PERMISSION_DENIED" } }
+                """);
+        };
 
         var result = await harness.Service.GetAccountDebugAsync();
+        Assert.Equal(GoogleCalendarService.RequiredScope, result.StoredScope);
+        Assert.Equal("openid email", result.LiveScope);
         Assert.True(result.ReconnectRequired);
         Assert.False(result.ScopeSufficient);
-        Assert.Contains("calendar.events", result.ReconnectReason, StringComparison.Ordinal);
+        Assert.Equal(403, result.GoogleStatusCode);
         Assert.Equal("Google", result.Provider);
+        Assert.Contains("Live access token", result.ReconnectReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_replaces_the_refresh_token()
+    {
+        await using var harness = await Harness.CreateAsync(
+            refreshToken: "OLD_REFRESH_TOKEN",
+            accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
+
+        harness.Handler.Respond = request =>
+        {
+            Assert.Equal("https://oauth2.googleapis.com/token", request.RequestUri?.ToString());
+            return JsonResponse(HttpStatusCode.OK, """
+                {
+                  "access_token": "NEW_ACCESS_TOKEN",
+                  "refresh_token": "NEW_REFRESH_TOKEN",
+                  "expires_in": 3600,
+                  "scope": "https://www.googleapis.com/auth/calendar.events",
+                  "token_type": "Bearer"
+                }
+                """);
+        };
+
+        await harness.Service.StoreAuthorizationCodeAsync("auth-code");
+        var stored = await harness.Db.IntegrationTokens.SingleAsync();
+        Assert.Equal("NEW_REFRESH_TOKEN", stored.RefreshToken);
+        Assert.Equal("NEW_ACCESS_TOKEN", stored.AccessToken);
+        Assert.Equal(GoogleCalendarService.RequiredScope, stored.Scope);
+        Assert.DoesNotContain("OLD_REFRESH_TOKEN", stored.RefreshToken, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_does_not_keep_the_old_refresh_token_when_google_omits_one()
+    {
+        await using var harness = await Harness.CreateAsync(refreshToken: "OLD_REFRESH_TOKEN");
+        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.OK, """
+            {
+              "access_token": "NEW_ACCESS_TOKEN",
+              "expires_in": 3600,
+              "scope": "https://www.googleapis.com/auth/calendar.events",
+              "token_type": "Bearer"
+            }
+            """);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Service.StoreAuthorizationCodeAsync("auth-code"));
+        var stored = await harness.Db.IntegrationTokens.SingleAsync();
+        Assert.Equal("OLD_REFRESH_TOKEN", stored.RefreshToken);
+        Assert.Equal("access-token", stored.AccessToken);
     }
 
     [Fact]
@@ -506,6 +620,7 @@ public class GoogleCalendarDebugTests
 
         public ScriptedHandler Handler { get; }
         public GoogleCalendarService Service { get; }
+        public ReignDbContext Db => _db;
 
         private Harness(
             SqliteConnection connection,
