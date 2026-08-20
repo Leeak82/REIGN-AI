@@ -247,6 +247,32 @@ public class GoogleCalendarDebugTests
     }
 
     [Fact]
+    public void Authorize_endpoint_uses_docker_localhost_8080_redirect_when_configured()
+    {
+        const string dockerCallback = "http://localhost:8080/api/integrations/google/callback";
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = "docker-client-id",
+            ClientSecret = "docker-client-secret",
+            RedirectUri = dockerCallback
+        });
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Development },
+            logger: NullLogger<IntegrationsController>.Instance);
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains(Uri.EscapeDataString(dockerCallback), result.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", result.Url, StringComparison.Ordinal);
+        Assert.Contains("access_type=offline", result.Url, StringComparison.Ordinal);
+        Assert.Contains("prompt=consent", result.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Debug_account_returns_primary_calendar_email_without_tokens()
     {
         const string accessToken = "SECRET_ACCESS_TOKEN_VALUE_XYZ";

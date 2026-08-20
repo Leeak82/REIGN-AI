@@ -49,7 +49,8 @@ public class HealthController : ControllerBase
             database,
             groqConfigured,
             smsConfigured,
-            calendarConfigured
+            calendarConfigured,
+            calendarProvider = CalendarProvider()
         };
 
         // Stay 200 when the password is wrong so Render does not restart the container.
@@ -70,7 +71,8 @@ public class HealthController : ControllerBase
                 : "not configured",
             groqConfigured = _ai.IsConfigured || GroqConfigured(),
             smsConfigured = SmsConfigured(),
-            calendarConfigured = CalendarConfigured()
+            calendarConfigured = CalendarConfigured(),
+            calendarProvider = CalendarProvider()
         });
     }
 
@@ -119,9 +121,12 @@ public class HealthController : ControllerBase
         return false;
     }
 
+    private string CalendarProvider() =>
+        string.IsNullOrWhiteSpace(_google.Provider) ? "Simulated" : _google.Provider.Trim();
+
     private bool CalendarConfigured()
     {
-        var provider = _google.Provider ?? "Simulated";
+        var provider = CalendarProvider();
         if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
         {
             return true;

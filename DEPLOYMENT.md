@@ -103,16 +103,31 @@ Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-sepa
 ## Google OAuth setup
 
 1. In Google Cloud Console, create an OAuth 2.0 Web client.
-2. Add the authorized redirect URI:
+2. Add the authorized redirect URI that matches how you run the API (they are different):
 
-   - Local: `https://localhost:5001/api/integrations/google/callback`
+   - Local `dotnet run`: `https://localhost:5001/api/integrations/google/callback`
+   - Local Docker: `http://localhost:8080/api/integrations/google/callback`
    - Production: `https://YOUR_DOMAIN/api/integrations/google/callback`
 
-3. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`.
+   Google allows `http://localhost` for development. Do not mix the Docker port with the Kestrel HTTPS port.
+
+3. Put credentials in a gitignored `.env` or the host environment. Never commit real values.
+
+```
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/integrations/google/callback
+GOOGLE_CALENDAR_ID=primary
+GOOGLE_CALENDAR_TIMEZONE=America/New_York
+GoogleCalendar__Provider=Google
+```
+
+For `dotnet run` without Docker, use `GOOGLE_REDIRECT_URI=https://localhost:5001/api/integrations/google/callback`.
+
 4. Set `GoogleCalendar__Provider=Google`.
 5. Open `/api/integrations/google/authorize` once while signed in as the business owner.
-6. Confirm `/api/integrations/status` shows a stored grant.
-7. Book a QV/HH/HR, reply `YES`, and verify one calendar event is created.
+6. Confirm `/api/integrations/status` shows `hasStoredGrant: true` and `activeProvider: Google`.
+7. Book a QV/HH/HR, reply `YES`, and verify one calendar event is created. Confirmed appointments reuse `ExternalCalendarEventId` so Google does not get a duplicate event.
 
 ## Twilio webhook setup
 

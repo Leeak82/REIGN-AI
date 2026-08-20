@@ -254,7 +254,11 @@ public class IncomingSmsProcessorTests
             var calendar = new SimulatedCalendarService();
             var conversations = new ConversationService(db);
             var booking = new BookingService(db);
-            var calendarSync = new AppointmentCalendarSync(db, calendar, NullLogger<AppointmentCalendarSync>.Instance);
+            var calendarSync = new AppointmentCalendarSync(
+                db,
+                calendar,
+                Options.Create(new GoogleCalendarOptions()),
+                NullLogger<AppointmentCalendarSync>.Instance);
             var scheduling = new SchedulingService(db);
             var appointments = new AppointmentService(db, calendarSync, scheduling);
             var intents = new IntentDetectionService();
