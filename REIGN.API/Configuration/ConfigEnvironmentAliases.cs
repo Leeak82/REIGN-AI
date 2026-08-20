@@ -16,7 +16,9 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "GoogleCalendar:ClientId", "GOOGLE_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_ID");
         TryAlias(configuration, extras, "GoogleCalendar:ClientSecret", "GOOGLE_CLIENT_SECRET", "GOOGLE_CALENDAR_CLIENT_SECRET");
         // appsettings.json ships non-empty RedirectUri/CalendarId/TimeZone defaults. Those
-        // must not block GOOGLE_* aliases. Nested GoogleCalendar__* env keys still win.
+        // must not block GOOGLE_* aliases. Nested GoogleCalendar__* env keys still win here;
+        // GoogleRedirectUri.Apply then last-wins so a Development container cannot keep the
+        // Kestrel https://localhost:5001 callback.
         TryAlias(
             configuration,
             extras,

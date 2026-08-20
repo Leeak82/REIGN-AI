@@ -116,13 +116,14 @@ Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-sepa
 ```
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:8080/api/integrations/google/callback
 GOOGLE_CALENDAR_ID=primary
 GOOGLE_CALENDAR_TIMEZONE=America/New_York
 GoogleCalendar__Provider=Google
 ```
 
-For `dotnet run` without Docker, use `GOOGLE_REDIRECT_URI=https://localhost:5001/api/integrations/google/callback`.
+`docker-compose.yml` pins `GoogleCalendar__RedirectUri` and `GOOGLE_REDIRECT_URI` to `http://localhost:8080/api/integrations/google/callback`. It does **not** interpolate host `GOOGLE_REDIRECT_URI`. A `.env` used for `dotnet run` often contains `https://localhost:5001/...`; that value must not enter the container.
+
+For `dotnet run` without Docker, set `GOOGLE_REDIRECT_URI=https://localhost:5001/api/integrations/google/callback`.
 
 4. Set `GoogleCalendar__Provider=Google`.
 5. Open `/api/integrations/google/authorize` once while signed in as the business owner.

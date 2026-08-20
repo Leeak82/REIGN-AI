@@ -17,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 HostingFileWatch.DisableReloadOnChange(builder.Configuration);
 ConfigEnvironmentAliases.Apply(builder.Configuration);
 ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(builder.Configuration, builder.Environment);
+GoogleRedirectUri.Apply(builder.Configuration, builder.Environment);
 ContainerListen.Apply(builder);
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -69,6 +70,8 @@ builder.Services.AddDbContext<ReignDbContext>(options =>
 
 builder.Services.Configure<SmsOptions>(builder.Configuration.GetSection(SmsOptions.SectionName));
 builder.Services.Configure<GoogleCalendarOptions>(builder.Configuration.GetSection(GoogleCalendarOptions.SectionName));
+builder.Services.PostConfigure<GoogleCalendarOptions>(options =>
+    GoogleRedirectUri.ApplyToOptions(options, builder.Environment));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.SectionName));
 
 builder.Services.AddEndpointsApiExplorer();

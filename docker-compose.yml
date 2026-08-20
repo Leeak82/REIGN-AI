@@ -16,9 +16,11 @@ services:
       # Pass-through only. Blank/unset host values stay blank and are not secrets.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      # Docker publishes the API on 8080. `dotnet run` still uses https://localhost:5001.
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/integrations/google/callback}
-      GoogleCalendar__RedirectUri: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/integrations/google/callback}
+      # Pin Docker's published callback. Do NOT interpolate host GOOGLE_REDIRECT_URI.
+      # A gitignored .env for `dotnet run` often contains https://localhost:5001/... which
+      # would otherwise become the container value and look like appsettings.json winning.
+      GOOGLE_REDIRECT_URI: "http://localhost:8080/api/integrations/google/callback"
+      GoogleCalendar__RedirectUri: "http://localhost:8080/api/integrations/google/callback"
       GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-primary}
       GOOGLE_CALENDAR_TIMEZONE: ${GOOGLE_CALENDAR_TIMEZONE:-America/New_York}
       GoogleCalendar__CalendarId: ${GOOGLE_CALENDAR_ID:-primary}
@@ -50,6 +52,8 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        export GOOGLE_REDIRECT_URI=http://localhost:8080/api/integrations/google/callback
+        export GoogleCalendar__RedirectUri=http://localhost:8080/api/integrations/google/callback
         if [ -n "$$GOOGLE_CLIENT_ID" ] && [ -n "$$GOOGLE_CLIENT_SECRET" ]; then
           if [ -z "$$GoogleCalendar__Provider" ]; then
             export GoogleCalendar__Provider=Google
