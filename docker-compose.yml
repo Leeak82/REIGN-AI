@@ -16,9 +16,11 @@ services:
       # Pass-through only. Blank/unset host values stay blank and are not secrets.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      # Docker publishes the API on 8080. `dotnet run` still uses https://localhost:5001.
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/integrations/google/callback}
-      GoogleCalendar__RedirectUri: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/integrations/google/callback}
+      # Pin Docker's callback. Do not interpolate ${GOOGLE_REDIRECT_URI}:
+      # a host/.env value of https://localhost:5001/... (for `dotnet run`) would
+      # replace the 8080 fallback and send Google OAuth to the wrong port.
+      GOOGLE_REDIRECT_URI: http://localhost:8080/api/integrations/google/callback
+      GoogleCalendar__RedirectUri: http://localhost:8080/api/integrations/google/callback
       GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-primary}
       GOOGLE_CALENDAR_TIMEZONE: ${GOOGLE_CALENDAR_TIMEZONE:-America/New_York}
       GoogleCalendar__CalendarId: ${GOOGLE_CALENDAR_ID:-primary}

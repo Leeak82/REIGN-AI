@@ -493,6 +493,53 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Docker_compose_pins_8080_google_redirect_and_does_not_interpolate_host_env()
+    {
+        var compose = File.ReadAllText(FindRepoFile("docker-compose.yml"));
+        Assert.Contains(
+            "GOOGLE_REDIRECT_URI: http://localhost:8080/api/integrations/google/callback",
+            compose,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "GoogleCalendar__RedirectUri: http://localhost:8080/api/integrations/google/callback",
+            compose,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI",
+            compose,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "GoogleCalendar__RedirectUri: ${GOOGLE_REDIRECT_URI",
+            compose,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "GOOGLE_REDIRECT_URI: https://localhost:5001",
+            compose,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "GoogleCalendar__RedirectUri: https://localhost:5001",
+            compose,
+            StringComparison.Ordinal);
+    }
+
+    private static string FindRepoFile(string name)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, name);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new FileNotFoundException(name);
+    }
+
+    [Fact]
     public void Postgres_create_script_includes_businesses_table()
     {
         var options = new DbContextOptionsBuilder<ReignDbContext>()

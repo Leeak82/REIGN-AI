@@ -113,16 +113,19 @@ Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-sepa
 
 3. Put credentials in a gitignored `.env` or the host environment. Never commit real values.
 
+Docker Compose **pins** the container callback to `http://localhost:8080/api/integrations/google/callback`. Do not rely on `${GOOGLE_REDIRECT_URI:-...}` for that value: if `.env` still has the Kestrel URI `https://localhost:5001/api/integrations/google/callback`, Compose would inject 5001 into the container and Google OAuth would miss the Docker port.
+
 ```
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://localhost:8080/api/integrations/google/callback
 GOOGLE_CALENDAR_ID=primary
 GOOGLE_CALENDAR_TIMEZONE=America/New_York
 GoogleCalendar__Provider=Google
 ```
 
-For `dotnet run` without Docker, use `GOOGLE_REDIRECT_URI=https://localhost:5001/api/integrations/google/callback`.
+For `dotnet run` without Docker only:
+
+`GOOGLE_REDIRECT_URI=https://localhost:5001/api/integrations/google/callback`
 
 4. Set `GoogleCalendar__Provider=Google`.
 5. Open `/api/integrations/google/authorize` once while signed in as the business owner.

@@ -137,9 +137,14 @@ public static class ConfigStartupValidator
                 logger.LogInformation("Google Calendar OAuth client credentials are present. Complete /api/integrations/google/authorize if a refresh token is not stored yet.");
             }
 
-            if (Missing(configuration, "GoogleCalendar:RedirectUri"))
+            var redirectUri = configuration["GoogleCalendar:RedirectUri"];
+            if (string.IsNullOrWhiteSpace(redirectUri))
             {
                 logger.LogWarning("GoogleCalendar__RedirectUri is not set. The OAuth callback must match the Google Cloud client exactly.");
+            }
+            else
+            {
+                logger.LogInformation("Google Calendar OAuth redirect URI: {RedirectUri}", redirectUri);
             }
         }
 
