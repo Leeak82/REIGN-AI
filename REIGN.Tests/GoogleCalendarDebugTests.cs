@@ -2,12 +2,16 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
+using REIGN.API.Controllers;
 using REIGN.API.Options;
 using REIGN.Data;
 using REIGN.Data.Models;
@@ -174,6 +178,52 @@ public class GoogleCalendarDebugTests
         Assert.Contains("HTTP 400", sanitized, StringComparison.Ordinal);
         Assert.DoesNotContain("SECRET_VALUE", sanitized, StringComparison.Ordinal);
         Assert.Contains("[redacted]", sanitized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Debug_event_endpoint_is_not_found_outside_development()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var controller = CreateController(harness.Service, Environments.Production);
+        var result = await controller.GoogleDebugEvent("evt-1", CancellationToken.None);
+        Assert.IsType<NotFoundResult>(result);
+        Assert.Empty(harness.Handler.Urls);
+    }
+
+    [Fact]
+    public async Task Debug_event_endpoint_returns_diagnostic_payload_in_development()
+    {
+        await using var harness = await Harness.CreateAsync(accessExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
+        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.OK, """{ "summary": "Cut" }""");
+        var controller = CreateController(harness.Service, Environments.Development);
+        var result = await controller.GoogleDebugEvent("1tfftt6crrdcaju5iimch6r3lc", CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var body = Assert.IsType<GoogleCalendarEventDebugResult>(ok.Value);
+        Assert.True(body.Found);
+        Assert.Equal(200, body.GoogleStatusCode);
+        Assert.Equal("Cut", body.Summary);
+        Assert.Equal("1tfftt6crrdcaju5iimch6r3lc", body.EventId);
+    }
+
+    private static IntegrationsController CreateController(GoogleCalendarService google, string environmentName) =>
+        new(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: google,
+            google: Options.Create(new GoogleCalendarOptions()),
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = environmentName },
+            logger: NullLogger<IntegrationsController>.Instance);
+
+    private sealed class StubHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ApplicationName { get; set; } = "REIGN.Tests";
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
     private static void AssertNoSecrets(
