@@ -1,6 +1,8 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using REIGN.API.Options;
@@ -129,6 +131,83 @@ public class GoogleCalendarService : ICalendarService
         }
     }
 
+    public async Task<GoogleCalendarEventDebugResult> GetEventDebugAsync(
+        string eventId,
+        CancellationToken cancellationToken = default)
+    {
+        var calendarId = string.IsNullOrWhiteSpace(_options.CalendarId) ? "primary" : _options.CalendarId.Trim();
+        var result = new GoogleCalendarEventDebugResult
+        {
+            Provider = ProviderName,
+            CalendarId = calendarId,
+            EventId = eventId
+        };
+
+        if (string.IsNullOrWhiteSpace(eventId))
+        {
+            result.Error = "eventId is required.";
+            return result;
+        }
+
+        try
+        {
+            var access = await GetAccessTokenAsync(cancellationToken);
+            if (access.Error != null)
+            {
+                result.Error = access.Error;
+                return result;
+            }
+
+            using var message = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"https://www.googleapis.com/calendar/v3/calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}");
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access.Token);
+
+            using var response = await _http.SendAsync(message, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            result.GoogleStatusCode = (int)response.StatusCode;
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                result.Found = false;
+                return result;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                result.Found = false;
+                result.Error = DescribeGoogleApiFailure((int)response.StatusCode, body);
+                return result;
+            }
+
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            result.Found = true;
+            result.Summary = GetJsonString(root, "summary");
+            result.Description = GetJsonString(root, "description");
+            result.HtmlLink = GetJsonString(root, "htmlLink");
+            if (root.TryGetProperty("start", out var startEl) && startEl.ValueKind == JsonValueKind.Object)
+            {
+                result.Start = GetJsonString(startEl, "dateTime") ?? GetJsonString(startEl, "date");
+                result.TimeZone = GetJsonString(startEl, "timeZone");
+            }
+
+            if (root.TryGetProperty("end", out var endEl) && endEl.ValueKind == JsonValueKind.Object)
+            {
+                result.End = GetJsonString(endEl, "dateTime") ?? GetJsonString(endEl, "date");
+                result.TimeZone ??= GetJsonString(endEl, "timeZone");
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Google Calendar debug-event lookup failed");
+            result.Error = SanitizeDiagnosticText($"Google Calendar debug lookup failed: {ex.Message}");
+            return result;
+        }
+    }
+
     public async Task<CalendarSyncResult> CancelAppointmentAsync(string? eventId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(eventId))
@@ -203,7 +282,9 @@ public class GoogleCalendarService : ICalendarService
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            return (null, "Google OAuth refresh failed. Reconnect calendar.");
+            var reason = DescribeOAuthRefreshFailure((int)response.StatusCode, body);
+            _logger.LogWarning("Google OAuth refresh failed: {Reason}", reason);
+            return (null, reason);
         }
 
         using var doc = JsonDocument.Parse(body);
@@ -321,4 +402,114 @@ public class GoogleCalendarService : ICalendarService
 
     private static string Truncate(string value) =>
         value.Length <= 300 ? value : value[..300];
+
+    private static string DescribeOAuthRefreshFailure(int statusCode, string body)
+    {
+        var reason = $"Google OAuth refresh failed (HTTP {statusCode})";
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var error = GetJsonString(doc.RootElement, "error");
+            var description = GetJsonString(doc.RootElement, "error_description");
+            var details = new List<string>();
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                details.Add(error);
+            }
+
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                details.Add(description);
+            }
+
+            if (details.Count > 0)
+            {
+                reason = $"{reason}: {string.Join(" — ", details)}";
+            }
+        }
+        catch (JsonException)
+        {
+            reason = $"{reason}. Response was not JSON.";
+        }
+
+        return SanitizeDiagnosticText(reason);
+    }
+
+    private static string DescribeGoogleApiFailure(int statusCode, string body)
+    {
+        var reason = $"Google Calendar HTTP {statusCode}";
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("error", out var errorEl))
+            {
+                return SanitizeDiagnosticText($"{reason}.");
+            }
+
+            if (errorEl.ValueKind == JsonValueKind.String)
+            {
+                var error = errorEl.GetString();
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    reason = $"{reason}: {error}";
+                }
+            }
+            else if (errorEl.ValueKind == JsonValueKind.Object)
+            {
+                var status = GetJsonString(errorEl, "status");
+                var message = GetJsonString(errorEl, "message");
+                var details = new List<string>();
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    details.Add(status);
+                }
+
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    details.Add(message);
+                }
+
+                if (details.Count > 0)
+                {
+                    reason = $"{reason}: {string.Join(" — ", details)}";
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            reason = $"{reason}.";
+        }
+
+        return SanitizeDiagnosticText(reason);
+    }
+
+    private static string? GetJsonString(JsonElement parent, string name)
+    {
+        if (!parent.TryGetProperty(name, out var el) || el.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return el.GetString();
+    }
+
+    private static readonly Regex SecretJsonProperty = new(
+        """"(access_token|refresh_token|id_token|client_secret|authorization_code)"\s*:\s*"(?:\\.|[^"\\])*"""",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex SecretFormField = new(
+        @"(?:^|[?&\s])(access_token|refresh_token|client_secret|authorization_code)=([^\s&]+)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex BearerToken = new(
+        @"Bearer\s+[A-Za-z0-9._\-=~+/]+",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    internal static string SanitizeDiagnosticText(string value)
+    {
+        var sanitized = SecretJsonProperty.Replace(value, "\"$1\":\"[redacted]\"");
+        sanitized = BearerToken.Replace(sanitized, "Bearer [redacted]");
+        sanitized = SecretFormField.Replace(sanitized, "$1=[redacted]");
+        return sanitized;
+    }
 }

@@ -12,21 +12,27 @@ public class IntegrationsController : ControllerBase
 {
     private readonly ConfigurableSmsSender _sms;
     private readonly ConfigurableCalendarService _calendar;
+    private readonly GoogleCalendarService _googleCalendar;
     private readonly GoogleCalendarOptions _google;
     private readonly SmsOptions _smsOptions;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<IntegrationsController> _logger;
 
     public IntegrationsController(
         ConfigurableSmsSender sms,
         ConfigurableCalendarService calendar,
+        GoogleCalendarService googleCalendar,
         IOptions<GoogleCalendarOptions> google,
         IOptions<SmsOptions> smsOptions,
+        IHostEnvironment environment,
         ILogger<IntegrationsController> logger)
     {
         _sms = sms;
         _calendar = calendar;
+        _googleCalendar = googleCalendar;
         _google = google.Value;
         _smsOptions = smsOptions.Value;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -109,5 +115,21 @@ public class IntegrationsController : ControllerBase
                 error = "Google OAuth exchange failed. Confirm ClientId, ClientSecret, and RedirectUri, then authorize again."
             });
         }
+    }
+
+    /// <summary>
+    /// Development-only diagnostic: GET a Google Calendar event with the stored OAuth grant.
+    /// </summary>
+    [HttpGet("google/debug-event/{eventId}")]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public async Task<IActionResult> GoogleDebugEvent(string eventId, CancellationToken cancellationToken)
+    {
+        if (!_environment.IsDevelopment())
+        {
+            return NotFound();
+        }
+
+        var result = await _googleCalendar.GetEventDebugAsync(eventId, cancellationToken);
+        return Ok(result);
     }
 }
