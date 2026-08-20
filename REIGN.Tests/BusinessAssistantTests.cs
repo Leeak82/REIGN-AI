@@ -42,6 +42,7 @@ public class BusinessAssistantTests
         var calendarSync = new AppointmentCalendarSync(
             harness.Db,
             harness.Calendar,
+            Microsoft.Extensions.Options.Options.Create(new REIGN.API.Options.GoogleCalendarOptions()),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AppointmentCalendarSync>.Instance);
         var appointments = new AppointmentService(harness.Db, calendarSync, new SchedulingService(harness.Db));
 

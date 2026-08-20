@@ -347,7 +347,10 @@ public class GoogleCalendarService : ICalendarService
             }
 
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning("Google Calendar delete failed: {Status} {Body}", (int)response.StatusCode, Truncate(body));
+            _logger.LogWarning(
+                "Google Calendar delete failed: {Status} {Body}",
+                (int)response.StatusCode,
+                SanitizeDiagnosticText(Truncate(body)));
             return CalendarSyncResult.Fail(ProviderName, $"Google Calendar HTTP {(int)response.StatusCode}");
         }
         catch (Exception ex)

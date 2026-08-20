@@ -37,9 +37,18 @@ public class SimulatedCalendarService : ICalendarService
 
     public Task<CalendarSyncResult> UpsertAppointmentAsync(CalendarEventRequest request, CancellationToken cancellationToken = default)
     {
-        var id = string.IsNullOrWhiteSpace(request.ExistingEventId)
-            ? Guid.NewGuid().ToString("N")
-            : request.ExistingEventId;
+        var id = request.ExistingEventId;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            var existing = _events.Values.FirstOrDefault(x =>
+                x.AppointmentId == request.AppointmentId && !x.Cancelled);
+            id = existing?.EventId;
+        }
+
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            id = Guid.NewGuid().ToString("N");
+        }
 
         _events[id] = new SimulatedCalendarEvent
         {

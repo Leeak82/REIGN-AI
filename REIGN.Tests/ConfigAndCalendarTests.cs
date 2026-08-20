@@ -451,6 +451,48 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Google_redirect_and_calendar_aliases_override_appsettings_defaults()
+    {
+        var previousRedirect = Environment.GetEnvironmentVariable("GOOGLE_REDIRECT_URI");
+        var previousNested = Environment.GetEnvironmentVariable("GoogleCalendar__RedirectUri");
+        var previousCalendarId = Environment.GetEnvironmentVariable("GOOGLE_CALENDAR_ID");
+        var previousTimeZone = Environment.GetEnvironmentVariable("GOOGLE_CALENDAR_TIMEZONE");
+        try
+        {
+            Environment.SetEnvironmentVariable("GoogleCalendar__RedirectUri", null);
+            Environment.SetEnvironmentVariable("GoogleCalendar__CalendarId", null);
+            Environment.SetEnvironmentVariable("GoogleCalendar__TimeZone", null);
+            Environment.SetEnvironmentVariable(
+                "GOOGLE_REDIRECT_URI",
+                "http://localhost:8080/api/integrations/google/callback");
+            Environment.SetEnvironmentVariable("GOOGLE_CALENDAR_ID", "primary");
+            Environment.SetEnvironmentVariable("GOOGLE_CALENDAR_TIMEZONE", "America/New_York");
+
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["GoogleCalendar:RedirectUri"] = "https://localhost:5001/api/integrations/google/callback",
+                ["GoogleCalendar:CalendarId"] = "legacy-id",
+                ["GoogleCalendar:TimeZone"] = "UTC"
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+
+            Assert.Equal("http://localhost:8080/api/integrations/google/callback", manager["GoogleCalendar:RedirectUri"]);
+            Assert.Equal("primary", manager["GoogleCalendar:CalendarId"]);
+            Assert.Equal("America/New_York", manager["GoogleCalendar:TimeZone"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GOOGLE_REDIRECT_URI", previousRedirect);
+            Environment.SetEnvironmentVariable("GoogleCalendar__RedirectUri", previousNested);
+            Environment.SetEnvironmentVariable("GOOGLE_CALENDAR_ID", previousCalendarId);
+            Environment.SetEnvironmentVariable("GOOGLE_CALENDAR_TIMEZONE", previousTimeZone);
+            Environment.SetEnvironmentVariable("GoogleCalendar__CalendarId", null);
+            Environment.SetEnvironmentVariable("GoogleCalendar__TimeZone", null);
+        }
+    }
+
+    [Fact]
     public void Postgres_create_script_includes_businesses_table()
     {
         var options = new DbContextOptionsBuilder<ReignDbContext>()

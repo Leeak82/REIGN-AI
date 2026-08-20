@@ -15,9 +15,17 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Ai:ApiKey", "GROQ_API_KEY", "GROQ_KEY");
         TryAlias(configuration, extras, "GoogleCalendar:ClientId", "GOOGLE_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_ID");
         TryAlias(configuration, extras, "GoogleCalendar:ClientSecret", "GOOGLE_CLIENT_SECRET", "GOOGLE_CALENDAR_CLIENT_SECRET");
-        TryAlias(configuration, extras, "GoogleCalendar:RedirectUri", "GOOGLE_REDIRECT_URI", "GOOGLE_CALENDAR_REDIRECT_URI");
-        TryAlias(configuration, extras, "GoogleCalendar:CalendarId", "GOOGLE_CALENDAR_ID");
-        TryAlias(configuration, extras, "GoogleCalendar:TimeZone", "GOOGLE_CALENDAR_TIMEZONE");
+        // appsettings.json ships non-empty RedirectUri/CalendarId/TimeZone defaults. Those
+        // must not block GOOGLE_* aliases. Nested GoogleCalendar__* env keys still win.
+        TryAlias(
+            configuration,
+            extras,
+            "GoogleCalendar:RedirectUri",
+            allowOverride: true,
+            "GOOGLE_REDIRECT_URI",
+            "GOOGLE_CALENDAR_REDIRECT_URI");
+        TryAlias(configuration, extras, "GoogleCalendar:CalendarId", allowOverride: true, "GOOGLE_CALENDAR_ID");
+        TryAlias(configuration, extras, "GoogleCalendar:TimeZone", allowOverride: true, "GOOGLE_CALENDAR_TIMEZONE");
         TryAlias(configuration, extras, "Sms:Twilio:AccountSid", "TWILIO_ACCOUNT_SID");
         TryAlias(configuration, extras, "Sms:Twilio:AuthToken", "TWILIO_AUTH_TOKEN");
         TryAlias(configuration, extras, "Sms:Twilio:FromNumber", "TWILIO_FROM_NUMBER", "TWILIO_PHONE_NUMBER");
@@ -86,9 +94,23 @@ public static class ConfigEnvironmentAliases
         IConfiguration configuration,
         IDictionary<string, string?> extras,
         string configurationKey,
+        params string[] environmentNames) =>
+        TryAlias(configuration, extras, configurationKey, allowOverride: false, environmentNames);
+
+    public static void TryAlias(
+        IConfiguration configuration,
+        IDictionary<string, string?> extras,
+        string configurationKey,
+        bool allowOverride,
         params string[] environmentNames)
     {
-        if (!string.IsNullOrWhiteSpace(configuration[configurationKey]))
+        var nestedEnvName = configurationKey.Replace(":", "__", StringComparison.Ordinal);
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(nestedEnvName)))
+        {
+            return;
+        }
+
+        if (!allowOverride && !string.IsNullOrWhiteSpace(configuration[configurationKey]))
         {
             return;
         }

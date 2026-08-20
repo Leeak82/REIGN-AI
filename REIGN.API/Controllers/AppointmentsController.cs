@@ -35,7 +35,8 @@ public class AppointmentsController : ControllerBase
                     x.Price,
                     x.AppointmentTime,
                     x.Status,
-                    x.DurationMinutes
+                    x.DurationMinutes,
+                    x.ExternalCalendarEventId
                 })
                 .ToListAsync();
 
