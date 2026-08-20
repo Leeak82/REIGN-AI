@@ -1,0 +1,72 @@
+# Local Docker development for REIGN.API.
+# Put OAuth/API credentials in a gitignored .env or the host environment.
+# Never put Client ID, Client Secret, or other secrets in this file.
+
+services:
+  reign-api:
+    container_name: reign-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Reign: Data Source=/data/REIGN.db
+      # Pass-through only. Blank/unset host values stay blank and are not secrets.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GoogleCalendar__Provider: ${GoogleCalendar__Provider:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      Ai__ApiKey: ${Ai__ApiKey:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-}
+      Sms__Provider: ${Sms__Provider:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      TWILIO_WEBHOOK_URL: ${TWILIO_WEBHOOK_URL:-}
+      VONAGE_API_KEY: ${VONAGE_API_KEY:-}
+      VONAGE_API_SECRET: ${VONAGE_API_SECRET:-}
+      VONAGE_SIGNATURE_SECRET: ${VONAGE_SIGNATURE_SECRET:-}
+      VONAGE_FROM_NUMBER: ${VONAGE_FROM_NUMBER:-}
+      SMSGATE_USERNAME: ${SMSGATE_USERNAME:-}
+      SMSGATE_PASSWORD: ${SMSGATE_PASSWORD:-}
+      SMSGATE_SIGNING_KEY: ${SMSGATE_SIGNING_KEY:-}
+      SMSGATE_FROM_NUMBER: ${SMSGATE_FROM_NUMBER:-}
+      REIGN_INTERNAL_API_KEY: ${REIGN_INTERNAL_API_KEY:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+    volumes:
+      - reign_data:/data
+    # Dockerfile ENTRYPOINT is "dotnet REIGN.API.dll". This wrapper only chooses
+    # the calendar provider from whether Google credentials were passed through.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -z "$$GOOGLE_REDIRECT_URI" ]; then
+          unset GOOGLE_REDIRECT_URI
+        fi
+        if [ -n "$$GOOGLE_CLIENT_ID" ] && [ -n "$$GOOGLE_CLIENT_SECRET" ]; then
+          if [ -z "$$GoogleCalendar__Provider" ]; then
+            export GoogleCalendar__Provider=Google
+          fi
+        else
+          export GoogleCalendar__Provider=Simulated
+        fi
+        exec dotnet REIGN.API.dll
+    # mcr.microsoft.com/dotnet/aspnet:10.0 (see Dockerfile) does not include curl
+    # or wget, and the image is not modified. Port 8080 is 0x1F90; 0A is LISTEN.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "grep -q ':1F90 00000000:0000 0A ' /proc/net/tcp || grep -q ':1F90 00000000000000000000000000000000:0000 0A ' /proc/net/tcp6"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+volumes:
+  reign_data:
