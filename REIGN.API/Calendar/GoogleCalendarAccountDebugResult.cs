@@ -10,7 +10,7 @@ public sealed class GoogleCalendarAccountDebugResult
 
     public string? Email { get; set; }
 
-    public string? Summary { get; set; }
+    public string? CalendarSummary { get; set; }
 
     public string? TimeZone { get; set; }
 

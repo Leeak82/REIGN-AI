@@ -231,6 +231,7 @@ public class GoogleCalendarDebugTests
         Assert.Equal("primary", result.CalendarId);
         Assert.Equal("studio@example.com", result.ResolvedCalendarId);
         Assert.Equal("studio@example.com", result.Email);
+        Assert.Equal("studio@example.com", result.CalendarSummary);
         Assert.Equal("America/New_York", result.TimeZone);
         Assert.Equal(GoogleCalendarService.RequiredScope, result.RequiredScope);
         Assert.True(result.ScopeSufficient);

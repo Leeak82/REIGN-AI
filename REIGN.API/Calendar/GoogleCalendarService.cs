@@ -258,7 +258,7 @@ public class GoogleCalendarService : ICalendarService
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
             result.ResolvedCalendarId = GetJsonString(root, "id");
-            result.Summary = GetJsonString(root, "summary");
+            result.CalendarSummary = GetJsonString(root, "summary");
             result.TimeZone = GetJsonString(root, "timeZone") ?? result.TimeZone;
             result.Email = EmailIfLooksLikeAddress(result.ResolvedCalendarId);
             return result;
@@ -550,7 +550,7 @@ public class GoogleCalendarService : ICalendarService
         result.Summary = GetJsonString(root, "summary");
         result.Description = GetJsonString(root, "description");
         result.HtmlLink = GetJsonString(root, "htmlLink");
-        result.EventStatus = GetJsonString(root, "status");
+        result.Status = GetJsonString(root, "status");
         if (root.TryGetProperty("organizer", out var organizer) && organizer.ValueKind == JsonValueKind.Object)
         {
             result.OrganizerEmail = GetJsonString(organizer, "email");

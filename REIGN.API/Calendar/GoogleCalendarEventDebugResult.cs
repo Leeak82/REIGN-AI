@@ -28,7 +28,7 @@ public sealed class GoogleCalendarEventDebugResult
 
     public string? CreatorEmail { get; set; }
 
-    public string? EventStatus { get; set; }
+    public string? Status { get; set; }
 
     public string? Error { get; set; }
 }
