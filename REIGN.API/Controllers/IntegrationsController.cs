@@ -79,14 +79,7 @@ public class IntegrationsController : ControllerBase
             });
         }
 
-        var url =
-            "https://accounts.google.com/o/oauth2/v2/auth" +
-            $"?client_id={Uri.EscapeDataString(_google.ClientId)}" +
-            $"&redirect_uri={Uri.EscapeDataString(_google.RedirectUri)}" +
-            "&response_type=code" +
-            $"&scope={Uri.EscapeDataString(GoogleCalendarService.RequiredScope)}" +
-            "&access_type=offline" +
-            "&prompt=consent";
+        var url = GoogleCalendarService.BuildAuthorizationUrl(_google.ClientId, _google.RedirectUri);
 
         return Redirect(url);
     }
