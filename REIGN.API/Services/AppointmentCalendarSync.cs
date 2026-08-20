@@ -21,7 +21,7 @@ public class AppointmentCalendarSync
         _logger = logger;
     }
 
-    public async Task SyncAsync(Appointment appointment, CancellationToken cancellationToken = default)
+    public async Task<CalendarSyncResult> SyncAsync(Appointment appointment, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -60,12 +60,18 @@ public class AppointmentCalendarSync
             }
             else if (!result.Succeeded)
             {
-                _logger.LogWarning("Calendar sync skipped/failed: {Error}", result.Error);
+                _logger.LogWarning(
+                    "Calendar sync failed for appointment {AppointmentId}: {Error}",
+                    appointment.Id,
+                    result.Error);
             }
+
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Calendar sync threw for appointment {AppointmentId}", appointment.Id);
+            return CalendarSyncResult.Fail(_calendar.ProviderName, ex.Message, _calendar.IsSimulated);
         }
     }
 

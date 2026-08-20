@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using REIGN.API.Calendar;
 using REIGN.API.Services;
+using REIGN.Data.Models;
 
 namespace REIGN.API.Controllers;
 
@@ -19,18 +21,14 @@ public class AppointmentActionsController : ControllerBase
     {
         try
         {
-            var appointment = await _appointments.ConfirmAppointment(id);
-            if (appointment == null)
+            var write = await _appointments.ConfirmAppointment(id);
+            if (write?.Appointment == null)
                 return NotFound();
 
-            return Ok(new
-            {
-                message = "Appointment confirmed",
-                appointment.Id,
-                appointment.Status,
-                appointment.AppointmentTime,
-                calendarEventId = appointment.ExternalCalendarEventId
-            });
+            return Ok(CalendarResponse(
+                "Appointment confirmed",
+                write.Appointment,
+                write.CalendarSync));
         }
         catch (SlotUnavailableException)
         {
@@ -71,14 +69,10 @@ public class AppointmentActionsController : ControllerBase
             if (write == null)
                 return NotFound();
 
-            return Ok(new
-            {
-                message = write.Duplicate ? "Appointment already at that time" : "Appointment updated",
-                write.Appointment.Id,
-                write.Appointment.Status,
-                write.Appointment.AppointmentTime,
-                calendarEventId = write.Appointment.ExternalCalendarEventId
-            });
+            return Ok(CalendarResponse(
+                write.Duplicate ? "Appointment already at that time" : "Appointment updated",
+                write.Appointment,
+                write.CalendarSync));
         }
         catch (SlotUnavailableException)
         {
@@ -89,6 +83,22 @@ public class AppointmentActionsController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
+
+    private static object CalendarResponse(string message, Appointment appointment, CalendarSyncResult? sync) =>
+        new
+        {
+            message,
+            appointment.Id,
+            appointment.Status,
+            appointment.AppointmentTime,
+            calendarSynced = sync?.Succeeded ?? false,
+            calendarProvider = sync?.Provider,
+            calendarEventId = sync is { Succeeded: true } ? sync.EventId : appointment.ExternalCalendarEventId,
+            calendarSyncError = sync is { Succeeded: false } ? sync.Error : null,
+            calendarHtmlLink = sync?.HtmlLink,
+            calendarTimeZone = sync?.TimeZone,
+            calendarId = sync?.CalendarId
+        };
 }
 
 public class RescheduleRequest

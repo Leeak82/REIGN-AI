@@ -238,14 +238,14 @@ public class IncomingSmsProcessor
             try
             {
                 var confirmed = await _appointmentService.ConfirmAppointment(pendingAppointment.Id);
-                if (confirmed == null)
+                if (confirmed?.Appointment == null)
                 {
                     return new ConversationReply { Text = "I don't have a pending appointment to confirm.", Provider = "Rules" };
                 }
 
                 return new ConversationReply
                 {
-                    Text = $"Confirmed. Your {confirmed.Service.Name} appointment is booked for {confirmed.AppointmentTime:g}.",
+                    Text = $"Confirmed. Your {confirmed.Appointment.Service?.Name} appointment is booked for {confirmed.Appointment.AppointmentTime:g}.",
                     Provider = "Rules"
                 };
             }

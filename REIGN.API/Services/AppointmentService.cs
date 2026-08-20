@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using REIGN.API.Calendar;
 using REIGN.Data;
 using REIGN.Data.Models;
 
@@ -86,7 +87,7 @@ public class AppointmentService
         };
     }
 
-    public async Task<Appointment?> ConfirmAppointment(Guid id)
+    public async Task<AppointmentWriteResult?> ConfirmAppointment(Guid id)
     {
         var appointment = await _db.Appointments
             .Include(x => x.Service)
@@ -110,8 +111,12 @@ public class AppointmentService
 
         appointment.Status = "Confirmed";
         await _db.SaveChangesAsync();
-        await _calendarSync.SyncAsync(appointment);
-        return appointment;
+        var calendarSync = await _calendarSync.SyncAsync(appointment);
+        return new AppointmentWriteResult
+        {
+            Appointment = appointment,
+            CalendarSync = calendarSync
+        };
     }
 
     public async Task<AppointmentWriteResult?> UpdateAppointment(Guid id, DateTime appointmentTime)
@@ -175,16 +180,18 @@ public class AppointmentService
         appointment.DurationMinutes = durationMinutes;
         await _db.SaveChangesAsync();
 
+        CalendarSyncResult? calendarSync = null;
         if (appointment.Status.Equals("Confirmed", StringComparison.OrdinalIgnoreCase) ||
             !string.IsNullOrWhiteSpace(appointment.ExternalCalendarEventId))
         {
-            await _calendarSync.SyncAsync(appointment);
+            calendarSync = await _calendarSync.SyncAsync(appointment);
         }
 
         return new AppointmentWriteResult
         {
             Appointment = appointment,
-            Rescheduled = true
+            Rescheduled = true,
+            CalendarSync = calendarSync
         };
     }
 

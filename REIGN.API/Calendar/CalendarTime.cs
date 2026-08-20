@@ -36,6 +36,21 @@ public static class CalendarTime
     }
 
     /// <summary>
+    /// Google Calendar requires an IANA time zone id. Empty and Windows Eastern ids map to America/New_York.
+    /// </summary>
+    public static string ToGoogleTimeZoneId(string? configured)
+    {
+        if (string.IsNullOrWhiteSpace(configured) ||
+            configured.Equals("Eastern Standard Time", StringComparison.OrdinalIgnoreCase) ||
+            configured.Equals("Eastern Daylight Time", StringComparison.OrdinalIgnoreCase))
+        {
+            return "America/New_York";
+        }
+
+        return configured.Trim();
+    }
+
+    /// <summary>
     /// Google Calendar local wall-clock datetime (no Z / offset) paired with an IANA timeZone field.
     /// Unspecified values are treated as already being in the business timezone.
     /// </summary>
