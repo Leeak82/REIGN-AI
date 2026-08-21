@@ -44,7 +44,7 @@ public static class SqliteSchemaUpgrades
                 "Personality" TEXT NOT NULL DEFAULT '',
                 "Instructions" TEXT NOT NULL DEFAULT '',
                 "Hours" TEXT NOT NULL DEFAULT '',
-                "TimeZone" TEXT NOT NULL DEFAULT 'America/New_York',
+                "TimeZone" TEXT NOT NULL DEFAULT 'America/Los_Angeles',
                 "CreatedAt" TEXT NOT NULL
             );
             """, cancellationToken);

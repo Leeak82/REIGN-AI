@@ -17,7 +17,7 @@ public class GoogleCalendarOptions
 
     public string CalendarId { get; set; } = "primary";
 
-    public string TimeZone { get; set; } = "America/New_York";
+    public string TimeZone { get; set; } = "America/Los_Angeles";
 
     public string ApplicationName { get; set; } = "REIGN-AI";
 }

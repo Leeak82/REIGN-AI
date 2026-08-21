@@ -28,7 +28,7 @@ public class Business
 
     public string Hours { get; set; } = string.Empty;
 
-    public string TimeZone { get; set; } = "America/New_York";
+    public string TimeZone { get; set; } = "America/Los_Angeles";
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

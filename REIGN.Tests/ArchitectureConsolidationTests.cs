@@ -17,6 +17,7 @@ public class ArchitectureConsolidationTests
 
         Assert.Equal("REIGN", profile.Name);
         Assert.Equal("Miss Reign", profile.AssistantName);
+        Assert.Equal("America/Los_Angeles", profile.TimeZone);
         Assert.Contains("Quick Visit", profile.Offering);
         Assert.False(string.IsNullOrWhiteSpace(profile.Hours));
         Assert.Equal(BusinessSeed.BusinessId, profile.Id);

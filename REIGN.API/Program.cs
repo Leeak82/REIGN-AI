@@ -118,6 +118,7 @@ builder.Services.AddHttpClient<SmsGateSmsSender>();
 builder.Services.AddScoped<ConfigurableSmsSender>();
 builder.Services.AddScoped<ISmsSender>(sp => sp.GetRequiredService<ConfigurableSmsSender>());
 
+builder.Services.AddSingleton<BusinessClock>();
 builder.Services.AddSingleton<SimulatedCalendarService>();
 builder.Services.AddHttpClient<GoogleCalendarService>();
 builder.Services.AddScoped<ConfigurableCalendarService>();

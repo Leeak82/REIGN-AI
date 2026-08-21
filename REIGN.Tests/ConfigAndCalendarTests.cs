@@ -444,7 +444,8 @@ public class ConfigAndCalendarTests
         var unspecified = new DateTime(2026, 8, 15, 14, 0, 0, DateTimeKind.Unspecified);
         Assert.Equal("2026-08-15T14:00:00", CalendarTime.ToWallClockRfc3339(unspecified, tz));
         Assert.DoesNotContain("Z", CalendarTime.ToWallClockRfc3339(unspecified, tz));
-        Assert.Equal("America/New_York", CalendarTime.ToGoogleTimeZoneId(""));
+        Assert.Equal("America/Los_Angeles", CalendarTime.ToGoogleTimeZoneId(""));
+        Assert.Equal("America/Los_Angeles", CalendarTime.ToGoogleTimeZoneId("Pacific Standard Time"));
         Assert.Equal("America/New_York", CalendarTime.ToGoogleTimeZoneId("America/New_York"));
         Assert.Equal("America/New_York", CalendarTime.ToGoogleTimeZoneId("Eastern Standard Time"));
         Assert.Equal("America/Chicago", CalendarTime.ToGoogleTimeZoneId("America/Chicago"));

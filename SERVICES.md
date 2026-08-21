@@ -1,12 +1,9 @@
 # Services
 
-Quick Visit:
+REIGN books only these visits. Pricing is exact — never invent a price.
 
+Quick Visit (QV): $150, under 30 minutes (20 minutes).
 
-30 Minute Session:
+Half Hour (HH): $300, 30 minutes.
 
-
-60 Minute Session:
-
-
-Pricing can be updated during tuning.
+Hour (HR): $500, 60 minutes.

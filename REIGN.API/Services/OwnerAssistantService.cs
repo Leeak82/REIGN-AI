@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using REIGN.API.Calendar;
 using REIGN.Core.AI;
 using REIGN.Core.Catalog;
 using REIGN.Data;
@@ -11,17 +12,20 @@ public class OwnerAssistantService
     private readonly IAiProvider _ai;
     private readonly IBusinessProfileAccessor _business;
     private readonly ILogger<OwnerAssistantService> _logger;
+    private readonly BusinessClock _clock;
 
     public OwnerAssistantService(
         ReignDbContext db,
         IAiProvider ai,
         IBusinessProfileAccessor business,
-        ILogger<OwnerAssistantService> logger)
+        ILogger<OwnerAssistantService> logger,
+        BusinessClock? clock = null)
     {
         _db = db;
         _ai = ai;
         _business = business;
         _logger = logger;
+        _clock = clock ?? new BusinessClock();
     }
 
     public async Task<string> AnswerAsync(string question, CancellationToken cancellationToken = default)
@@ -56,7 +60,7 @@ public class OwnerAssistantService
     {
         var customers = await _db.Customers.CountAsync(cancellationToken);
         var messages = await _db.ConversationMessages.CountAsync(cancellationToken);
-        var today = DateTime.Today;
+        var today = _clock.Today;
         var appointments = await _db.Appointments
             .Include(x => x.Customer)
             .Include(x => x.Service)

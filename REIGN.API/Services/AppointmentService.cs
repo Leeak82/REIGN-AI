@@ -10,15 +10,18 @@ public class AppointmentService
     private readonly ReignDbContext _db;
     private readonly AppointmentCalendarSync _calendarSync;
     private readonly SchedulingService _scheduling;
+    private readonly BusinessClock _clock;
 
     public AppointmentService(
         ReignDbContext db,
         AppointmentCalendarSync calendarSync,
-        SchedulingService scheduling)
+        SchedulingService scheduling,
+        BusinessClock? clock = null)
     {
         _db = db;
         _calendarSync = calendarSync;
         _scheduling = scheduling;
+        _clock = clock ?? new BusinessClock();
     }
 
     public async Task<AppointmentWriteResult?> CreateAppointment(
@@ -195,14 +198,14 @@ public class AppointmentService
         };
     }
 
-    private static void EnsureBookableTime(DateTime appointmentTime)
+    private void EnsureBookableTime(DateTime appointmentTime)
     {
         if (appointmentTime == default)
         {
             throw new InvalidBookingException("A day and time are required.");
         }
 
-        if (appointmentTime < DateTime.Now.AddMinutes(-1))
+        if (appointmentTime < _clock.Now.AddMinutes(-1))
         {
             throw new InvalidBookingException("That time has already passed.");
         }

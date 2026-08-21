@@ -27,7 +27,7 @@ public static class BusinessSeed
             Personality = "Expert appointment coordinator",
             Instructions = "Help customers understand QV, HH, and HR visits, pricing, and scheduling. Never invent prices or services.",
             Hours = "By appointment, typically 9am–5pm. Same-day visits need at least one hour notice.",
-            TimeZone = "America/New_York",
+            TimeZone = "America/Los_Angeles",
             CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc)
         };
     }

@@ -117,7 +117,7 @@ Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-sepa
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_CALENDAR_ID=primary
-GOOGLE_CALENDAR_TIMEZONE=America/New_York
+GOOGLE_CALENDAR_TIMEZONE=America/Los_Angeles
 GoogleCalendar__Provider=Google
 ```
 

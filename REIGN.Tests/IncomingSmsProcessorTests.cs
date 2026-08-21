@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using REIGN.API.AI;
 using REIGN.API.Calendar;
+using REIGN.API.Controllers;
 using REIGN.API.Messaging;
 using REIGN.API.Options;
 using REIGN.API.Services;
@@ -37,6 +38,94 @@ public class IncomingSmsProcessorTests
 
         var oil = await booking.ParseRequest("I need an oil change tomorrow 2pm");
         Assert.True(string.IsNullOrWhiteSpace(oil.ServiceName));
+    }
+
+    [Fact]
+    public async Task Booking_parses_weekdays_in_business_timezone()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var clock = new REIGN.API.Calendar.BusinessClock("America/Los_Angeles");
+        var booking = new BookingService(harness.Db, clock);
+
+        var friday = await booking.ParseRequest("Book HH Friday at 3 pm");
+        Assert.Equal(ServiceCatalog.HalfHourName, friday.ServiceName);
+        Assert.True(friday.HasTime);
+        Assert.Equal(15, friday.RequestedDate.Hour);
+        Assert.Equal(DayOfWeek.Friday, friday.RequestedDate.DayOfWeek);
+
+        var nextMonday = await booking.ParseRequest("QV next monday 10am");
+        Assert.Equal(ServiceCatalog.QuickVisitName, nextMonday.ServiceName);
+        Assert.True(nextMonday.HasTime);
+        Assert.Equal(DayOfWeek.Monday, nextMonday.RequestedDate.DayOfWeek);
+        Assert.True(nextMonday.RequestedDate.Date > clock.Today);
+
+        var dayOnly = await booking.ParseRequest("Half hour Saturday");
+        Assert.False(dayOnly.HasTime);
+        Assert.Equal(DayOfWeek.Saturday, dayOnly.RequestedDate.DayOfWeek);
+    }
+
+    [Fact]
+    public async Task Incoming_sms_books_weekday_after_asking_for_time()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var asked = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550410",
+            Body = "Book a half hour next Friday"
+        }, sendReplyViaProvider: false);
+
+        Assert.Contains("time", asked.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(harness.Db.Appointments);
+
+        var timed = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "3605550410",
+            Body = "3 pm"
+        }, sendReplyViaProvider: false);
+
+        Assert.Contains("YES", timed.Reply, StringComparison.OrdinalIgnoreCase);
+        var appointment = Assert.Single(harness.Db.Appointments);
+        Assert.Equal(15, appointment.AppointmentTime.Hour);
+        Assert.Equal(DayOfWeek.Friday, appointment.AppointmentTime.DayOfWeek);
+        Assert.True(appointment.AppointmentTime.Date > DateTime.UtcNow.Date.AddDays(-1));
+    }
+
+    [Fact]
+    public async Task Owner_dashboard_booking_confirms_and_creates_calendar_event()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var calendarSync = new AppointmentCalendarSync(
+            harness.Db,
+            harness.Calendar,
+            Options.Create(new GoogleCalendarOptions { TimeZone = "America/Los_Angeles" }),
+            NullLogger<AppointmentCalendarSync>.Instance);
+        var appointments = new AppointmentService(harness.Db, calendarSync, new SchedulingService(harness.Db));
+        var controller = new AppointmentsController(
+            harness.Db,
+            appointments,
+            harness.Conversations,
+            NullLogger<AppointmentsController>.Instance);
+
+        var when = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(2).AddHours(11), DateTimeKind.Unspecified);
+        var result = await controller.Create(new CreateAppointmentRequest
+        {
+            PhoneNumber = "3605550420",
+            CustomerName = "Avery",
+            ServiceName = "Quick Visit",
+            AppointmentTime = when,
+            Confirm = true
+        });
+
+        var ok = Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(result);
+        Assert.Single(harness.Db.Appointments);
+        var appointment = harness.Db.Appointments.Include(x => x.Service).Include(x => x.Customer).Single();
+        Assert.Equal("Confirmed", appointment.Status);
+        Assert.Equal(ServiceCatalog.QuickVisitName, appointment.Service.Name);
+        Assert.Equal("Avery", appointment.Customer.Name);
+        Assert.False(string.IsNullOrWhiteSpace(appointment.ExternalCalendarEventId));
+        Assert.Single(harness.Calendar.Events);
+        Assert.NotNull(ok.Value);
     }
 
     [Fact]

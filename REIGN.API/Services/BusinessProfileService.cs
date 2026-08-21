@@ -19,7 +19,7 @@ public class BusinessProfile
 
     public string Tone { get; set; } = "Warm, concise, professional. SMS replies stay under 320 characters.";
 
-    public string TimeZone { get; set; } = "America/New_York";
+    public string TimeZone { get; set; } = "America/Los_Angeles";
 
     public string Greeting { get; set; } = "";
 

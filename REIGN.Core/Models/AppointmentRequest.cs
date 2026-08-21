@@ -7,5 +7,5 @@ public class AppointmentRequest
     public string ServiceName { get; set; } = "";
     public DateTime RequestedDate { get; set; }
     public string LocationType { get; set; } = "";
-    public string Notes { get; set; } = "";
+    public bool HasTime { get; set; }
 }
