@@ -150,6 +150,10 @@ Still set these on the API service (not secrets, but required for the Collins ca
 
 In Google Cloud Console, the OAuth **Web** client's authorized redirect URIs must include that same production callback. The live client id is already configured on Render (`GOOGLE_CLIENT_ID`).
 
+`GET /api/integrations/status` now includes `oauthClientId` (public) and `oauthClientSecretLooksLikeWeb` (true when the secret starts with `GOCSPX-` after trimming quotes). `oauthClientConfigured: true` only means a secret is **present**. If consent succeeds and the callback still returns `invalid_client`, paste the **Client secret** from that same Web client into Render as `GOOGLE_CLIENT_SECRET` (or `GoogleCalendar__ClientSecret`), then redeploy. Do not put the secret in git.
+
+Authorize and the token POST use the same canonical callback. If exchange fails, the JSON includes Google's `error` / `error_description` (never the secret) plus the `redirectUri` that was sent.
+
 Do not complete consent as `lee.anthony57@gmail.com`. Cursor Calendar MCP is that account and cannot write to Collins' calendar until Collins shares it. REIGN must receive Collins' own OAuth grant.
 
 ## Twilio webhook setup

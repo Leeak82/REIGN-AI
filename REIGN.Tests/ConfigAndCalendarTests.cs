@@ -733,6 +733,80 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Production_REIGN_DOCKER_does_not_replace_an_already_public_callback()
+    {
+        const string productionCallback = "https://reign-ai-2.onrender.com/api/integrations/google/callback";
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("REIGN_DOCKER", "1");
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+        env.Set("ASPNETCORE_URLS", "http://+:8080");
+        env.Set("ASPNETCORE_HTTP_PORTS", "8080");
+
+        var resolved = GoogleRedirectUri.EnsureOAuthCallback(
+            productionCallback,
+            request: null,
+            isDevelopment: false);
+
+        Assert.Equal(productionCallback, resolved);
+        Assert.DoesNotContain("localhost", resolved, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Token_exchange_keeps_public_callback_when_request_host_is_0_0_0_0()
+    {
+        const string productionCallback = "https://reign-ai-2.onrender.com/api/integrations/google/callback";
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+        env.Set("ASPNETCORE_URLS", "http://+:8080");
+        env.Set("ASPNETCORE_HTTP_PORTS", "8080");
+
+        var authorize = new DefaultHttpContext();
+        authorize.Request.Scheme = "https";
+        authorize.Request.Host = new HostString("reign-ai-2.onrender.com");
+        authorize.Request.Headers["X-Forwarded-Proto"] = "https";
+        authorize.Request.Headers["X-Forwarded-Host"] = "reign-ai-2.onrender.com";
+
+        var callback = new DefaultHttpContext();
+        callback.Request.Scheme = "http";
+        callback.Request.Host = new HostString("0.0.0.0", 8080);
+
+        var authorizeUri = GoogleRedirectUri.ResolveForRequest(
+            productionCallback,
+            isDevelopment: false,
+            authorize.Request);
+        var exchangeUri = GoogleRedirectUri.ResolveForRequest(
+            productionCallback,
+            isDevelopment: false,
+            callback.Request);
+
+        Assert.Equal(productionCallback, authorizeUri);
+        Assert.Equal(authorizeUri, exchangeUri);
+        Assert.DoesNotContain("0.0.0.0", exchangeUri, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost", exchangeUri, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Unspecified_bind_host_is_not_a_usable_google_redirect()
+    {
+        Assert.False(GoogleRedirectUri.IsUsablePublicHost("0.0.0.0"));
+        Assert.False(GoogleRedirectUri.IsUsablePublicHost("localhost"));
+        Assert.True(GoogleRedirectUri.IsUsablePublicHost("reign-ai-2.onrender.com"));
+        Assert.False(GoogleRedirectUri.IsPublicCallback("http://0.0.0.0:8080/api/integrations/google/callback"));
+        Assert.True(GoogleRedirectUri.IsPublicCallback(
+            "https://reign-ai-2.onrender.com/api/integrations/google/callback"));
+    }
+
+    [Fact]
+    public void Quoted_oauth_credentials_are_trimmed()
+    {
+        Assert.Equal("GOCSPX-abc", GoogleOAuthCredentials.Normalize(" \"GOCSPX-abc\" "));
+        Assert.True(GoogleOAuthCredentials.LooksLikeWebClientSecret("\"GOCSPX-abc\""));
+        Assert.False(GoogleOAuthCredentials.LooksLikeWebClientSecret("not-a-web-secret"));
+    }
+
+    [Fact]
     public void Production_request_host_rewrites_leftover_kestrel_without_render_env()
     {
         using var env = new EnvScope();

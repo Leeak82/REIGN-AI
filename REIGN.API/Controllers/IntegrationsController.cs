@@ -61,10 +61,13 @@ public class IntegrationsController : ControllerBase
                 oauthClientConfigured =
                     !string.IsNullOrWhiteSpace(_google.ClientId) &&
                     !string.IsNullOrWhiteSpace(_google.ClientSecret),
+                oauthClientId = string.IsNullOrWhiteSpace(_google.ClientId) ? null : _google.ClientId,
+                oauthClientSecretLooksLikeWeb = GoogleOAuthCredentials.LooksLikeWebClientSecret(_google.ClientSecret),
                 hasStoredGrant = !_calendar.IsSimulated && _calendar.HasStoredGrant,
                 calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId,
                 timeZone = CalendarTime.ToGoogleTimeZoneId(_google.TimeZone),
                 redirectUri = EffectiveRedirectUri(),
+                platformRedirectUri = GoogleRedirectUri.TryPlatformPublicCallback(),
                 requiredScope = GoogleCalendarService.RequiredScope,
                 expectedAccount = ExpectedGoogleAccount()
             }
@@ -100,17 +103,40 @@ public class IntegrationsController : ControllerBase
             return BadRequest(new { error = "Missing authorization code." });
         }
 
+        var redirectUri = EffectiveRedirectUri();
         try
         {
-            await _calendar.StoreAuthorizationCodeAsync(code, EffectiveRedirectUri());
-            return Ok(new { connected = true, provider = "GoogleCalendar" });
+            await _calendar.StoreAuthorizationCodeAsync(code, redirectUri);
+            return Ok(new { connected = true, provider = "GoogleCalendar", redirectUri });
+        }
+        catch (GoogleOAuthException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Google OAuth code exchange failed ({GoogleError}) for {RedirectUri}.",
+                ex.GoogleError,
+                ex.RedirectUri);
+            return StatusCode(502, new
+            {
+                error = string.IsNullOrWhiteSpace(ex.GoogleError)
+                    ? "Google OAuth exchange failed. Confirm ClientId, ClientSecret, and RedirectUri, then authorize again."
+                    : $"Google OAuth exchange failed ({ex.GoogleError}). Confirm ClientId, ClientSecret, and RedirectUri, then authorize again.",
+                googleError = ex.GoogleError,
+                googleErrorDescription = string.IsNullOrWhiteSpace(ex.GoogleErrorDescription)
+                    ? null
+                    : GoogleCalendarService.SanitizeDiagnosticText(ex.GoogleErrorDescription),
+                redirectUri = ex.RedirectUri,
+                httpStatus = ex.HttpStatus
+            });
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Google OAuth code exchange failed.");
             return StatusCode(502, new
             {
-                error = "Google OAuth exchange failed. Confirm ClientId, ClientSecret, and RedirectUri, then authorize again."
+                error = "Google OAuth exchange failed. Confirm ClientId, ClientSecret, and RedirectUri, then authorize again.",
+                detail = GoogleCalendarService.SanitizeDiagnosticText(ex.Message),
+                redirectUri
             });
         }
     }

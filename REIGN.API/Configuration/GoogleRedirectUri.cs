@@ -47,6 +47,9 @@ public static class GoogleRedirectUri
 
     public static void ApplyToOptions(GoogleCalendarOptions options, IHostEnvironment environment)
     {
+        options.ClientId = GoogleOAuthCredentials.Normalize(options.ClientId);
+        options.ClientSecret = GoogleOAuthCredentials.Normalize(options.ClientSecret);
+
         var resolved = EnsureOAuthCallback(options.RedirectUri, request: null, environment.IsDevelopment());
         if (!string.IsNullOrWhiteSpace(resolved))
         {
@@ -65,7 +68,8 @@ public static class GoogleRedirectUri
     /// Prefer the caller-supplied value over process env so a host
     /// <c>GoogleCalendar__RedirectUri=...5001...</c> cannot override a correct 8080 option.
     /// Public production hosts win over localhost leftovers, including accidental
-    /// <c>REIGN_DOCKER=1</c> on Render.
+    /// <c>REIGN_DOCKER=1</c> on Render. An already-public callback is never rewritten
+    /// to Docker localhost just because the image listens on :8080.
     /// </summary>
     public static string EnsureOAuthCallback(string? configured, HttpRequest? request = null, bool? isDevelopment = null)
     {
@@ -75,14 +79,29 @@ public static class GoogleRedirectUri
             ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_CALENDAR_REDIRECT_URI"));
         var candidate = current ?? nested ?? alias ?? "";
 
-        var publicCallback = TryPublicCallback(request);
-        if (publicCallback != null
-            && (string.IsNullOrWhiteSpace(candidate)
-                || LooksLikeLocalCallback(candidate)
-                || ForcedDockerDeployment()
-                || IsDockerPublishedHost(request)))
+        var platformPublic = TryPlatformPublicCallback();
+        if (ShouldUseResolvedPublic(candidate, request) && platformPublic != null)
         {
-            return publicCallback;
+            return platformPublic;
+        }
+
+        var requestPublic = TryRequestPublicCallback(request);
+        if (ShouldUseResolvedPublic(candidate, request) && requestPublic != null)
+        {
+            return requestPublic;
+        }
+
+        // Keep https://your-host/... even when REIGN_DOCKER=1 or ASPNETCORE_URLS=:8080.
+        // Replacing that with http://localhost:8080 is what makes token exchange
+        // send a different redirect_uri than the authorize request Google already accepted.
+        if (IsPublicCallback(candidate))
+        {
+            if ((isDevelopment ?? false) && RunningInContainer())
+            {
+                return DockerCallback;
+            }
+
+            return ToCallback(candidate);
         }
 
         if (ForcedDockerDeployment() || IsDockerPublishedHost(request))
@@ -103,7 +122,10 @@ public static class GoogleRedirectUri
         return candidate;
     }
 
-    public static string? TryPublicCallback(HttpRequest? request = null)
+    public static string? TryPublicCallback(HttpRequest? request = null) =>
+        TryPlatformPublicCallback() ?? TryRequestPublicCallback(request);
+
+    public static string? TryPlatformPublicCallback()
     {
         var renderUrl = NullIfWhiteSpace(Environment.GetEnvironmentVariable("RENDER_EXTERNAL_URL"));
         if (renderUrl != null)
@@ -112,13 +134,28 @@ public static class GoogleRedirectUri
         }
 
         var renderHost = NullIfWhiteSpace(Environment.GetEnvironmentVariable("RENDER_EXTERNAL_HOSTNAME"));
-        if (renderHost != null)
-        {
-            return ToCallback("https://" + renderHost);
-        }
+        return renderHost == null ? null : ToCallback("https://" + renderHost);
+    }
 
+    public static string? TryRequestPublicCallback(HttpRequest? request)
+    {
         var publicOrigin = PublicRequestOrigin(request);
         return publicOrigin == null ? null : ToCallback(publicOrigin);
+    }
+
+    public static bool IsPublicCallback(string? configured)
+    {
+        if (string.IsNullOrWhiteSpace(configured) || LooksLikeLocalCallback(configured))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(configured, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return IsUsablePublicHost(uri.Host);
     }
 
     public static string ToCallback(string origin)
@@ -147,7 +184,9 @@ public static class GoogleRedirectUri
         !string.IsNullOrWhiteSpace(configured)
         && (configured.Contains("localhost", StringComparison.OrdinalIgnoreCase)
             || configured.Contains("127.0.0.1", StringComparison.Ordinal)
-            || configured.Contains("[::1]", StringComparison.OrdinalIgnoreCase));
+            || configured.Contains("[::1]", StringComparison.OrdinalIgnoreCase)
+            || configured.Contains("0.0.0.0", StringComparison.Ordinal)
+            || configured.Contains("://[::]", StringComparison.OrdinalIgnoreCase));
 
     public static bool IsDockerPublishedHost(HttpRequest? request)
     {
@@ -156,13 +195,15 @@ public static class GoogleRedirectUri
             return false;
         }
 
+        var hostName = request.Host.HasValue ? request.Host.Host : null;
+        var bindHost = IsLoopbackHost(hostName) || IsUnspecifiedHost(hostName);
         var localPort = request.HttpContext?.Connection.LocalPort;
-        if (localPort == 8080 && IsLoopbackHost(request.Host.Host))
+        if (localPort == 8080 && bindHost)
         {
             return true;
         }
 
-        if (request.Host.HasValue && IsLoopbackHost(request.Host.Host) && request.Host.Port is 8080)
+        if (request.Host.HasValue && bindHost && request.Host.Port is 8080)
         {
             return true;
         }
@@ -204,8 +245,8 @@ public static class GoogleRedirectUri
         }
 
         var hostName = host.Split(',')[0].Trim();
-        var nameOnly = hostName.Split(':')[0];
-        if (IsLoopbackHost(nameOnly))
+        var nameOnly = HostNameOnly(hostName);
+        if (!IsUsablePublicHost(nameOnly))
         {
             return null;
         }
@@ -217,6 +258,44 @@ public static class GoogleRedirectUri
         }
 
         return scheme + "://" + hostName;
+    }
+
+    private static bool ShouldUseResolvedPublic(string candidate, HttpRequest? request) =>
+        string.IsNullOrWhiteSpace(candidate)
+        || LooksLikeLocalCallback(candidate)
+        || ForcedDockerDeployment()
+        || IsDockerPublishedHost(request);
+
+    private static string HostNameOnly(string hostValue)
+    {
+        if (hostValue.StartsWith('[', StringComparison.Ordinal))
+        {
+            var end = hostValue.IndexOf(']');
+            return end > 1 ? hostValue[1..end] : hostValue;
+        }
+
+        var colon = hostValue.LastIndexOf(':');
+        if (colon > 0 && hostValue[(colon + 1)..].All(char.IsDigit))
+        {
+            return hostValue[..colon];
+        }
+
+        return hostValue;
+    }
+
+    public static bool IsUsablePublicHost(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || IsLoopbackHost(name) || IsUnspecifiedHost(name))
+        {
+            return false;
+        }
+
+        if (System.Net.IPAddress.TryParse(name, out _))
+        {
+            return false;
+        }
+
+        return name.Contains('.', StringComparison.Ordinal);
     }
 
     private static string? FirstForwardedValue(HttpRequest request, string header)
@@ -239,7 +318,16 @@ public static class GoogleRedirectUri
         !string.IsNullOrWhiteSpace(name)
         && (name.Equals("localhost", StringComparison.OrdinalIgnoreCase)
             || name.Equals("127.0.0.1", StringComparison.Ordinal)
-            || name.Equals("::1", StringComparison.Ordinal));
+            || name.Equals("::1", StringComparison.Ordinal)
+            || name.Equals("[::1]", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsUnspecifiedHost(string? name) =>
+        !string.IsNullOrWhiteSpace(name)
+        && (name.Equals("0.0.0.0", StringComparison.Ordinal)
+            || name.Equals("::", StringComparison.Ordinal)
+            || name.Equals("[::]", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("+", StringComparison.Ordinal)
+            || name.Equals("*", StringComparison.Ordinal));
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
