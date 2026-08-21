@@ -545,10 +545,11 @@ public class GoogleCalendarDebugTests
             }
             """);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Service.StoreAuthorizationCodeAsync("auth-code"));
+        var ex = await Assert.ThrowsAsync<GoogleOAuthException>(() => harness.Service.StoreAuthorizationCodeAsync("auth-code"));
         var stored = await harness.Db.IntegrationTokens.SingleAsync();
         Assert.Equal("OLD_REFRESH_TOKEN", stored.RefreshToken);
         Assert.Equal("access-token", stored.AccessToken);
+        Assert.Equal("missing_refresh_token", ex.GoogleError);
     }
 
     [Fact]
