@@ -63,6 +63,7 @@ public class IntegrationsController : ControllerBase
                 hasStoredGrant = !_calendar.IsSimulated && _calendar.HasStoredGrant,
                 calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId,
                 timeZone = CalendarTime.ToGoogleTimeZoneId(_google.TimeZone),
+                redirectUri = _google.RedirectUri,
                 requiredScope = GoogleCalendarService.RequiredScope
             }
         });
