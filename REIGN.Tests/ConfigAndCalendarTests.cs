@@ -694,6 +694,98 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Production_render_host_rewrites_leftover_localhost_instead_of_docker_8080()
+    {
+        const string productionCallback = "https://reign-ai-2.onrender.com/api/integrations/google/callback";
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+        env.Set("ASPNETCORE_URLS", "http://+:8080");
+        env.Set("RENDER_EXTERNAL_URL", "https://reign-ai-2.onrender.com");
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var resolved = GoogleRedirectUri.EnsureOAuthCallback(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            request: null,
+            isDevelopment: false);
+
+        Assert.Equal(productionCallback, resolved);
+        Assert.DoesNotContain("localhost", resolved, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Production_render_host_wins_over_accidental_REIGN_DOCKER()
+    {
+        const string productionCallback = "https://reign-ai-2.onrender.com/api/integrations/google/callback";
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("REIGN_DOCKER", "1");
+        env.Set("RENDER_EXTERNAL_HOSTNAME", "reign-ai-2.onrender.com");
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var resolved = GoogleRedirectUri.EnsureOAuthCallback(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            request: null,
+            isDevelopment: false);
+
+        Assert.Equal(productionCallback, resolved);
+    }
+
+    [Fact]
+    public void Production_request_host_rewrites_leftover_kestrel_without_render_env()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+        env.Set("ASPNETCORE_URLS", "http://+:8080");
+
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "http";
+        http.Request.Host = new HostString("reign-ai-2.onrender.com");
+        http.Request.Headers["X-Forwarded-Proto"] = "https";
+        http.Request.Headers["X-Forwarded-Host"] = "reign-ai-2.onrender.com";
+
+        var resolved = GoogleRedirectUri.ResolveForRequest(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            isDevelopment: false,
+            http.Request);
+
+        Assert.Equal("https://reign-ai-2.onrender.com/api/integrations/google/callback", resolved);
+    }
+
+    [Fact]
+    public void Aliases_replace_localhost_redirect_with_render_external_url()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+        env.Set("ASPNETCORE_URLS", "http://+:8080");
+        env.Set("RENDER_EXTERNAL_URL", "https://reign-ai-2.onrender.com");
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+        var environment = new StubHostEnvironment { EnvironmentName = Environments.Production };
+        GoogleRedirectUri.Apply(manager, environment);
+
+        Assert.Equal(
+            "https://reign-ai-2.onrender.com/api/integrations/google/callback",
+            manager["GoogleCalendar:RedirectUri"]);
+        Assert.Equal(
+            "https://reign-ai-2.onrender.com/api/integrations/google/callback",
+            BindOptions(manager, environment).RedirectUri);
+    }
+
+    [Fact]
+    public void Production_appsettings_targets_collins_calendar()
+    {
+        var json = File.ReadAllText(Path.Combine(FindRepoRoot(), "REIGN.API", "appsettings.Production.json"));
+        Assert.Contains("\"CalendarId\": \"j.collins2491@gmail.com\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Configured_8080_is_not_overridden_by_host_nested_5001_env()
     {
         using var env = new EnvScope();
@@ -835,6 +927,8 @@ public class ConfigAndCalendarTests
             Set("DOTNET_RUNNING_IN_CONTAINER", null);
             Set("ASPNETCORE_HTTP_PORTS", null);
             Set("ASPNETCORE_URLS", null);
+            Set("RENDER_EXTERNAL_URL", null);
+            Set("RENDER_EXTERNAL_HOSTNAME", null);
         }
 
         public void Dispose()

@@ -31,6 +31,7 @@ public static class ConfigEnvironmentAliases
         // returns early and would leave that Kestrel callback in Docker. Last-win 8080 here
         // before GoogleRedirectUri.Apply / IOptions bind.
         ApplyDockerKestrelRedirectOverride(configuration, extras);
+        ApplyPublicHostRedirectOverride(configuration, extras);
         TryAlias(configuration, extras, "GoogleCalendar:CalendarId", allowOverride: true, "GOOGLE_CALENDAR_ID");
         TryAlias(configuration, extras, "GoogleCalendar:TimeZone", allowOverride: true, "GOOGLE_CALENDAR_TIMEZONE");
         TryAlias(configuration, extras, "Sms:Twilio:AccountSid", "TWILIO_ACCOUNT_SID");
@@ -156,6 +157,29 @@ public static class ConfigEnvironmentAliases
         if (GoogleRedirectUri.LooksLikeKestrelCallback(effective))
         {
             extras["GoogleCalendar:RedirectUri"] = GoogleRedirectUri.DockerCallback;
+        }
+    }
+
+    private static void ApplyPublicHostRedirectOverride(
+        IConfiguration configuration,
+        IDictionary<string, string?> extras)
+    {
+        var publicCallback = GoogleRedirectUri.TryPublicCallback();
+        if (publicCallback == null)
+        {
+            return;
+        }
+
+        extras.TryGetValue("GoogleCalendar:RedirectUri", out var aliased);
+        var effective = NullIfWhiteSpace(aliased)
+            ?? NullIfWhiteSpace(configuration["GoogleCalendar:RedirectUri"])
+            ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable(GoogleRedirectUri.NestedEnvironmentName))
+            ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_REDIRECT_URI"))
+            ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_CALENDAR_REDIRECT_URI"));
+
+        if (string.IsNullOrWhiteSpace(effective) || GoogleRedirectUri.LooksLikeLocalCallback(effective))
+        {
+            extras["GoogleCalendar:RedirectUri"] = publicCallback;
         }
     }
 

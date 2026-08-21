@@ -616,5 +616,13 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
         public bool HasStoredGrant { get; set; }
 
         public string? CalendarId { get; set; }
+
+        public string? TimeZone { get; set; }
+
+        public string? RedirectUri { get; set; }
+
+        public string? RequiredScope { get; set; }
+
+        public string? ExpectedAccount { get; set; }
     }
 }

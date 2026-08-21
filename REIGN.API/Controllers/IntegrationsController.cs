@@ -65,7 +65,8 @@ public class IntegrationsController : ControllerBase
                 calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId,
                 timeZone = CalendarTime.ToGoogleTimeZoneId(_google.TimeZone),
                 redirectUri = EffectiveRedirectUri(),
-                requiredScope = GoogleCalendarService.RequiredScope
+                requiredScope = GoogleCalendarService.RequiredScope,
+                expectedAccount = ExpectedGoogleAccount()
             }
         });
     }
@@ -151,4 +152,10 @@ public class IntegrationsController : ControllerBase
             _google.RedirectUri,
             HttpContext?.Request,
             _environment.IsDevelopment());
+
+    private string? ExpectedGoogleAccount()
+    {
+        var calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId.Trim();
+        return calendarId.Contains('@', StringComparison.Ordinal) ? calendarId : null;
+    }
 }

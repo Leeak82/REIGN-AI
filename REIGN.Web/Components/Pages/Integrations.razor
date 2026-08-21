@@ -64,14 +64,20 @@ else
             <div class="kv"><span class="k">Active provider</span><span class="v">@Status.GoogleCalendar.ActiveProvider</span></div>
             <div class="kv"><span class="k">OAuth client</span><span class="v">@(Status.GoogleCalendar.OauthClientConfigured ? "Configured" : "Not configured")</span></div>
             <div class="kv"><span class="k">Google account</span><span class="v">@(Status.GoogleCalendar.HasStoredGrant ? "Connected" : "Not connected")</span></div>
+            <div class="kv"><span class="k">Calendar ID</span><span class="v">@(Status.GoogleCalendar.CalendarId ?? "primary")</span></div>
+            @if (!string.IsNullOrWhiteSpace(Status.GoogleCalendar.ExpectedAccount))
+            {
+                <div class="kv"><span class="k">Sign in as</span><span class="v">@Status.GoogleCalendar.ExpectedAccount</span></div>
+            }
             @if (Status.GoogleCalendar.Simulated)
             {
                 <div class="kv"><span class="k">Mode</span><span class="v"><StatusBadge Text="Simulated" Kind="info" /></span></div>
             }
-            @if (!CalendarConnected)
-            {
-                <a class="btn btn-primary btn-sm mt-1" href="@AuthorizeUrl">Connect Google Calendar</a>
-            }
+            <p class="small faint mt-1" style="margin-bottom:0;">
+                Click Connect while signed into Google as <strong>@(Status.GoogleCalendar.ExpectedAccount ?? "j.collins2491@gmail.com")</strong>.
+                That grants REIGN permission to view, create, and change events on that calendar.
+            </p>
+            <a class="btn btn-primary btn-sm mt-1" href="@AuthorizeUrl">@(CalendarConnected ? "Reconnect Google Calendar" : "Connect Google Calendar")</a>
         </div>
     </div>
 

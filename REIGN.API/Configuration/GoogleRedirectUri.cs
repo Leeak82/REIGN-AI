@@ -13,7 +13,9 @@ namespace REIGN.API.Configuration;
 /// must never be sent to Google from that runtime.
 ///
 /// Non-Docker <c>dotnet run</c> on https://localhost:5001 is unchanged.
-/// Production public callbacks are unchanged.
+/// Public hosts (Render, Railway, Azure) must never send a localhost callback.
+/// When <c>RENDER_EXTERNAL_URL</c> / <c>RENDER_EXTERNAL_HOSTNAME</c> or a public
+/// request host is available, leftover localhost values resolve to that origin.
 /// </summary>
 public static class GoogleRedirectUri
 {
@@ -23,9 +25,11 @@ public static class GoogleRedirectUri
 
     public const string DockerFlagName = "REIGN_DOCKER";
 
-    public const string DockerCallback = "http://localhost:8080/api/integrations/google/callback";
+    public const string CallbackPath = "/api/integrations/google/callback";
 
-    public const string KestrelHttpsCallback = "https://localhost:5001/api/integrations/google/callback";
+    public const string DockerCallback = "http://localhost:8080" + CallbackPath;
+
+    public const string KestrelHttpsCallback = "https://localhost:5001" + CallbackPath;
 
     public static void Apply(ConfigurationManager configuration, IHostEnvironment environment)
     {
@@ -60,19 +64,31 @@ public static class GoogleRedirectUri
     /// Single choke point for the URI sent to Google (authorize Location and token POST).
     /// Prefer the caller-supplied value over process env so a host
     /// <c>GoogleCalendar__RedirectUri=...5001...</c> cannot override a correct 8080 option.
+    /// Public production hosts win over localhost leftovers, including accidental
+    /// <c>REIGN_DOCKER=1</c> on Render.
     /// </summary>
     public static string EnsureOAuthCallback(string? configured, HttpRequest? request = null, bool? isDevelopment = null)
     {
-        if (ForcedDockerDeployment() || IsDockerPublishedHost(request))
-        {
-            return DockerCallback;
-        }
-
         var current = NullIfWhiteSpace(configured);
         var nested = NullIfWhiteSpace(Environment.GetEnvironmentVariable(NestedEnvironmentName));
         var alias = NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_REDIRECT_URI"))
             ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_CALENDAR_REDIRECT_URI"));
         var candidate = current ?? nested ?? alias ?? "";
+
+        var publicCallback = TryPublicCallback(request);
+        if (publicCallback != null
+            && (string.IsNullOrWhiteSpace(candidate)
+                || LooksLikeLocalCallback(candidate)
+                || ForcedDockerDeployment()
+                || IsDockerPublishedHost(request)))
+        {
+            return publicCallback;
+        }
+
+        if (ForcedDockerDeployment() || IsDockerPublishedHost(request))
+        {
+            return DockerCallback;
+        }
 
         if (LooksLikeKestrelCallback(candidate) && (RunningInContainer() || ListeningOnPublishedDockerPort()))
         {
@@ -87,6 +103,35 @@ public static class GoogleRedirectUri
         return candidate;
     }
 
+    public static string? TryPublicCallback(HttpRequest? request = null)
+    {
+        var renderUrl = NullIfWhiteSpace(Environment.GetEnvironmentVariable("RENDER_EXTERNAL_URL"));
+        if (renderUrl != null)
+        {
+            return ToCallback(renderUrl);
+        }
+
+        var renderHost = NullIfWhiteSpace(Environment.GetEnvironmentVariable("RENDER_EXTERNAL_HOSTNAME"));
+        if (renderHost != null)
+        {
+            return ToCallback("https://" + renderHost);
+        }
+
+        var publicOrigin = PublicRequestOrigin(request);
+        return publicOrigin == null ? null : ToCallback(publicOrigin);
+    }
+
+    public static string ToCallback(string origin)
+    {
+        var trimmed = origin.Trim().TrimEnd('/');
+        if (trimmed.EndsWith(CallbackPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        return trimmed + CallbackPath;
+    }
+
     public static bool ForcedDockerDeployment()
     {
         var flag = Environment.GetEnvironmentVariable(DockerFlagName);
@@ -97,6 +142,12 @@ public static class GoogleRedirectUri
     public static bool LooksLikeKestrelCallback(string? configured) =>
         !string.IsNullOrWhiteSpace(configured)
         && configured.Contains("localhost:5001", StringComparison.OrdinalIgnoreCase);
+
+    public static bool LooksLikeLocalCallback(string? configured) =>
+        !string.IsNullOrWhiteSpace(configured)
+        && (configured.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+            || configured.Contains("127.0.0.1", StringComparison.Ordinal)
+            || configured.Contains("[::1]", StringComparison.OrdinalIgnoreCase));
 
     public static bool IsDockerPublishedHost(HttpRequest? request)
     {
@@ -136,6 +187,52 @@ public static class GoogleRedirectUri
         var flag = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER");
         return string.Equals(flag, "true", StringComparison.OrdinalIgnoreCase)
             || string.Equals(flag, "1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? PublicRequestOrigin(HttpRequest? request)
+    {
+        if (request == null)
+        {
+            return null;
+        }
+
+        var host = FirstForwardedValue(request, "X-Forwarded-Host")
+            ?? (request.Host.HasValue ? request.Host.Value : null);
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return null;
+        }
+
+        var hostName = host.Split(',')[0].Trim();
+        var nameOnly = hostName.Split(':')[0];
+        if (IsLoopbackHost(nameOnly))
+        {
+            return null;
+        }
+
+        var scheme = FirstForwardedValue(request, "X-Forwarded-Proto") ?? request.Scheme;
+        if (string.IsNullOrWhiteSpace(scheme) || scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
+        {
+            scheme = "https";
+        }
+
+        return scheme + "://" + hostName;
+    }
+
+    private static string? FirstForwardedValue(HttpRequest request, string header)
+    {
+        if (!request.Headers.TryGetValue(header, out var values))
+        {
+            return null;
+        }
+
+        var raw = values.ToString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        return raw.Split(',')[0].Trim();
     }
 
     private static bool IsLoopbackHost(string? name) =>
