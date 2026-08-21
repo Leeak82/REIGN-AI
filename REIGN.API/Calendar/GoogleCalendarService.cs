@@ -386,8 +386,8 @@ public class GoogleCalendarService : ICalendarService
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["client_id"] = _options.ClientId,
-            ["client_secret"] = _options.ClientSecret,
+            ["client_id"] = GoogleOAuthCredentials.Normalize(_options.ClientId),
+            ["client_secret"] = GoogleOAuthCredentials.Normalize(_options.ClientSecret),
             ["refresh_token"] = token.RefreshToken,
             ["grant_type"] = "refresh_token"
         });
@@ -476,14 +476,18 @@ public class GoogleCalendarService : ICalendarService
 
     public async Task StoreAuthorizationCodeAsync(string code, string redirectUri, CancellationToken cancellationToken = default)
     {
+        var exchangeRedirectUri = GoogleRedirectUri.EnsureOAuthCallback(
+            string.IsNullOrWhiteSpace(redirectUri) ? EffectiveRedirectUri() : redirectUri);
+        var clientId = GoogleOAuthCredentials.Normalize(_options.ClientId);
+        var clientSecret = GoogleOAuthCredentials.Normalize(_options.ClientSecret);
+
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["code"] = code,
-            ["client_id"] = _options.ClientId,
-            ["client_secret"] = _options.ClientSecret,
-            ["redirect_uri"] = GoogleRedirectUri.EnsureOAuthCallback(
-                string.IsNullOrWhiteSpace(redirectUri) ? EffectiveRedirectUri() : redirectUri),
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret,
+            ["redirect_uri"] = exchangeRedirectUri,
             ["grant_type"] = "authorization_code"
         });
 
@@ -491,11 +495,20 @@ public class GoogleCalendarService : ICalendarService
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            var parsed = ParseOAuthTokenFailure((int)response.StatusCode, body, "code exchange");
             _logger.LogWarning(
-                "Google OAuth code exchange failed with HTTP {Status}. {Detail}",
-                (int)response.StatusCode,
-                SanitizeDiagnosticText(body));
-            throw new InvalidOperationException("Google OAuth code exchange failed.");
+                "Google OAuth code exchange failed with HTTP {Status} redirectUri {RedirectUri} clientId {ClientId} secretLength {SecretLength}. {Detail}",
+                parsed.HttpStatus,
+                exchangeRedirectUri,
+                clientId,
+                clientSecret.Length,
+                parsed.SanitizedMessage);
+            throw new GoogleOAuthException(
+                parsed.SanitizedMessage,
+                parsed.HttpStatus,
+                parsed.Error,
+                parsed.ErrorDescription,
+                exchangeRedirectUri);
         }
 
         using var doc = JsonDocument.Parse(body);
@@ -511,8 +524,12 @@ public class GoogleCalendarService : ICalendarService
         var db = dbScope.ServiceProvider.GetRequiredService<ReignDbContext>();
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
-            throw new InvalidOperationException(
-                "Google OAuth did not return a refresh token. Revisit /api/integrations/google/authorize so prompt=consent can issue a new grant. The previous refresh token was not reused.");
+            throw new GoogleOAuthException(
+                "Google OAuth did not return a refresh token. Revisit /api/integrations/google/authorize so prompt=consent can issue a new grant. The previous refresh token was not reused.",
+                (int)response.StatusCode,
+                "missing_refresh_token",
+                "Google omitted refresh_token. Use prompt=consent and access_type=offline, then authorize again.",
+                exchangeRedirectUri);
         }
 
         var existing = await db.IntegrationTokens.FirstOrDefaultAsync(x => x.Provider == ProviderKey, cancellationToken);
@@ -690,14 +707,19 @@ public class GoogleCalendarService : ICalendarService
     private static string Truncate(string value) =>
         value.Length <= 300 ? value : value[..300];
 
-    private static string DescribeOAuthRefreshFailure(int statusCode, string body)
+    private static string DescribeOAuthRefreshFailure(int statusCode, string body) =>
+        ParseOAuthTokenFailure(statusCode, body, "refresh").SanitizedMessage;
+
+    internal static OAuthTokenFailure ParseOAuthTokenFailure(int statusCode, string body, string operation)
     {
-        var reason = $"Google OAuth refresh failed (HTTP {statusCode})";
+        var reason = $"Google OAuth {operation} failed (HTTP {statusCode})";
+        string? error = null;
+        string? description = null;
         try
         {
             using var doc = JsonDocument.Parse(body);
-            var error = GetJsonString(doc.RootElement, "error");
-            var description = GetJsonString(doc.RootElement, "error_description");
+            error = GetJsonString(doc.RootElement, "error");
+            description = GetJsonString(doc.RootElement, "error_description");
             var details = new List<string>();
             if (!string.IsNullOrWhiteSpace(error))
             {
@@ -719,8 +741,18 @@ public class GoogleCalendarService : ICalendarService
             reason = $"{reason}. Response was not JSON.";
         }
 
-        return SanitizeDiagnosticText(reason);
+        return new OAuthTokenFailure(
+            statusCode,
+            string.IsNullOrWhiteSpace(error) ? null : error,
+            string.IsNullOrWhiteSpace(description) ? null : SanitizeDiagnosticText(description),
+            SanitizeDiagnosticText(reason));
     }
+
+    internal readonly record struct OAuthTokenFailure(
+        int HttpStatus,
+        string? Error,
+        string? ErrorDescription,
+        string SanitizedMessage);
 
     private static string DescribeGoogleApiFailure(int statusCode, string body)
     {

@@ -545,10 +545,11 @@ public class GoogleCalendarDebugTests
             }
             """);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Service.StoreAuthorizationCodeAsync("auth-code"));
+        var ex = await Assert.ThrowsAsync<GoogleOAuthException>(() => harness.Service.StoreAuthorizationCodeAsync("auth-code"));
         var stored = await harness.Db.IntegrationTokens.SingleAsync();
         Assert.Equal("OLD_REFRESH_TOKEN", stored.RefreshToken);
         Assert.Equal("access-token", stored.AccessToken);
+        Assert.Equal("missing_refresh_token", ex.GoogleError);
     }
 
     [Fact]
@@ -639,10 +640,171 @@ public class GoogleCalendarDebugTests
             }
             """);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<GoogleOAuthException>(() =>
             harness.Service.StoreAuthorizationCodeAsync("auth-code", GoogleRedirectUri.DockerCallback));
         Assert.Equal(0, await harness.Db.IntegrationTokens.CountAsync());
         Assert.False(harness.Service.HasStoredGrant);
+        Assert.Equal("redirect_uri_mismatch", ex.GoogleError);
+        Assert.Contains("redirect_uri must match", ex.GoogleErrorDescription, StringComparison.Ordinal);
+        Assert.Equal(GoogleRedirectUri.DockerCallback, ex.RedirectUri);
+        Assert.Equal(400, ex.HttpStatus);
+        Assert.Contains("redirect_uri_mismatch", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("client_secret", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_strips_quoted_client_secret()
+    {
+        await using var harness = await Harness.CreateAsync(
+            storeGrant: false,
+            clientSecret: "\"GOCSPX-quoted-secret\"");
+        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.OK, """
+            {
+              "access_token": "FIRST_ACCESS_TOKEN",
+              "refresh_token": "FIRST_REFRESH_TOKEN",
+              "expires_in": 3600,
+              "scope": "https://www.googleapis.com/auth/calendar.events",
+              "token_type": "Bearer"
+            }
+            """);
+
+        await harness.Service.StoreAuthorizationCodeAsync(
+            "auth-code",
+            "https://reign-ai-2.onrender.com/api/integrations/google/callback");
+
+        var form = Assert.Single(harness.Handler.Bodies);
+        Assert.Contains("client_secret=GOCSPX-quoted-secret", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("%22GOCSPX", form, StringComparison.Ordinal);
+        Assert.Contains(
+            "redirect_uri=" + Uri.EscapeDataString("https://reign-ai-2.onrender.com/api/integrations/google/callback"),
+            form,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Callback_returns_google_error_fields_without_secrets()
+    {
+        const string leaked = "GOCSPX-SHOULD-NOT-LEAK";
+        await using var harness = await Harness.CreateAsync(storeGrant: false, clientSecret: leaked);
+        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.Unauthorized, $$"""
+            {
+              "error": "invalid_client",
+              "error_description": "Unauthorized client_secret={{leaked}}"
+            }
+            """);
+
+        var options = new GoogleCalendarOptions
+        {
+            Provider = "Google",
+            ClientId = "1053850789832-7tib45q0bcju551fhc9h3e9f8rjjnhkd.apps.googleusercontent.com",
+            ClientSecret = leaked,
+            RedirectUri = "https://reign-ai-2.onrender.com/api/integrations/google/callback"
+        };
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.Request.Host = new HostString("reign-ai-2.onrender.com");
+        http.Request.Path = "/api/integrations/google/callback";
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: new ConfigurableCalendarService(
+                Options.Create(options),
+                new SimulatedCalendarService(),
+                harness.Service),
+            googleCalendar: harness.Service,
+            google: Options.Create(options),
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Production },
+            logger: NullLogger<IntegrationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+
+        var result = await controller.GoogleCallback("auth-code", error: null);
+        var failed = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(502, failed.StatusCode);
+        var json = JsonSerializer.Serialize(failed.Value, CamelCase);
+        Assert.Contains("invalid_client", json, StringComparison.Ordinal);
+        Assert.Contains("googleError", json, StringComparison.Ordinal);
+        Assert.Contains("https://reign-ai-2.onrender.com/api/integrations/google/callback", json, StringComparison.Ordinal);
+        Assert.DoesNotContain(leaked, json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorize_and_token_exchange_send_the_same_public_redirect_uri()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("REIGN_DOCKER", "1");
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+        env.Set("ASPNETCORE_URLS", "http://+:8080");
+
+        const string publicCallback = "https://reign-ai-2.onrender.com/api/integrations/google/callback";
+        await using var harness = await Harness.CreateAsync(
+            storeGrant: false,
+            redirectUri: publicCallback);
+        harness.Handler.Respond = request =>
+        {
+            Assert.Equal("https://oauth2.googleapis.com/token", request.RequestUri?.ToString());
+            return JsonResponse(HttpStatusCode.OK, """
+                {
+                  "access_token": "NEW_ACCESS_TOKEN",
+                  "refresh_token": "NEW_REFRESH_TOKEN",
+                  "expires_in": 3600,
+                  "scope": "https://www.googleapis.com/auth/calendar.events",
+                  "token_type": "Bearer"
+                }
+                """);
+        };
+
+        var authorizeUrl = GoogleCalendarService.BuildAuthorizationUrl("render-client-id", publicCallback);
+        Assert.Contains(Uri.EscapeDataString(publicCallback), authorizeUrl, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost", authorizeUrl, StringComparison.OrdinalIgnoreCase);
+
+        await harness.Service.StoreAuthorizationCodeAsync("auth-code", publicCallback);
+        var form = Assert.Single(harness.Handler.Bodies);
+        Assert.Contains("redirect_uri=" + Uri.EscapeDataString(publicCallback), form, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:8080", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost%3A8080", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Authorize_keeps_public_client_id_and_canonical_redirect_uri()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("RENDER_EXTERNAL_URL", "https://reign-ai-2.onrender.com");
+
+        const string clientId = "1053850789832-7tib45q0bcju551fhc9h3e9f8rjjnhkd.apps.googleusercontent.com";
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = clientId,
+            ClientSecret = "GOCSPX-example",
+            RedirectUri = GoogleRedirectUri.KestrelHttpsCallback,
+            CalendarId = "j.collins2491@gmail.com"
+        });
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.Request.Host = new HostString("reign-ai-2.onrender.com");
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Production },
+            logger: NullLogger<IntegrationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains(Uri.EscapeDataString(clientId), result.Url, StringComparison.Ordinal);
+        Assert.Contains(
+            Uri.EscapeDataString("https://reign-ai-2.onrender.com/api/integrations/google/callback"),
+            result.Url,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("GOCSPX-example", result.Url, StringComparison.Ordinal);
+        Assert.True(GoogleOAuthCredentials.LooksLikeWebClientSecret("GOCSPX-example"));
     }
 
     [Fact]
