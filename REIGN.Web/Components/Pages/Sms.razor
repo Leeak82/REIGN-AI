@@ -117,12 +117,44 @@ else
             </div>
         </div>
     </div>
+
+    @if (HostEnvironment.IsDevelopment())
+    {
+        <div class="card mt-2">
+            <div class="card-title">Try a customer text</div>
+            <div class="card-sub">Development simulator — same path REIGN uses for live SMS replies</div>
+            <label class="field-label" for="sms-phone">From number</label>
+            <input id="sms-phone" class="input mb-2" @bind="SimPhone" placeholder="3605550100" />
+            <label class="field-label" for="sms-message">Message</label>
+            <textarea id="sms-message" class="textarea" @bind="SimMessage" placeholder="Book a QV tomorrow at 2 pm"></textarea>
+            <div class="mt-1">
+                <button class="btn btn-primary" @onclick="Simulate" disabled="@Busy">Send</button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(SimReply))
+            {
+                <div class="divider"></div>
+                <div class="bubble-row out" style="max-width:100%;">
+                    <span class="bubble-tag">REIGN</span>
+                    <div class="bubble">@SimReply</div>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(SimError))
+            {
+                <p class="small mt-1" style="color:var(--danger);margin-bottom:0;">@SimError</p>
+            }
+        </div>
+    }
 }
 
 @code {
     private bool Loading = true;
+    private bool Busy;
     private ReignApiClient.IntegrationStatusDto? Status;
     private List<ReignApiClient.RecentActivityDto> Recent = new();
+    private string SimPhone = "3605550100";
+    private string SimMessage = "";
+    private string SimReply = "";
+    private string SimError = "";
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -141,6 +173,36 @@ else
         finally
         {
             Loading = false;
+        }
+    }
+
+    private async Task Simulate()
+    {
+        SimError = "";
+        SimReply = "";
+        if (string.IsNullOrWhiteSpace(SimPhone) || string.IsNullOrWhiteSpace(SimMessage))
+        {
+            SimError = "Phone and message are required.";
+            return;
+        }
+
+        Busy = true;
+        try
+        {
+            var result = await Api.ChatAsync(SimPhone.Trim(), SimMessage.Trim());
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                SimError = result.Error;
+                return;
+            }
+
+            SimReply = result.Reply ?? "No response.";
+            SimMessage = "";
+            Recent = await Api.GetRecentActivity();
+        }
+        finally
+        {
+            Busy = false;
         }
     }
 }

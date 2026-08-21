@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using REIGN.API.Calendar;
 using REIGN.Data;
 using REIGN.Data.Models;
 
@@ -7,10 +8,12 @@ namespace REIGN.API.Services;
 public class SchedulingService
 {
     private readonly ReignDbContext _db;
+    private readonly BusinessClock _clock;
 
-    public SchedulingService(ReignDbContext db)
+    public SchedulingService(ReignDbContext db, BusinessClock? clock = null)
     {
         _db = db;
+        _clock = clock ?? new BusinessClock();
     }
 
     public async Task<bool> IsAvailable(
@@ -72,7 +75,7 @@ public class SchedulingService
     public async Task<List<DateTime>> GetAvailableSlots(int durationMinutes = 30)
     {
         var slots = new List<DateTime>();
-        var tomorrow = DateTime.Today.AddDays(1);
+        var tomorrow = _clock.Today.AddDays(1);
 
         for (int hour = 9; hour <= 16; hour++)
         {

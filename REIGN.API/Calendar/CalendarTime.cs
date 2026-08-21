@@ -20,28 +20,41 @@ public static class CalendarTime
 
         try
         {
-            return TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+            return TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
         }
         catch
         {
             try
             {
-                return TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+                return TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
             }
             catch
             {
-                return TimeZoneInfo.Utc;
+                try
+                {
+                    return TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+                }
+                catch
+                {
+                    return TimeZoneInfo.Utc;
+                }
             }
         }
     }
 
     /// <summary>
-    /// Google Calendar requires an IANA time zone id. Empty and Windows Eastern ids map to America/New_York.
+    /// Google Calendar requires an IANA time zone id. Empty and Windows Pacific ids map to America/Los_Angeles.
     /// </summary>
     public static string ToGoogleTimeZoneId(string? configured)
     {
         if (string.IsNullOrWhiteSpace(configured) ||
-            configured.Equals("Eastern Standard Time", StringComparison.OrdinalIgnoreCase) ||
+            configured.Equals("Pacific Standard Time", StringComparison.OrdinalIgnoreCase) ||
+            configured.Equals("Pacific Daylight Time", StringComparison.OrdinalIgnoreCase))
+        {
+            return "America/Los_Angeles";
+        }
+
+        if (configured.Equals("Eastern Standard Time", StringComparison.OrdinalIgnoreCase) ||
             configured.Equals("Eastern Daylight Time", StringComparison.OrdinalIgnoreCase))
         {
             return "America/New_York";

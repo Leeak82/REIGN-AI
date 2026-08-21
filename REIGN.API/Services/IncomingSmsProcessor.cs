@@ -282,16 +282,19 @@ public class IncomingSmsProcessor
 
         if (intent.Kind == ReignIntentKind.Schedule)
         {
-            var booking = await _bookingService.ParseRequest(message);
+            var conversationState = await _state.GetOrCreate(customer.Id);
+            var booking = await _bookingService.ParseRequest(message, conversationState.RequestedTime);
             if (string.IsNullOrWhiteSpace(booking.ServiceName))
             {
                 booking.ServiceName = intent.ServiceName
-                    ?? (await _state.GetOrCreate(customer.Id)).SelectedService
+                    ?? conversationState.SelectedService
                     ?? "";
             }
 
-            if (!string.IsNullOrWhiteSpace(booking.ServiceName) && booking.RequestedDate != default)
+            if (!string.IsNullOrWhiteSpace(booking.ServiceName) && booking.HasTime && booking.RequestedDate != default)
             {
+                conversationState.RequestedTime = booking.RequestedDate;
+                await _db.SaveChangesAsync();
                 try
                 {
                     var write = await _appointmentService.CreateAppointment(
@@ -347,6 +350,18 @@ public class IncomingSmsProcessor
                         Provider = "Rules"
                     };
                 }
+            }
+
+            if (!string.IsNullOrWhiteSpace(booking.ServiceName) && !booking.HasTime && booking.RequestedDate != default)
+            {
+                conversationState.RequestedTime = booking.RequestedDate;
+                conversationState.CurrentStep = "AwaitingTime";
+                await _db.SaveChangesAsync();
+                return new ConversationReply
+                {
+                    Text = $"I can schedule your {booking.ServiceName} for {booking.RequestedDate:dddd, MMM d}. What time works best?",
+                    Provider = "Rules"
+                };
             }
 
             if (!string.IsNullOrWhiteSpace(booking.ServiceName))

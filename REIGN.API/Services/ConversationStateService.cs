@@ -64,7 +64,8 @@ public class ConversationStateService
                                           !(message.ToLowerInvariant().Contains("am") ||
                                             message.ToLowerInvariant().Contains("pm") ||
                                             message.ToLowerInvariant().Contains("today") ||
-                                            message.ToLowerInvariant().Contains("tomorrow"))
+                                            message.ToLowerInvariant().Contains("tomorrow") ||
+                                            System.Text.RegularExpressions.Regex.IsMatch(message, @"\b\d{1,2}:\d{2}\b"))
                 => "AwaitingTime",
             ReignIntentKind.Confirm => "Confirmed",
             ReignIntentKind.Cancel => "Cancelled",

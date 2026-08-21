@@ -13,4 +13,5 @@ Same-day appointments allowed when possible.
 One hour notice preferred.
 
 Scheduling:
-Google Calendar integration planned.
+Google Calendar, America/Los_Angeles (Pacific).
+Appointments are stored as local wall-clock times in this zone.

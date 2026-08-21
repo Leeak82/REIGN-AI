@@ -103,7 +103,7 @@ else
                 <div class="ws-col-head row-flex">
                     <div class="grow">
                         <div class="card-title">Today's Appointments</div>
-                        <div class="card-sub" style="margin:2px 0 0;">@DateTime.Now.ToString("dddd, MMMM d")</div>
+                        <div class="card-sub" style="margin:2px 0 0;">@Fmt.TodayIn(TimeZoneId).ToString("dddd, MMMM d")</div>
                     </div>
                     <a class="btn btn-ghost btn-sm" href="calendar">Calendar</a>
                 </div>
@@ -145,6 +145,7 @@ else
     private bool Loading = true;
     private string Error = "";
     private string? BusinessName;
+    private string? TimeZoneId;
     private string? Snapshot;
     private List<ReignApiClient.CustomerDto> Customers = new();
     private List<ReignApiClient.RecentActivityDto> Recent = new();
@@ -152,7 +153,7 @@ else
 
     private List<ReignApiClient.AppointmentDto> TodayAppointments =>
         Appointments
-            .Where(a => a.AppointmentTime.Date == DateTime.Today)
+            .Where(a => a.AppointmentTime.Date == Fmt.TodayIn(TimeZoneId))
             .OrderBy(a => a.AppointmentTime)
             .ToList();
 
@@ -196,6 +197,7 @@ else
         try
         {
             BusinessName = await Api.GetBusinessName();
+            TimeZoneId = (await Api.GetBusinesses()).FirstOrDefault()?.TimeZone;
             Customers = await Api.GetCustomers();
             Appointments = await Api.GetAppointments();
             Recent = await Api.GetRecentActivity();

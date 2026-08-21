@@ -659,7 +659,7 @@ public class GoogleCalendarDebugTests
         Assert.Equal("primary", result.CalendarId);
         Assert.Contains(harness.Handler.Bodies, body =>
             body.Contains("\"dateTime\":\"2026-08-21T14:00:00\"", StringComparison.Ordinal) &&
-            body.Contains("\"timeZone\":\"America/New_York\"", StringComparison.Ordinal));
+            body.Contains("\"timeZone\":\"America/Los_Angeles\"", StringComparison.Ordinal));
     }
 
     [Fact]

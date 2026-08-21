@@ -57,6 +57,10 @@ public class IntentDetectionService
         var service = BookingService.MatchCatalogService(lower);
         var hasTime = lower.Contains("today") || lower.Contains("tomorrow") ||
                       lower.Contains("tonight") || lower.Contains("am") || lower.Contains("pm") ||
+                      lower.Contains("monday") || lower.Contains("tuesday") || lower.Contains("wednesday") ||
+                      lower.Contains("thursday") || lower.Contains("friday") || lower.Contains("saturday") ||
+                      lower.Contains("sunday") ||
+                      System.Text.RegularExpressions.Regex.IsMatch(lower, @"\b\d{1,2}(/|:)\d{1,2}\b") ||
                       System.Text.RegularExpressions.Regex.IsMatch(lower, @"\b\d{1,2}(:\d{2})?\b");
 
         if (!string.IsNullOrWhiteSpace(service) ||

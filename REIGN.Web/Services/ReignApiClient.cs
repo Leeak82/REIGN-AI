@@ -158,20 +158,63 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
 }
 
 
-public async Task ConfirmAppointment(Guid id)
-{
-    await _http.PostAsync(
-        $"api/appointments/{id}/confirm",
-        null);
-}
+    public async Task ConfirmAppointment(Guid id)
+    {
+        await _http.PostAsync(
+            $"api/appointments/{id}/confirm",
+            null);
+    }
 
+    public async Task CancelAppointment(Guid id)
+    {
+        await _http.PostAsync(
+            $"api/appointments/{id}/cancel",
+            null);
+    }
 
-public async Task CancelAppointment(Guid id)
-{
-    await _http.PostAsync(
-        $"api/appointments/{id}/cancel",
-        null);
-}
+    public async Task<AppointmentWriteDto?> CreateAppointment(
+        string phone,
+        string serviceName,
+        DateTime appointmentTime,
+        string? customerName = null,
+        bool confirm = true)
+    {
+        var response = await _http.PostAsJsonAsync(
+            "api/appointments",
+            new
+            {
+                PhoneNumber = phone,
+                CustomerName = customerName,
+                ServiceName = serviceName,
+                AppointmentTime = appointmentTime,
+                Confirm = confirm
+            });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();
+            return new AppointmentWriteDto { Error = error?.Error ?? $"REIGN API returned {(int)response.StatusCode}." };
+        }
+
+        return await response.Content.ReadFromJsonAsync<AppointmentWriteDto>()
+            ?? new AppointmentWriteDto { Error = "Empty API response." };
+    }
+
+    public async Task<AppointmentWriteDto?> RescheduleAppointment(Guid id, DateTime appointmentTime)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/appointments/{id}/reschedule",
+            new { AppointmentTime = appointmentTime });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();
+            return new AppointmentWriteDto { Error = error?.Error ?? $"REIGN API returned {(int)response.StatusCode}." };
+        }
+
+        return await response.Content.ReadFromJsonAsync<AppointmentWriteDto>()
+            ?? new AppointmentWriteDto { Error = "Empty API response." };
+    }
 
 
 
@@ -497,6 +540,32 @@ public async Task CancelAppointment(Guid id)
         public decimal Price { get; set; }
 
         public int DurationMinutes { get; set; }
+    }
+
+    public class AppointmentWriteDto
+    {
+        public string? Message { get; set; }
+
+        public Guid Id { get; set; }
+
+        public string? Status { get; set; }
+
+        public DateTime AppointmentTime { get; set; }
+
+        public bool CalendarSynced { get; set; }
+
+        public string? CalendarProvider { get; set; }
+
+        public string? CalendarEventId { get; set; }
+
+        public string? CalendarSyncError { get; set; }
+
+        public string? Error { get; set; }
+    }
+
+    public class ApiErrorDto
+    {
+        public string? Error { get; set; }
     }
 
     public class OwnerSendResponse

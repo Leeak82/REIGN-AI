@@ -45,6 +45,28 @@ public static class Fmt
         return hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
     }
 
+    public static DateTime TodayIn(string? timeZoneId)
+    {
+        var id = string.IsNullOrWhiteSpace(timeZoneId) ? "America/Los_Angeles" : timeZoneId;
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(id);
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz).Date;
+        }
+        catch
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById("Pacific Standard Time");
+                return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz).Date;
+            }
+            catch
+            {
+                return DateTime.UtcNow.Date;
+            }
+        }
+    }
+
     public static string Money(decimal value) => "$" + value.ToString("N0", CultureInfo.InvariantCulture);
 
     public static string AppointmentTime(DateTime time) =>
