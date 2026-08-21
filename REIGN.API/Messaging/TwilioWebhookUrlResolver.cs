@@ -7,7 +7,9 @@ namespace REIGN.API.Messaging;
 /// </summary>
 public static class TwilioWebhookUrlResolver
 {
-    public const string WebhookPath = "/api/sms/webhooks/twilio";
+    public const string WebhookPath = "/api/sms/incoming";
+
+    public const string LegacyWebhookPath = "/api/sms/webhooks/twilio";
 
     public static IReadOnlyList<string> Candidates(
         string? requestScheme,
@@ -78,16 +80,35 @@ public static class TwilioWebhookUrlResolver
         if (IsOriginOnly(value))
         {
             AddRaw(urls, value.TrimEnd('/') + path + query);
+            AddRaw(urls, value.TrimEnd('/') + WebhookPath + query);
+            AddRaw(urls, value.TrimEnd('/') + LegacyWebhookPath + query);
             return;
         }
 
         if (!value.Contains('?', StringComparison.Ordinal) && query.Length > 0)
         {
             AddRaw(urls, value + query);
+            AddRaw(urls, AlternateTwilioPath(value) + query);
             return;
         }
 
         AddRaw(urls, value);
+        AddRaw(urls, AlternateTwilioPath(value));
+    }
+
+    private static string AlternateTwilioPath(string url)
+    {
+        if (url.Contains(LegacyWebhookPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return url.Replace(LegacyWebhookPath, WebhookPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (url.Contains(WebhookPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return url.Replace(WebhookPath, LegacyWebhookPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return url;
     }
 
     private static bool IsOriginOnly(string url)

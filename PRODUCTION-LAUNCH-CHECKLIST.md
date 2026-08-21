@@ -10,7 +10,7 @@ Do not put secrets in git.
 - [ ] Run migrations (API startup applies EF migrations; confirm a durable SQLite volume so they persist)
 - [ ] Verify `GET /health` returns `"status":"healthy"` and `"database":"connected"`
 - [ ] Authorize Google Calendar (`/api/integrations/google/authorize`, then confirm `/api/integrations/status`)
-- [ ] Configure the Twilio inbound webhook: `https://YOUR_API_HOST/api/sms/webhooks/twilio`
+- [ ] Configure the Twilio inbound webhook: `https://YOUR_API_HOST/api/sms/incoming` (HTTP POST, form fields From, To, Body, MessageSid)
 - [ ] Send a test SMS (lookup, memory, reply, outbound send)
 - [ ] Verify the scheduling flow: book QV/HH/HR → `YES` confirm → reschedule → cancel; calendar updates only after confirm
 

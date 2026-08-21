@@ -48,7 +48,7 @@ public static class ConfigStartupValidator
             if (Missing(configuration, "Sms:Twilio:AccountSid") || Missing(configuration, "Sms:Twilio:AuthToken"))
             {
                 logger.LogError(
-                    "Sms:Provider is Twilio, but Sms__Twilio__AccountSid and/or Sms__Twilio__AuthToken are missing. Outbound SMS and POST /api/sms/webhooks/twilio will not work.");
+                    "Sms:Provider is Twilio, but Sms__Twilio__AccountSid and/or Sms__Twilio__AuthToken are missing. Outbound SMS and POST /api/sms/incoming will not work.");
             }
             else
             {
@@ -59,12 +59,12 @@ public static class ConfigStartupValidator
                 }
                 else if (!Missing(configuration, "Sms:PublicBaseUrl"))
                 {
-                    logger.LogInformation("Twilio signatures will use Sms:PublicBaseUrl plus /api/sms/webhooks/twilio.");
+                    logger.LogInformation("Twilio signatures will use Sms:PublicBaseUrl plus /api/sms/incoming.");
                 }
                 else
                 {
                     logger.LogWarning(
-                        "Sms__PublicBaseUrl and TWILIO_WEBHOOK_URL are empty. Set TWILIO_WEBHOOK_URL=https://YOUR_HOST/api/sms/webhooks/twilio to match the Twilio number A Message Comes In webhook. Sending SMS from the Twilio Console does not call REIGN.");
+                        "Sms__PublicBaseUrl and TWILIO_WEBHOOK_URL are empty. Set TWILIO_WEBHOOK_URL=https://YOUR_HOST/api/sms/incoming to match the Twilio number A Message Comes In webhook. Sending SMS from the Twilio Console does not call REIGN.");
                 }
             }
         }

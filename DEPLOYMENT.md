@@ -137,17 +137,18 @@ For `dotnet run` without Docker, set `GOOGLE_REDIRECT_URI=https://localhost:5001
 3. Set `Sms__Provider=Twilio`.
 4. Point the Twilio inbound webhook (HTTP POST) at:
 
-`https://YOUR_DOMAIN/api/sms/webhooks/twilio`
+`https://YOUR_DOMAIN/api/sms/incoming`
 
-5. Twilio signs the **public URL it POSTed to**. Behind Render, the API now reconstructs that URL from `TWILIO_WEBHOOK_URL`, `Sms__PublicBaseUrl` / `RENDER_EXTERNAL_URL`, and `X-Forwarded-*`. Invalid signatures return **403** (not 500). `TWILIO_WEBHOOK_URL` must be exactly `https://YOUR_HOST/api/sms/webhooks/twilio` with no extra path or `/incoming`.
+5. Twilio signs the **public URL it POSTed to**. Behind Render, the API reconstructs that URL from `TWILIO_WEBHOOK_URL`, `Sms__PublicBaseUrl` / `RENDER_EXTERNAL_URL`, and `X-Forwarded-*`. Invalid signatures return **403** (not 500). `TWILIO_WEBHOOK_URL` must be exactly `https://YOUR_HOST/api/sms/incoming`. `/api/sms/webhooks/twilio` remains a compatible alias.
 6. Text the Twilio number from a real phone. Sending SMS from the Twilio Console **Send a message** box only uses Twilio's API — it never hits REIGN and is not a live webhook test.
 
 The Twilio phone number (or Messaging Service) **A Message Comes In** webhook must be:
 
 - Method: **HTTP POST**
-- URL: `https://reign-ai-2.onrender.com/api/sms/webhooks/twilio`
+- Content-Type: `application/x-www-form-urlencoded` (Twilio default: `From`, `To`, `Body`, `MessageSid`)
+- URL: `https://reign-ai-2.onrender.com/api/sms/incoming`
 
-Do not point Twilio at `/api/sms/incoming` (Development simulator only).
+JSON POST `/api/sms/incoming` is still the Development simulator and stays disabled in production.
 
 Set on the API service:
 
@@ -157,7 +158,7 @@ Set on the API service:
 | `TWILIO_ACCOUNT_SID` | live Account SID (same project as the number) |
 | `TWILIO_AUTH_TOKEN` | live Auth Token (must match the SID; test tokens fail live signatures) |
 | `TWILIO_FROM_NUMBER` | the dedicated Twilio number in E.164 (`+1…`), not the owner cell |
-| `TWILIO_WEBHOOK_URL` | `https://reign-ai-2.onrender.com/api/sms/webhooks/twilio` |
+| `TWILIO_WEBHOOK_URL` | `https://reign-ai-2.onrender.com/api/sms/incoming` |
 | `Sms__BusinessPhoneNumber` | same dedicated Twilio number |
 | `Sms__OwnerPhoneNumber` | owner personal cell (never used as From) |
 
