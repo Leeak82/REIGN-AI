@@ -26,6 +26,11 @@ public static class ConfigEnvironmentAliases
             allowOverride: true,
             "GOOGLE_REDIRECT_URI",
             "GOOGLE_CALENDAR_REDIRECT_URI");
+        // Host .env used for `dotnet run` often has GOOGLE_REDIRECT_URI / GoogleCalendar__RedirectUri
+        // = https://localhost:5001/... Nested env is already in IConfiguration, so TryAlias
+        // returns early and would leave that Kestrel callback in Docker. Last-win 8080 here
+        // before GoogleRedirectUri.Apply / IOptions bind.
+        ApplyDockerKestrelRedirectOverride(configuration, extras);
         TryAlias(configuration, extras, "GoogleCalendar:CalendarId", allowOverride: true, "GOOGLE_CALENDAR_ID");
         TryAlias(configuration, extras, "GoogleCalendar:TimeZone", allowOverride: true, "GOOGLE_CALENDAR_TIMEZONE");
         TryAlias(configuration, extras, "Sms:Twilio:AccountSid", "TWILIO_ACCOUNT_SID");
@@ -129,4 +134,31 @@ public static class ConfigEnvironmentAliases
             return;
         }
     }
+
+    private static void ApplyDockerKestrelRedirectOverride(
+        IConfiguration configuration,
+        IDictionary<string, string?> extras)
+    {
+        if (!GoogleRedirectUri.ForcedDockerDeployment()
+            && !GoogleRedirectUri.RunningInContainer()
+            && !GoogleRedirectUri.ListeningOnPublishedDockerPort())
+        {
+            return;
+        }
+
+        extras.TryGetValue("GoogleCalendar:RedirectUri", out var aliased);
+        var effective = NullIfWhiteSpace(aliased)
+            ?? NullIfWhiteSpace(configuration["GoogleCalendar:RedirectUri"])
+            ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable(GoogleRedirectUri.NestedEnvironmentName))
+            ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_REDIRECT_URI"))
+            ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_CALENDAR_REDIRECT_URI"));
+
+        if (GoogleRedirectUri.LooksLikeKestrelCallback(effective))
+        {
+            extras["GoogleCalendar:RedirectUri"] = GoogleRedirectUri.DockerCallback;
+        }
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
