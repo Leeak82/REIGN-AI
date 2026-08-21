@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using REIGN.API.Calendar;
 using REIGN.API.Services;
 using REIGN.Core.Catalog;
 using REIGN.Data;
@@ -121,7 +122,10 @@ public class AppointmentsController : ControllerBase
                 calendarEventId = write.CalendarSync is { Succeeded: true }
                     ? write.CalendarSync.EventId
                     : appointment.ExternalCalendarEventId,
-                calendarSyncError = write.CalendarSync is { Succeeded: false } ? write.CalendarSync.Error : null
+                calendarSyncError = write.CalendarSync is { Succeeded: false } ? write.CalendarSync.Error : null,
+                calendarHtmlLink = write.CalendarSync?.HtmlLink,
+                calendarTimeZone = write.CalendarSync?.TimeZone,
+                calendarId = write.CalendarSync?.CalendarId
             });
         }
         catch (SlotUnavailableException)
@@ -135,6 +139,15 @@ public class AppointmentsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create appointment.");
+            return StatusCode(500, new
+            {
+                error = "Unable to create that appointment.",
+                detail = GoogleCalendarService.SanitizeDiagnosticText(ex.Message)
+            });
         }
     }
 

@@ -10,6 +10,11 @@ namespace REIGN.Data;
 /// </summary>
 public static class DatabaseConnection
 {
+    static DatabaseConnection()
+    {
+        PostgresTimestamps.EnableLegacyBehavior();
+    }
+
     private static readonly Regex SupabaseDirectHost = new(
         @"^db\.([a-z0-9]+)\.supabase\.co$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);

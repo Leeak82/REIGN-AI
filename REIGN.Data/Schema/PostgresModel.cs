@@ -16,6 +16,7 @@ public static class PostgresModel
     public static async Task EnsureCreatedAsync(ReignDbContext db, CancellationToken cancellationToken = default)
     {
         await db.Database.EnsureCreatedAsync(cancellationToken);
+        await ApplyAppointmentTimeWallClockAsync(db, cancellationToken);
         if (await TableExistsAsync(db, "Businesses", cancellationToken))
         {
             return;
@@ -110,6 +111,56 @@ public static class PostgresModel
                 await connection.CloseAsync();
             }
         }
+    }
+
+    public const string AppointmentTimeWallClockUpgradeSql =
+        """
+        DO $upgrade$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE lower(table_name) = 'appointments'
+                  AND lower(column_name) = 'appointmenttime'
+                  AND data_type = 'timestamp with time zone'
+            ) THEN
+                ALTER TABLE "Appointments"
+                    ALTER COLUMN "AppointmentTime" TYPE timestamp without time zone
+                    USING ("AppointmentTime" AT TIME ZONE 'UTC');
+            END IF;
+        END
+        $upgrade$;
+        """;
+
+    public static async Task ApplyAppointmentTimeWallClockAsync(
+        ReignDbContext db,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await TableExistsAsync(db, "Appointments", cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(AppointmentTimeWallClockUpgradeSql, cancellationToken);
+        }
+        catch (Exception ex) when (IsUndefinedColumn(ex) || IsAlreadyExists(ex))
+        {
+        }
+    }
+
+    private static bool IsUndefinedColumn(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres && postgres.SqlState is "42703" or "42P01")
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static async Task ApplyMissingObjectsAsync(ReignDbContext db, CancellationToken cancellationToken)

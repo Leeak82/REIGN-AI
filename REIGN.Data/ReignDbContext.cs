@@ -35,6 +35,13 @@ public class ReignDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        if (Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            modelBuilder.Entity<Appointment>()
+                .Property(x => x.AppointmentTime)
+                .HasColumnType(PostgresTimestamps.WallClockColumnType);
+        }
+
         modelBuilder.Entity<BusinessAIProfile>()
             .HasOne(x => x.Business)
             .WithMany(x => x.AIProfiles)

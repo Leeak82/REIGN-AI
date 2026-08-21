@@ -65,7 +65,9 @@ public class AppointmentActionsController : ControllerBase
 
         try
         {
-            var write = await _appointments.UpdateAppointment(id, request.AppointmentTime);
+            var write = await _appointments.UpdateAppointment(
+                id,
+                DateTime.SpecifyKind(request.AppointmentTime, DateTimeKind.Unspecified));
             if (write == null)
                 return NotFound();
 
@@ -81,6 +83,14 @@ public class AppointmentActionsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                error = "Unable to update that appointment.",
+                detail = GoogleCalendarService.SanitizeDiagnosticText(ex.Message)
+            });
         }
     }
 

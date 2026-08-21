@@ -924,6 +924,7 @@ public class ConfigAndCalendarTests
         using var db = new ReignDbContext(options);
         var script = db.Database.GenerateCreateScript();
         Assert.Contains("Businesses", script, StringComparison.Ordinal);
+        Assert.Contains("\"AppointmentTime\" timestamp without time zone", script, StringComparison.Ordinal);
         var batches = PostgresModel.SplitCreateScript(script);
         Assert.Contains(batches, batch => batch.Contains("CREATE TABLE", StringComparison.OrdinalIgnoreCase)
             && batch.Contains("Businesses", StringComparison.Ordinal));
