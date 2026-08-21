@@ -9,7 +9,7 @@
     <p>Appointments REIGN has booked for your business.</p>
 </div>
 
-@if (Error)
+@if (!string.IsNullOrWhiteSpace(Error))
 {
     <div class="error-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>

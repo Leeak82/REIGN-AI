@@ -103,7 +103,7 @@ else
                 <div class="ws-col-head row-flex">
                     <div class="grow">
                         <div class="card-title">Today's Appointments</div>
-                        <div class="card-sub" style="margin:2px 0 0;">@DateTime.Now.ToString("dddd, MMMM d")</div>
+                        <div class="card-sub" style="margin:2px 0 0;">@Fmt.TodayIn(TimeZoneId).ToString("dddd, MMMM d")</div>
                     </div>
                     <a class="btn btn-ghost btn-sm" href="calendar">Calendar</a>
                 </div>
