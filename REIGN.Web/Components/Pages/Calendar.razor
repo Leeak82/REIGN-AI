@@ -13,7 +13,7 @@
 {
     <div class="error-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
-        <span class="msg">Something went wrong. REIGN couldn't load appointments.</span>
+        <span class="msg">@Error</span>
         <button class="btn btn-ghost btn-sm" @onclick="Load">Try again</button>
     </div>
 }
@@ -28,7 +28,7 @@
             @(Status == null ? "Checking connection…"
                 : GoogleConnected
                     ? $"Connected via {Status.GoogleCalendar.ActiveProvider}"
-                    : "Not connected")
+                    : "Not connected — bookings still save in REIGN")
         </div>
     </div>
     @if (Status != null && !GoogleConnected)
@@ -41,6 +41,54 @@
     }
 </div>
 
+<div class="card mb-2">
+    <div class="card-title">Book an appointment</div>
+    <div class="card-sub">Creates the visit on REIGN's calendar. Confirm adds it to Google Calendar when connected.</div>
+    <div class="grid grid-2 mt-1">
+        <div>
+            <label class="field-label" for="booking-phone">Customer phone</label>
+            <input id="booking-phone" class="input" @bind="BookPhone" placeholder="+1…" />
+        </div>
+        <div>
+            <label class="field-label" for="booking-name">Customer name</label>
+            <input id="booking-name" class="input" @bind="BookName" placeholder="Optional" />
+        </div>
+        <div>
+            <label class="field-label" for="booking-service">Service</label>
+            <select id="booking-service" class="input" @bind="BookService">
+                @if (Catalog?.Services.Count > 0)
+                {
+                    @foreach (var service in Catalog.Services)
+                    {
+                        <option value="@service.Name">@service.Code - @Fmt.Money(service.Price) - @service.DurationMinutes minutes</option>
+                    }
+                }
+                else
+                {
+                    <option value="Quick Visit">QV - $150 - Less than 30 minutes</option>
+                    <option value="Half Hour">HH - $300 - 30 minutes</option>
+                    <option value="Hour">HR - $500 - 60 minutes</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="field-label" for="booking-time">Time (@TimeZoneLabel)</label>
+            <input id="booking-time" class="input" type="datetime-local" @bind="BookTime" @bind:format="yyyy-MM-ddTHH:mm" />
+        </div>
+    </div>
+    <label class="row-flex mt-1" style="gap:8px;">
+        <input type="checkbox" @bind="BookConfirm" />
+        <span class="small">Confirm now (adds to Google Calendar when connected)</span>
+    </label>
+    <div class="mt-1">
+        <button class="btn btn-primary" @onclick="Book" disabled="@Busy">Book Appointment</button>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Notice))
+    {
+        <p class="small mt-1" style="margin-bottom:0;color:var(--success);">@Notice</p>
+    }
+</div>
+
 @if (Loading)
 {
     <div class="loading"><span class="spinner"></span> Loading appointments…</div>
@@ -49,7 +97,7 @@ else if (Appointments.Count == 0)
 {
     <div class="card">
         <EmptyState Title="No appointments yet"
-                    Description="When REIGN books a customer, the appointment appears here."
+                    Description="Book from this page or wait for a customer to text REIGN."
                     Icon="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
     </div>
 }
@@ -85,16 +133,23 @@ else
                             <StatusBadge Text="@a.Status" Kind="@StatusBadge.KindForAppointment(a.Status)" />
                         </td>
                         <td>
-                            @if (a.Status != "Confirmed" && a.Status != "Cancelled")
+                            @if (a.Status != "Cancelled")
                             {
-                                <div class="row-flex">
-                                    <button class="btn btn-success btn-sm" @onclick="() => Confirm(a.Id)">Confirm</button>
+                                <div class="row-flex" style="flex-wrap:wrap;">
+                                    @if (a.Status != "Confirmed")
+                                    {
+                                        <button class="btn btn-success btn-sm" @onclick="() => Confirm(a.Id)">Confirm</button>
+                                    }
+                                    <button class="btn btn-ghost btn-sm" @onclick="() => ToggleReschedule(a.Id)">Reschedule</button>
                                     <button class="btn btn-danger btn-sm" @onclick="() => Cancel(a.Id)">Cancel</button>
                                 </div>
-                            }
-                            else if (a.Status == "Confirmed")
-                            {
-                                <button class="btn btn-danger btn-sm" @onclick="() => Cancel(a.Id)">Cancel</button>
+                                @if (RescheduleId == a.Id)
+                                {
+                                    <div class="row-flex mt-1">
+                                        <input class="input" type="datetime-local" @bind="RescheduleTime" @bind:format="yyyy-MM-ddTHH:mm" />
+                                        <button class="btn btn-primary btn-sm" @onclick="() => Reschedule(a.Id)" disabled="@Busy">Save</button>
+                                    </div>
+                                }
                             }
                         </td>
                     </tr>
@@ -106,33 +161,120 @@ else
 
 @code {
     private bool Loading = true;
-    private bool Error;
+    private bool Busy;
+    private string Error = "";
+    private string Notice = "";
     private List<ReignApiClient.AppointmentDto> Appointments = new();
     private ReignApiClient.IntegrationStatusDto? Status;
+    private ReignApiClient.CatalogDto? Catalog;
+    private string? TimeZoneId;
+
+    private string BookPhone = "";
+    private string BookName = "";
+    private string BookService = "Quick Visit";
+    private DateTime BookTime = DateTime.Now.Date.AddDays(1).AddHours(10);
+    private bool BookConfirm = true;
+    private Guid? RescheduleId;
+    private DateTime RescheduleTime = DateTime.Now.Date.AddDays(1).AddHours(10);
 
     private bool GoogleConnected =>
         Status != null && !Status.GoogleCalendar.Simulated && Status.GoogleCalendar.HasStoredGrant;
 
     private string AuthorizeUrl => $"{Api.BaseAddress}api/integrations/google/authorize";
 
+    private string TimeZoneLabel => string.IsNullOrWhiteSpace(TimeZoneId) ? "Pacific" : TimeZoneId.Replace('_', ' ');
+
     protected override async Task OnInitializedAsync() => await Load();
 
     private async Task Load()
     {
         Loading = true;
-        Error = false;
+        Error = "";
         try
         {
             Appointments = await Api.GetAppointments();
             Status = await Api.GetIntegrationStatus();
+            Catalog = await Api.GetCatalog();
+            TimeZoneId = (await Api.GetBusinesses()).FirstOrDefault()?.TimeZone;
+            if (Catalog?.Services.Count > 0 && string.IsNullOrWhiteSpace(BookService))
+            {
+                BookService = Catalog.Services[0].Name;
+            }
         }
         catch
         {
-            Error = true;
+            Error = "Something went wrong. REIGN couldn't load appointments.";
         }
         finally
         {
             Loading = false;
+        }
+    }
+
+    private async Task Book()
+    {
+        Notice = "";
+        Error = "";
+        if (string.IsNullOrWhiteSpace(BookPhone) || BookTime == default)
+        {
+            Error = "Phone and time are required to book.";
+            return;
+        }
+
+        Busy = true;
+        try
+        {
+            var result = await Api.CreateAppointment(BookPhone.Trim(), BookService, BookTime, BookName, BookConfirm);
+            if (!string.IsNullOrWhiteSpace(result?.Error))
+            {
+                Error = result.Error;
+                return;
+            }
+
+            Notice = result?.Message ?? "Appointment booked.";
+            BookPhone = "";
+            BookName = "";
+            await Load();
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private void ToggleReschedule(Guid id)
+    {
+        if (RescheduleId == id)
+        {
+            RescheduleId = null;
+            return;
+        }
+
+        var current = Appointments.FirstOrDefault(a => a.Id == id);
+        RescheduleId = id;
+        RescheduleTime = current?.AppointmentTime ?? DateTime.Now.Date.AddDays(1).AddHours(10);
+    }
+
+    private async Task Reschedule(Guid id)
+    {
+        Busy = true;
+        Error = "";
+        try
+        {
+            var result = await Api.RescheduleAppointment(id, RescheduleTime);
+            if (!string.IsNullOrWhiteSpace(result?.Error))
+            {
+                Error = result.Error;
+                return;
+            }
+
+            RescheduleId = null;
+            Notice = result?.Message ?? "Appointment updated.";
+            await Load();
+        }
+        finally
+        {
+            Busy = false;
         }
     }
 

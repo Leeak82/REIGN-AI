@@ -5,6 +5,7 @@ using REIGN.Web.Services;
 HostingFileWatch.DisableForProductionHosts();
 var builder = WebApplication.CreateBuilder(args);
 HostingFileWatch.DisableReloadOnChange(builder.Configuration);
+ContainerListen.Apply(builder);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

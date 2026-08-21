@@ -30,9 +30,9 @@ services:
       GOOGLE_REDIRECT_URI: "http://localhost:8080/api/integrations/google/callback"
       GoogleCalendar__RedirectUri: "http://localhost:8080/api/integrations/google/callback"
       GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-primary}
-      GOOGLE_CALENDAR_TIMEZONE: ${GOOGLE_CALENDAR_TIMEZONE:-America/New_York}
+      GOOGLE_CALENDAR_TIMEZONE: ${GOOGLE_CALENDAR_TIMEZONE:-America/Los_Angeles}
       GoogleCalendar__CalendarId: ${GOOGLE_CALENDAR_ID:-primary}
-      GoogleCalendar__TimeZone: ${GOOGLE_CALENDAR_TIMEZONE:-America/New_York}
+      GoogleCalendar__TimeZone: ${GOOGLE_CALENDAR_TIMEZONE:-America/Los_Angeles}
       GoogleCalendar__Provider: ${GoogleCalendar__Provider:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       Ai__ApiKey: ${Ai__ApiKey:-}
@@ -83,6 +83,22 @@ services:
       timeout: 5s
       retries: 5
       start_period: 25s
+
+  reign-web:
+    container_name: reign-web
+    build:
+      context: .
+      dockerfile: REIGN.Web/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      PORT: "8080"
+      REIGN_API_BASE_URL: http://reign-api:8080/
+      ReignApi__BaseUrl: http://reign-api:8080/
+    depends_on:
+      reign-api:
+        condition: service_healthy
 
 volumes:
   reign_data:
