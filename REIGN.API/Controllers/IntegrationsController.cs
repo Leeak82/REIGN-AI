@@ -101,7 +101,7 @@ public class IntegrationsController : ControllerBase
 
         try
         {
-            await _calendar.StoreAuthorizationCodeAsync(code);
+            await _calendar.StoreAuthorizationCodeAsync(code, EffectiveRedirectUri());
             return Ok(new { connected = true, provider = "GoogleCalendar" });
         }
         catch (Exception ex)

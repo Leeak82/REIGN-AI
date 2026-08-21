@@ -12,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
+using REIGN.API.Configuration;
 using REIGN.API.Controllers;
 using REIGN.API.Options;
 using REIGN.Data;
@@ -469,6 +470,63 @@ public class GoogleCalendarDebugTests
         var stored = await harness.Db.IntegrationTokens.SingleAsync();
         Assert.Equal("OLD_REFRESH_TOKEN", stored.RefreshToken);
         Assert.Equal("access-token", stored.AccessToken);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_inserts_refresh_token_when_no_grant_exists()
+    {
+        await using var harness = await Harness.CreateAsync(storeGrant: false);
+        Assert.False(harness.Service.HasStoredGrant);
+
+        harness.Handler.Respond = request =>
+        {
+            Assert.Equal("https://oauth2.googleapis.com/token", request.RequestUri?.ToString());
+            return JsonResponse(HttpStatusCode.OK, """
+                {
+                  "access_token": "FIRST_ACCESS_TOKEN",
+                  "refresh_token": "FIRST_REFRESH_TOKEN",
+                  "expires_in": 3600,
+                  "scope": "https://www.googleapis.com/auth/calendar.events",
+                  "token_type": "Bearer"
+                }
+                """);
+        };
+
+        await harness.Service.StoreAuthorizationCodeAsync(
+            "auth-code",
+            GoogleRedirectUri.DockerCallback);
+
+        var stored = await harness.Db.IntegrationTokens.SingleAsync();
+        Assert.Equal(GoogleCalendarService.ProviderKey, stored.Provider);
+        Assert.Equal("FIRST_REFRESH_TOKEN", stored.RefreshToken);
+        Assert.Equal("FIRST_ACCESS_TOKEN", stored.AccessToken);
+        Assert.Equal(GoogleCalendarService.RequiredScope, stored.Scope);
+        Assert.True(harness.Service.HasStoredGrant);
+
+        var form = Assert.Single(harness.Handler.Bodies);
+        Assert.Contains(
+            "redirect_uri=" + Uri.EscapeDataString(GoogleRedirectUri.DockerCallback),
+            form,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("FIRST_REFRESH_TOKEN", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_does_not_insert_when_google_returns_an_error()
+    {
+        await using var harness = await Harness.CreateAsync(storeGrant: false);
+        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.BadRequest, """
+            {
+              "error": "redirect_uri_mismatch",
+              "error_description": "redirect_uri must match the authorization request"
+            }
+            """);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Service.StoreAuthorizationCodeAsync("auth-code", GoogleRedirectUri.DockerCallback));
+        Assert.Equal(0, await harness.Db.IntegrationTokens.CountAsync());
+        Assert.False(harness.Service.HasStoredGrant);
     }
 
     [Fact]

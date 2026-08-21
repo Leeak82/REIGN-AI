@@ -37,4 +37,7 @@ public class ConfigurableCalendarService : ICalendarService
 
     public Task StoreAuthorizationCodeAsync(string code, CancellationToken cancellationToken = default) =>
         _google.StoreAuthorizationCodeAsync(code, cancellationToken);
+
+    public Task StoreAuthorizationCodeAsync(string code, string redirectUri, CancellationToken cancellationToken = default) =>
+        _google.StoreAuthorizationCodeAsync(code, redirectUri, cancellationToken);
 }
