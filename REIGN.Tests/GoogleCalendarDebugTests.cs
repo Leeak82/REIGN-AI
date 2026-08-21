@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
+using REIGN.API.Configuration;
 using REIGN.API.Controllers;
 using REIGN.API.Options;
 using REIGN.Data;
@@ -273,6 +275,70 @@ public class GoogleCalendarDebugTests
     }
 
     [Fact]
+    public void Authorize_endpoint_rewrites_5001_when_request_host_is_localhost_8080()
+    {
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = "docker-client-id",
+            ClientSecret = "docker-client-secret",
+            RedirectUri = "https://localhost:5001/api/integrations/google/callback"
+        });
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "http";
+        http.Request.Host = new HostString("localhost", 8080);
+        http.Request.Path = "/api/integrations/google/authorize";
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Development },
+            logger: NullLogger<IntegrationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains(
+            Uri.EscapeDataString("http://localhost:8080/api/integrations/google/callback"),
+            result.Url,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", result.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Authorize_endpoint_keeps_kestrel_5001_when_request_host_is_localhost_5001()
+    {
+        const string kestrelCallback = "https://localhost:5001/api/integrations/google/callback";
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = "kestrel-client-id",
+            ClientSecret = "kestrel-client-secret",
+            RedirectUri = kestrelCallback
+        });
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.Request.Host = new HostString("localhost", 5001);
+        http.Request.Path = "/api/integrations/google/authorize";
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Development },
+            logger: NullLogger<IntegrationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains(Uri.EscapeDataString(kestrelCallback), result.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:8080", result.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Debug_account_returns_primary_calendar_email_without_tokens()
     {
         const string accessToken = "SECRET_ACCESS_TOKEN_VALUE_XYZ";
@@ -404,6 +470,63 @@ public class GoogleCalendarDebugTests
         var stored = await harness.Db.IntegrationTokens.SingleAsync();
         Assert.Equal("OLD_REFRESH_TOKEN", stored.RefreshToken);
         Assert.Equal("access-token", stored.AccessToken);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_inserts_refresh_token_when_no_grant_exists()
+    {
+        await using var harness = await Harness.CreateAsync(storeGrant: false);
+        Assert.False(harness.Service.HasStoredGrant);
+
+        harness.Handler.Respond = request =>
+        {
+            Assert.Equal("https://oauth2.googleapis.com/token", request.RequestUri?.ToString());
+            return JsonResponse(HttpStatusCode.OK, """
+                {
+                  "access_token": "FIRST_ACCESS_TOKEN",
+                  "refresh_token": "FIRST_REFRESH_TOKEN",
+                  "expires_in": 3600,
+                  "scope": "https://www.googleapis.com/auth/calendar.events",
+                  "token_type": "Bearer"
+                }
+                """);
+        };
+
+        await harness.Service.StoreAuthorizationCodeAsync(
+            "auth-code",
+            GoogleRedirectUri.DockerCallback);
+
+        var stored = await harness.Db.IntegrationTokens.SingleAsync();
+        Assert.Equal(GoogleCalendarService.ProviderKey, stored.Provider);
+        Assert.Equal("FIRST_REFRESH_TOKEN", stored.RefreshToken);
+        Assert.Equal("FIRST_ACCESS_TOKEN", stored.AccessToken);
+        Assert.Equal(GoogleCalendarService.RequiredScope, stored.Scope);
+        Assert.True(harness.Service.HasStoredGrant);
+
+        var form = Assert.Single(harness.Handler.Bodies);
+        Assert.Contains(
+            "redirect_uri=" + Uri.EscapeDataString(GoogleRedirectUri.DockerCallback),
+            form,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("FIRST_REFRESH_TOKEN", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_does_not_insert_when_google_returns_an_error()
+    {
+        await using var harness = await Harness.CreateAsync(storeGrant: false);
+        harness.Handler.Respond = _ => JsonResponse(HttpStatusCode.BadRequest, """
+            {
+              "error": "redirect_uri_mismatch",
+              "error_description": "redirect_uri must match the authorization request"
+            }
+            """);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Service.StoreAuthorizationCodeAsync("auth-code", GoogleRedirectUri.DockerCallback));
+        Assert.Equal(0, await harness.Db.IntegrationTokens.CountAsync());
+        Assert.False(harness.Service.HasStoredGrant);
     }
 
     [Fact]

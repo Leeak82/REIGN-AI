@@ -1,8 +1,14 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
 using REIGN.API.Configuration;
+using REIGN.API.Options;
 using REIGN.Data;
 using REIGN.Data.Schema;
 using Xunit;
@@ -476,6 +482,7 @@ public class ConfigAndCalendarTests
                 ["GoogleCalendar:TimeZone"] = "UTC"
             });
             ConfigEnvironmentAliases.Apply(manager);
+            GoogleRedirectUri.Apply(manager, new StubHostEnvironment());
 
             Assert.Equal("http://localhost:8080/api/integrations/google/callback", manager["GoogleCalendar:RedirectUri"]);
             Assert.Equal("primary", manager["GoogleCalendar:CalendarId"]);
@@ -493,6 +500,175 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void CreateBuilder_style_sources_keep_appsettings_5001_without_nested_or_alias_env()
+    {
+        using var env = new EnvScope();
+        env.Set("GOOGLE_REDIRECT_URI", null);
+        env.Set("GOOGLE_CALENDAR_REDIRECT_URI", null);
+        env.Set("GoogleCalendar__RedirectUri", null);
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+        GoogleRedirectUri.Apply(manager, new StubHostEnvironment());
+
+        Assert.Equal(GoogleRedirectUri.KestrelHttpsCallback, manager["GoogleCalendar:RedirectUri"]);
+        Assert.Equal(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            BindOptions(manager, new StubHostEnvironment()).RedirectUri);
+    }
+
+    [Fact]
+    public void CreateBuilder_style_GOOGLE_REDIRECT_URI_overrides_appsettings_when_nested_env_is_absent()
+    {
+        using var env = new EnvScope();
+        env.Set("GoogleCalendar__RedirectUri", null);
+        env.Set("GOOGLE_CALENDAR_REDIRECT_URI", null);
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.DockerCallback);
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+        GoogleRedirectUri.Apply(manager, new StubHostEnvironment());
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, manager["GoogleCalendar:RedirectUri"]);
+        Assert.Equal(
+            GoogleRedirectUri.DockerCallback,
+            BindOptions(manager, new StubHostEnvironment()).RedirectUri);
+    }
+
+    [Fact]
+    public void Host_GOOGLE_REDIRECT_URI_5001_leaked_as_nested_env_is_rewritten_in_development_container()
+    {
+        using var env = new EnvScope();
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+        var environment = new StubHostEnvironment { EnvironmentName = Environments.Development };
+        GoogleRedirectUri.Apply(manager, environment);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, manager["GoogleCalendar:RedirectUri"]);
+        Assert.Equal(GoogleRedirectUri.DockerCallback, BindOptions(manager, environment).RedirectUri);
+        Assert.DoesNotContain("localhost:5001", manager["GoogleCalendar:RedirectUri"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Development_container_ignores_host_GoogleCalendar_RedirectUri_override()
+    {
+        using var env = new EnvScope();
+        env.Set("GOOGLE_REDIRECT_URI", "https://example.invalid/callback");
+        env.Set("GoogleCalendar__RedirectUri", "https://example.invalid/callback");
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+        var environment = new StubHostEnvironment { EnvironmentName = Environments.Development };
+        GoogleRedirectUri.Apply(manager, environment);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, manager["GoogleCalendar:RedirectUri"]);
+        Assert.Equal(GoogleRedirectUri.DockerCallback, BindOptions(manager, environment).RedirectUri);
+    }
+
+    [Fact]
+    public void Nested_GoogleCalendar_RedirectUri_8080_wins_over_host_GOOGLE_REDIRECT_URI_5001()
+    {
+        using var env = new EnvScope();
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.DockerCallback);
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+        GoogleRedirectUri.Apply(manager, new StubHostEnvironment());
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, manager["GoogleCalendar:RedirectUri"]);
+        Assert.Equal(
+            GoogleRedirectUri.DockerCallback,
+            BindOptions(manager, new StubHostEnvironment()).RedirectUri);
+    }
+
+    [Fact]
+    public void Production_container_keeps_public_google_redirect_uri()
+    {
+        const string productionCallback = "https://reign-ai-2.onrender.com/api/integrations/google/callback";
+        using var env = new EnvScope();
+        env.Set("GOOGLE_REDIRECT_URI", productionCallback);
+        env.Set("GoogleCalendar__RedirectUri", productionCallback);
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+        var environment = new StubHostEnvironment { EnvironmentName = Environments.Production };
+        GoogleRedirectUri.Apply(manager, environment);
+
+        Assert.Equal(productionCallback, manager["GoogleCalendar:RedirectUri"]);
+        Assert.Equal(productionCallback, BindOptions(manager, environment).RedirectUri);
+    }
+
+    [Fact]
+    public void Docker_compose_pins_8080_callback_without_host_GOOGLE_REDIRECT_URI_interpolation()
+    {
+        var compose = File.ReadAllText(Path.Combine(FindRepoRoot(), "docker-compose.yml"));
+        Assert.Contains(
+            "GoogleCalendar__RedirectUri: \"http://localhost:8080/api/integrations/google/callback\"",
+            compose,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "GOOGLE_REDIRECT_URI: \"http://localhost:8080/api/integrations/google/callback\"",
+            compose,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "export GoogleCalendar__RedirectUri=http://localhost:8080/api/integrations/google/callback",
+            compose,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("${GOOGLE_REDIRECT_URI:-", compose, StringComparison.Ordinal);
+        Assert.DoesNotContain("${GoogleCalendar__RedirectUri", compose, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Request_host_localhost_8080_rewrites_appsettings_5001_callback()
+    {
+        using var env = new EnvScope();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+        env.Set("GOOGLE_REDIRECT_URI", null);
+        env.Set("GoogleCalendar__RedirectUri", null);
+
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "http";
+        http.Request.Host = new HostString("localhost", 8080);
+
+        var resolved = GoogleRedirectUri.ResolveForRequest(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            isDevelopment: true,
+            http.Request);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, resolved);
+    }
+
+    [Fact]
+    public void Request_host_localhost_5001_keeps_kestrel_callback_outside_container()
+    {
+        using var env = new EnvScope();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+        env.Set("GOOGLE_REDIRECT_URI", null);
+        env.Set("GoogleCalendar__RedirectUri", null);
+
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.Request.Host = new HostString("localhost", 5001);
+
+        var resolved = GoogleRedirectUri.ResolveForRequest(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            isDevelopment: true,
+            http.Request);
+
+        Assert.Equal(GoogleRedirectUri.KestrelHttpsCallback, resolved);
+    }
+
+    [Fact]
     public void Postgres_create_script_includes_businesses_table()
     {
         var options = new DbContextOptionsBuilder<ReignDbContext>()
@@ -506,6 +682,79 @@ public class ConfigAndCalendarTests
             && batch.Contains("Businesses", StringComparison.Ordinal));
         Assert.True(PostgresModel.IsMissingRelation(
             new InvalidOperationException("wrapper", new Exception("42P01: relation \"Businesses\" does not exist"))));
+    }
+
+    private static ConfigurationManager CreateBuilderStyleConfiguration()
+    {
+        var manager = new ConfigurationManager();
+        manager.AddJsonFile(
+            Path.Combine(FindRepoRoot(), "REIGN.API", "appsettings.json"),
+            optional: false,
+            reloadOnChange: false);
+        manager.AddEnvironmentVariables();
+        return manager;
+    }
+
+    private static GoogleCalendarOptions BindOptions(IConfiguration configuration, IHostEnvironment environment)
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        services.Configure<GoogleCalendarOptions>(configuration.GetSection(GoogleCalendarOptions.SectionName));
+        services.PostConfigure<GoogleCalendarOptions>(options =>
+            GoogleRedirectUri.ApplyToOptions(options, environment));
+        using var provider = services.BuildServiceProvider();
+        return provider.GetRequiredService<IOptions<GoogleCalendarOptions>>().Value;
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "docker-compose.yml")) &&
+                Directory.Exists(Path.Combine(dir.FullName, "REIGN.API")))
+            {
+                return dir.FullName;
+            }
+
+            dir = dir.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not find the repository root from " + AppContext.BaseDirectory);
+    }
+
+    private sealed class StubHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ApplicationName { get; set; } = "REIGN.Tests";
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class EnvScope : IDisposable
+    {
+        private readonly List<(string Name, string? Previous)> _previous = [];
+
+        public void Set(string name, string? value)
+        {
+            if (_previous.All(item => !string.Equals(item.Name, name, StringComparison.Ordinal)))
+            {
+                _previous.Add((name, Environment.GetEnvironmentVariable(name)));
+            }
+
+            Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void Dispose()
+        {
+            foreach (var (name, previous) in _previous)
+            {
+                Environment.SetEnvironmentVariable(name, previous);
+            }
+        }
     }
 
     private sealed class ListLogger : ILogger

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using REIGN.API.Configuration;
 using REIGN.API.Options;
 using REIGN.Data;
 using REIGN.Data.Models;
@@ -470,7 +471,10 @@ public class GoogleCalendarService : ICalendarService
         return null;
     }
 
-    public async Task StoreAuthorizationCodeAsync(string code, CancellationToken cancellationToken = default)
+    public Task StoreAuthorizationCodeAsync(string code, CancellationToken cancellationToken = default) =>
+        StoreAuthorizationCodeAsync(code, EffectiveRedirectUri(), cancellationToken);
+
+    public async Task StoreAuthorizationCodeAsync(string code, string redirectUri, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -478,7 +482,7 @@ public class GoogleCalendarService : ICalendarService
             ["code"] = code,
             ["client_id"] = _options.ClientId,
             ["client_secret"] = _options.ClientSecret,
-            ["redirect_uri"] = _options.RedirectUri,
+            ["redirect_uri"] = string.IsNullOrWhiteSpace(redirectUri) ? EffectiveRedirectUri() : redirectUri,
             ["grant_type"] = "authorization_code"
         });
 
@@ -486,6 +490,10 @@ public class GoogleCalendarService : ICalendarService
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
+            _logger.LogWarning(
+                "Google OAuth code exchange failed with HTTP {Status}. {Detail}",
+                (int)response.StatusCode,
+                SanitizeDiagnosticText(body));
             throw new InvalidOperationException("Google OAuth code exchange failed.");
         }
 
@@ -769,6 +777,21 @@ public class GoogleCalendarService : ICalendarService
         }
 
         return el.GetString();
+    }
+
+    private string EffectiveRedirectUri()
+    {
+        var isDevelopment = string.Equals(
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
+        if (isDevelopment && GoogleRedirectUri.RunningInContainer())
+        {
+            return GoogleRedirectUri.DockerCallback;
+        }
+
+        return _options.RedirectUri;
     }
 
     private static readonly Regex SecretJsonProperty = new(

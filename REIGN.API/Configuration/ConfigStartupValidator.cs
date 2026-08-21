@@ -124,6 +124,11 @@ public static class ConfigStartupValidator
 
         var calendarProvider = configuration["GoogleCalendar:Provider"] ?? "Simulated";
         logger.LogInformation("Calendar provider: {Provider}", calendarProvider);
+        logger.LogInformation(
+            "Google Calendar OAuth redirect URI: {RedirectUri}",
+            string.IsNullOrWhiteSpace(configuration["GoogleCalendar:RedirectUri"])
+                ? "(not set)"
+                : configuration["GoogleCalendar:RedirectUri"]);
 
         if (calendarProvider.Equals("Google", StringComparison.OrdinalIgnoreCase))
         {
