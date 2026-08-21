@@ -28,19 +28,20 @@ public class SMSController : ControllerBase
     }
 
     /// <summary>
-    /// Internal simulator / application endpoint. This is not a provider webhook.
-    /// Provider inbound traffic must use /api/sms/webhooks/twilio, /api/sms/webhooks/smsgate, or /api/sms/webhooks/vonage.
-    /// Hidden from Swagger so production Try it out is not mistaken for live Twilio.
+    /// Development JSON simulator. Live Twilio uses the same path with
+    /// application/x-www-form-urlencoded (From, To, Body, MessageSid) via SmsWebhookController.
+    /// Hidden from Swagger so production Try it out is not mistaken for a signed Twilio POST.
     /// </summary>
     [ApiExplorerSettings(IgnoreApi = true)]
     [HttpPost("incoming")]
+    [Consumes("application/json")]
     public async Task<IActionResult> Incoming([FromBody] SMSRequest request)
     {
         if (!IsInternalSimulatorAllowed())
         {
             return Unauthorized(new
             {
-                error = "POST /api/sms/incoming is the Development simulator and is disabled in production. Live Twilio must HTTP POST to /api/sms/webhooks/twilio. Sending SMS from the Twilio Console or trying this path in Swagger does not test live inbound SMS."
+                error = "JSON POST /api/sms/incoming is the Development simulator and is disabled in production. Live Twilio must HTTP POST application/x-www-form-urlencoded to /api/sms/incoming (From, To, Body, MessageSid). Sending SMS from the Twilio Console does not test live inbound SMS."
             });
         }
 

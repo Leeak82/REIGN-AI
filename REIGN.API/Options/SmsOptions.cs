@@ -29,7 +29,7 @@ public class SmsOptions
     public string PublicBaseUrl { get; set; } = "";
 
     /// <summary>
-    /// Shared secret for the internal /api/sms/incoming simulator. Empty allows the simulator in Development only.
+    /// Shared secret for the internal JSON /api/sms/incoming simulator. Empty allows the simulator in Development only. Twilio form POSTs to the same path do not use this key.
     /// </summary>
     public string InternalApiKey { get; set; } = "";
 
@@ -52,6 +52,7 @@ public class TwilioSmsOptions
 
     /// <summary>
     /// Exact public URL Twilio is configured to POST to, if it differs from the app's local request URL.
+    /// Example: https://reign-ai-2.onrender.com/api/sms/incoming
     /// </summary>
     public string WebhookPublicUrl { get; set; } = "";
 }

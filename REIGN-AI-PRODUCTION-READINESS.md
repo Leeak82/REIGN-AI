@@ -23,12 +23,12 @@ Catalog is unchanged: Quick Visit $150 / 20 minutes, Half Hour $300 / 30 minutes
 - Duplicate Google events are avoided by reusing `ExternalCalendarEventId` and looking up `extendedProperties.private.reignAppointmentId`.
 
 ### SMS production
-- Provider webhooks remain `POST /api/sms/webhooks/twilio` and `POST /api/sms/webhooks/vonage`.
+- Provider webhooks are `POST /api/sms/incoming` (Twilio form POST; `/api/sms/webhooks/twilio` is an alias) and `POST /api/sms/webhooks/vonage`.
 - Valid Twilio/Vonage signatures still process inbound SMS: customer lookup, conversation memory, reply, outbound send.
 - After a valid signature, processing errors return success to the provider (empty TwiML / `200`) so retry storms are avoided.
 - Outbound replies are attempted for customer, owner, and processor-failure fallback messages.
 - Missing Twilio AuthToken or Vonage SignatureSecret returns `503` with a configuration hint, not a secret value.
-- Internal simulator `POST /api/sms/incoming` stays out of the provider path and is locked down in Production without `Sms__InternalApiKey`.
+- Internal JSON simulator `POST /api/sms/incoming` stays locked down in Production without `Sms__InternalApiKey`. Twilio form POSTs to the same path are live inbound.
 
 ### Production cleanup
 - Blazor template `Counter` and `Weather` pages are removed.
@@ -87,6 +87,6 @@ Set these in the host secret store. Do not put values in source files.
 - [ ] Availability rejects overlapping QV/HH/HR times
 - [ ] Confirm creates one calendar event; reschedule reuses it; cancel removes it
 - [ ] Owner personal number is not a customer thread
-- [ ] Internal `/api/sms/incoming` is not publicly usable
+- [ ] Internal JSON `/api/sms/incoming` is not publicly usable; Twilio form POST to that path is the live webhook
 - [ ] Navigation shows only REIGN features
 - [ ] `dotnet build` and `dotnet test` pass on the release commit

@@ -74,16 +74,62 @@ public class WebhookSecurityTests
     [Fact]
     public void Twilio_webhook_url_resolver_uses_configured_webhook_url_first()
     {
-        var configured = "https://reign-ai-2.onrender.com/api/sms/webhooks/twilio";
+        var configured = "https://reign-ai-2.onrender.com/api/sms/incoming";
         var candidates = TwilioWebhookUrlResolver.Candidates(
             requestScheme: "http",
             requestHost: "[::]:10000",
-            requestPath: "/api/sms/webhooks/twilio",
+            requestPath: "/api/sms/incoming",
             requestQuery: "",
             webhookPublicUrl: configured,
             publicBaseUrl: "https://other.example");
 
         Assert.Equal(configured, candidates[0]);
+        Assert.Contains("https://reign-ai-2.onrender.com/api/sms/webhooks/twilio", candidates);
+    }
+
+    [Fact]
+    public void Twilio_signature_accepts_incoming_path_when_request_host_is_render_internal()
+    {
+        var token = "test-auth-token";
+        var publicUrl = "https://reign-ai-2.onrender.com/api/sms/incoming";
+        var parameters = new Dictionary<string, string>
+        {
+            ["From"] = "+15555550123",
+            ["To"] = "+15555550100",
+            ["Body"] = "Book QV tomorrow 2pm",
+            ["MessageSid"] = "SM123"
+        };
+        var signature = TwilioRequestValidator.ComputeSignature(token, publicUrl, parameters);
+
+        var candidates = TwilioWebhookUrlResolver.Candidates(
+            requestScheme: "http",
+            requestHost: "[::]:10000",
+            requestPath: "/api/sms/incoming",
+            requestQuery: "",
+            webhookPublicUrl: "https://reign-ai-2.onrender.com/api/sms/webhooks/twilio",
+            publicBaseUrl: null,
+            forwardedProto: "https",
+            forwardedHost: "reign-ai-2.onrender.com",
+            renderExternalUrl: "https://reign-ai-2.onrender.com");
+
+        Assert.Contains(publicUrl, candidates);
+        Assert.True(TwilioRequestValidator.IsValidAny(token, candidates, parameters, signature, out var matched));
+        Assert.Equal(publicUrl, matched);
+    }
+
+    [Fact]
+    public void Twilio_webhook_url_resolver_default_path_is_incoming()
+    {
+        var candidates = TwilioWebhookUrlResolver.Candidates(
+            requestScheme: "https",
+            requestHost: "reign-ai-2.onrender.com",
+            requestPath: null,
+            requestQuery: "",
+            webhookPublicUrl: null,
+            publicBaseUrl: "https://reign-ai-2.onrender.com");
+
+        Assert.Contains("https://reign-ai-2.onrender.com/api/sms/incoming", candidates);
+        Assert.Contains("https://reign-ai-2.onrender.com/api/sms/webhooks/twilio", candidates);
     }
 
     [Fact]
@@ -138,5 +184,23 @@ public class WebhookSecurityTests
         Assert.True(VonageWebhookValidator.TryValidateJwt(secret, "Bearer " + jwt, rawBody));
         Assert.False(VonageWebhookValidator.TryValidateJwt(secret, "Bearer " + jwt, """{"tampered":true}"""));
         Assert.False(VonageWebhookValidator.TryValidateJwt("wrong-secret", "Bearer " + jwt, rawBody));
+    }
+
+    [Fact]
+    public void Twilio_webhook_action_listens_on_incoming_and_legacy_form_post()
+    {
+        var method = typeof(REIGN.API.Controllers.SmsWebhookController).GetMethod(
+            nameof(REIGN.API.Controllers.SmsWebhookController.Twilio));
+        Assert.NotNull(method);
+        var posts = method!.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false)
+            .Cast<Microsoft.AspNetCore.Mvc.HttpPostAttribute>()
+            .Select(a => a.Template)
+            .ToArray();
+        Assert.Contains("twilio", posts);
+        Assert.Contains("/api/sms/incoming", posts);
+        Assert.Contains(
+            method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.ConsumesAttribute), false)
+                .Cast<Microsoft.AspNetCore.Mvc.ConsumesAttribute>(),
+            a => a.ContentTypes.Contains("application/x-www-form-urlencoded"));
     }
 }

@@ -27,9 +27,13 @@ public class SmsWebhookController : ControllerBase
 
     /// <summary>
     /// Twilio inbound webhook. Configure the phone number A Message Comes In
-    /// callback to HTTP POST this URL. Not the Swagger Try it out for /api/sms/incoming.
+    /// callback to HTTP POST /api/sms/incoming (form fields From, To, Body, MessageSid).
+    /// /api/sms/webhooks/twilio remains as a compatible alias. JSON POST /api/sms/incoming
+    /// is still the Development simulator.
     /// </summary>
     [HttpPost("twilio")]
+    [HttpPost("/api/sms/incoming")]
+    [Consumes("application/x-www-form-urlencoded")]
     public async Task<IActionResult> Twilio()
     {
         if (string.IsNullOrWhiteSpace(_options.Twilio.AuthToken))
@@ -56,7 +60,7 @@ public class SmsWebhookController : ControllerBase
         if (!TwilioRequestValidator.IsValidAny(_options.Twilio.AuthToken, candidates, form, signature, out _))
         {
             _logger.LogWarning(
-                "Rejected Twilio webhook with invalid signature. Tried {Count} public URL candidates: {Urls}. Sending SMS from the Twilio Console does not hit this endpoint; the phone number A Message Comes In webhook must POST to https://YOUR_HOST/api/sms/webhooks/twilio using the same Auth Token as TWILIO_AUTH_TOKEN.",
+                "Rejected Twilio webhook with invalid signature. Tried {Count} public URL candidates: {Urls}. Sending SMS from the Twilio Console does not hit this endpoint; the phone number A Message Comes In webhook must HTTP POST to https://YOUR_HOST/api/sms/incoming (or /api/sms/webhooks/twilio) using the same Auth Token as TWILIO_AUTH_TOKEN.",
                 candidates.Count,
                 string.Join(" | ", candidates));
             // StatusCode(403), not Forbid(): there is no authentication scheme, and Forbid() becomes a 500.

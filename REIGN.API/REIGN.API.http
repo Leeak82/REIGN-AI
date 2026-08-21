@@ -3,7 +3,7 @@
 GET {{REIGN.API_HostAddress}}/api/integrations/status
 Accept: application/json
 
-### Internal SMS simulator (not a provider webhook)
+### Internal SMS simulator (JSON, Development only)
 POST {{REIGN.API_HostAddress}}/api/sms/incoming
 Content-Type: application/json
 
@@ -31,6 +31,12 @@ Content-Type: application/json
 }
 
 ### Twilio inbound webhook (requires valid X-Twilio-Signature)
+POST {{REIGN.API_HostAddress}}/api/sms/incoming
+Content-Type: application/x-www-form-urlencoded
+
+From=%2B15555550123&To=%2B15555550100&Body=Hello&MessageSid=SM123
+
+### Twilio inbound webhook alias
 POST {{REIGN.API_HostAddress}}/api/sms/webhooks/twilio
 Content-Type: application/x-www-form-urlencoded
 
