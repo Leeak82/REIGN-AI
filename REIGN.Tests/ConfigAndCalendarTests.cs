@@ -614,7 +614,11 @@ public class ConfigAndCalendarTests
     [Fact]
     public void Docker_compose_pins_8080_callback_without_host_GOOGLE_REDIRECT_URI_interpolation()
     {
-        var compose = File.ReadAllText(Path.Combine(FindRepoRoot(), "docker-compose.yml"));
+        var root = FindRepoRoot();
+        var compose = File.ReadAllText(Path.Combine(root, "docker-compose.yml"));
+        var oauthEnv = File.ReadAllText(Path.Combine(root, "docker-oauth.env"));
+        Assert.Contains("env_file:", compose, StringComparison.Ordinal);
+        Assert.Contains("docker-oauth.env", compose, StringComparison.Ordinal);
         Assert.Contains(
             "GoogleCalendar__RedirectUri: \"http://localhost:8080/api/integrations/google/callback\"",
             compose,
@@ -631,6 +635,27 @@ public class ConfigAndCalendarTests
         Assert.Contains("export REIGN_DOCKER=1", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("${GOOGLE_REDIRECT_URI:-", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("${GoogleCalendar__RedirectUri", compose, StringComparison.Ordinal);
+        Assert.Contains(
+            "GoogleCalendar__RedirectUri=http://localhost:8080/api/integrations/google/callback",
+            oauthEnv,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("5001", oauthEnv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Aliases_replace_nested_kestrel_5001_when_REIGN_DOCKER_even_before_Apply()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("REIGN_DOCKER", "1");
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var manager = CreateBuilderStyleConfiguration();
+        ConfigEnvironmentAliases.Apply(manager);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, manager["GoogleCalendar:RedirectUri"]);
+        Assert.DoesNotContain("localhost:5001", manager["GoogleCalendar:RedirectUri"], StringComparison.Ordinal);
     }
 
     [Fact]

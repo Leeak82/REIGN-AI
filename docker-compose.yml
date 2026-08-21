@@ -10,6 +10,11 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    # Literal 8080 callback. Loaded before `environment` so compose `environment`
+    # pins still win, and host `.env` :5001 values cannot become container env
+    # unless explicitly interpolated (those keys are not interpolated below).
+    env_file:
+      - docker-oauth.env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       # Local compose only. Forces the 8080 Google callback even if appsettings still has :5001.
