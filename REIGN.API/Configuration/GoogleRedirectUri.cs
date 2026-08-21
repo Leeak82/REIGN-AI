@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using REIGN.API.Options;
 
@@ -51,6 +52,22 @@ public static class GoogleRedirectUri
         }
     }
 
+    /// <summary>
+    /// Last-mile callback used by authorize, status, and token exchange.
+    /// A Development request served on localhost:8080 always uses
+    /// <see cref="DockerCallback"/>, even if IOptions still holds the Kestrel 5001 default
+    /// from <c>appsettings.json</c>.
+    /// </summary>
+    public static string ResolveForRequest(string? configured, bool isDevelopment, HttpRequest? request)
+    {
+        if (isDevelopment && (RunningInContainer() || IsDockerPublishedHost(request)))
+        {
+            return DockerCallback;
+        }
+
+        return NullIfWhiteSpace(configured) ?? "";
+    }
+
     public static string Resolve(string? configured, bool isDevelopment)
     {
         if (isDevelopment && RunningInContainer())
@@ -63,6 +80,23 @@ public static class GoogleRedirectUri
             ?? NullIfWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_CALENDAR_REDIRECT_URI"));
         var current = NullIfWhiteSpace(configured);
         return nested ?? alias ?? current ?? "";
+    }
+
+    public static bool IsDockerPublishedHost(HttpRequest? request)
+    {
+        if (request?.Host.HasValue != true)
+        {
+            return false;
+        }
+
+        var name = request.Host.Host;
+        if (!name.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            && !name.Equals("127.0.0.1", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return request.Host.Port is 8080;
     }
 
     public static bool RunningInContainer()

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -270,6 +271,70 @@ public class GoogleCalendarDebugTests
         Assert.DoesNotContain("localhost:5001", result.Url, StringComparison.Ordinal);
         Assert.Contains("access_type=offline", result.Url, StringComparison.Ordinal);
         Assert.Contains("prompt=consent", result.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Authorize_endpoint_rewrites_5001_when_request_host_is_localhost_8080()
+    {
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = "docker-client-id",
+            ClientSecret = "docker-client-secret",
+            RedirectUri = "https://localhost:5001/api/integrations/google/callback"
+        });
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "http";
+        http.Request.Host = new HostString("localhost", 8080);
+        http.Request.Path = "/api/integrations/google/authorize";
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Development },
+            logger: NullLogger<IntegrationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains(
+            Uri.EscapeDataString("http://localhost:8080/api/integrations/google/callback"),
+            result.Url,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", result.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Authorize_endpoint_keeps_kestrel_5001_when_request_host_is_localhost_5001()
+    {
+        const string kestrelCallback = "https://localhost:5001/api/integrations/google/callback";
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = "kestrel-client-id",
+            ClientSecret = "kestrel-client-secret",
+            RedirectUri = kestrelCallback
+        });
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.Request.Host = new HostString("localhost", 5001);
+        http.Request.Path = "/api/integrations/google/authorize";
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Development },
+            logger: NullLogger<IntegrationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains(Uri.EscapeDataString(kestrelCallback), result.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:8080", result.Url, StringComparison.Ordinal);
     }
 
     [Fact]

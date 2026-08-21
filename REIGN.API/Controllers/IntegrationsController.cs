@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
+using REIGN.API.Configuration;
 using REIGN.API.Messaging;
 using REIGN.API.Options;
 
@@ -63,7 +64,7 @@ public class IntegrationsController : ControllerBase
                 hasStoredGrant = !_calendar.IsSimulated && _calendar.HasStoredGrant,
                 calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId,
                 timeZone = CalendarTime.ToGoogleTimeZoneId(_google.TimeZone),
-                redirectUri = _google.RedirectUri,
+                redirectUri = EffectiveRedirectUri(),
                 requiredScope = GoogleCalendarService.RequiredScope
             }
         });
@@ -80,7 +81,7 @@ public class IntegrationsController : ControllerBase
             });
         }
 
-        var url = GoogleCalendarService.BuildAuthorizationUrl(_google.ClientId, _google.RedirectUri);
+        var url = GoogleCalendarService.BuildAuthorizationUrl(_google.ClientId, EffectiveRedirectUri());
 
         return Redirect(url);
     }
@@ -144,4 +145,10 @@ public class IntegrationsController : ControllerBase
         var result = await _googleCalendar.GetAccountDebugAsync(cancellationToken);
         return Ok(result);
     }
+
+    private string EffectiveRedirectUri() =>
+        GoogleRedirectUri.ResolveForRequest(
+            _google.RedirectUri,
+            _environment.IsDevelopment(),
+            HttpContext?.Request);
 }

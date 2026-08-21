@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using REIGN.API.Configuration;
 using REIGN.API.Options;
 using REIGN.Data;
 using REIGN.Data.Models;
@@ -478,7 +479,7 @@ public class GoogleCalendarService : ICalendarService
             ["code"] = code,
             ["client_id"] = _options.ClientId,
             ["client_secret"] = _options.ClientSecret,
-            ["redirect_uri"] = _options.RedirectUri,
+            ["redirect_uri"] = EffectiveRedirectUri(),
             ["grant_type"] = "authorization_code"
         });
 
@@ -769,6 +770,21 @@ public class GoogleCalendarService : ICalendarService
         }
 
         return el.GetString();
+    }
+
+    private string EffectiveRedirectUri()
+    {
+        var isDevelopment = string.Equals(
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
+            "Development",
+            StringComparison.OrdinalIgnoreCase);
+        if (isDevelopment && GoogleRedirectUri.RunningInContainer())
+        {
+            return GoogleRedirectUri.DockerCallback;
+        }
+
+        return _options.RedirectUri;
     }
 
     private static readonly Regex SecretJsonProperty = new(

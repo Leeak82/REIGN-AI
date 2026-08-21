@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -625,6 +626,46 @@ public class ConfigAndCalendarTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("${GOOGLE_REDIRECT_URI:-", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("${GoogleCalendar__RedirectUri", compose, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Request_host_localhost_8080_rewrites_appsettings_5001_callback()
+    {
+        using var env = new EnvScope();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+        env.Set("GOOGLE_REDIRECT_URI", null);
+        env.Set("GoogleCalendar__RedirectUri", null);
+
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "http";
+        http.Request.Host = new HostString("localhost", 8080);
+
+        var resolved = GoogleRedirectUri.ResolveForRequest(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            isDevelopment: true,
+            http.Request);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, resolved);
+    }
+
+    [Fact]
+    public void Request_host_localhost_5001_keeps_kestrel_callback_outside_container()
+    {
+        using var env = new EnvScope();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+        env.Set("GOOGLE_REDIRECT_URI", null);
+        env.Set("GoogleCalendar__RedirectUri", null);
+
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.Request.Host = new HostString("localhost", 5001);
+
+        var resolved = GoogleRedirectUri.ResolveForRequest(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            isDevelopment: true,
+            http.Request);
+
+        Assert.Equal(GoogleRedirectUri.KestrelHttpsCallback, resolved);
     }
 
     [Fact]
