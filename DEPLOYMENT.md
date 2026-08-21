@@ -116,7 +116,7 @@ Production CORS: set `CORS_ALLOWED_ORIGINS` to the public web origin (comma-sepa
 ```
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_CALENDAR_ID=primary
+GOOGLE_CALENDAR_ID=j.collins2491@gmail.com
 GOOGLE_CALENDAR_TIMEZONE=America/Los_Angeles
 GoogleCalendar__Provider=Google
 ```
@@ -126,9 +126,31 @@ GoogleCalendar__Provider=Google
 For `dotnet run` without Docker, set `GOOGLE_REDIRECT_URI=https://localhost:5001/api/integrations/google/callback`.
 
 4. Set `GoogleCalendar__Provider=Google`.
-5. Open `/api/integrations/google/authorize` once while signed in as the business owner.
-6. Confirm `/api/integrations/status` shows `hasStoredGrant: true` and `activeProvider: Google`.
-7. Book a QV/HH/HR, reply `YES`, and verify one calendar event is created. Confirmed appointments reuse `ExternalCalendarEventId` so Google does not get a duplicate event.
+5. Open `/api/integrations/google/authorize` once while signed in as **j.collins2491@gmail.com**.
+   Production shortcut: `https://reign-ai-2.onrender.com/api/integrations/google/authorize`.
+   The dashboard **Connect Google Calendar** / **Reconnect Google Calendar** buttons on Calendar and Integrations hit the same URL.
+6. Confirm `/api/integrations/status` shows `hasStoredGrant: true`, `activeProvider: Google`, `calendarId: j.collins2491@gmail.com`, and a **https** `redirectUri` on `reign-ai-2.onrender.com` (never `localhost`).
+7. Book a QV/HH/HR, reply `YES`, and verify one calendar event is created on j.collins2491@gmail.com. Confirmed appointments reuse `ExternalCalendarEventId` so Google does not get a duplicate event.
+
+On Render, leftover `https://localhost:5001/...` from `appsettings.json` used to be rewritten to `http://localhost:8080/...` because the API image listens on 8080. Production now prefers `RENDER_EXTERNAL_URL` / `RENDER_EXTERNAL_HOSTNAME` (and the public `X-Forwarded-Host`) so authorize and token exchange use:
+
+`https://reign-ai-2.onrender.com/api/integrations/google/callback`
+
+Still set these on the API service (not secrets, but required for the Collins calendar):
+
+| Key | Value |
+| --- | --- |
+| `GoogleCalendar__Provider` | `Google` |
+| `GOOGLE_CALENDAR_ID` | `j.collins2491@gmail.com` |
+| `GoogleCalendar__CalendarId` | `j.collins2491@gmail.com` |
+| `GOOGLE_CALENDAR_TIMEZONE` | `America/Los_Angeles` |
+| `GOOGLE_REDIRECT_URI` | `https://reign-ai-2.onrender.com/api/integrations/google/callback` |
+| `GoogleCalendar__RedirectUri` | same public callback |
+| `REIGN_DOCKER` | unset (never `1` on Render) |
+
+In Google Cloud Console, the OAuth **Web** client's authorized redirect URIs must include that same production callback. The live client id is already configured on Render (`GOOGLE_CLIENT_ID`).
+
+Do not complete consent as `lee.anthony57@gmail.com`. Cursor Calendar MCP is that account and cannot write to Collins' calendar until Collins shares it. REIGN must receive Collins' own OAuth grant.
 
 ## Twilio webhook setup
 

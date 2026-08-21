@@ -27,19 +27,23 @@
         <div class="health-detail">
             @(Status == null ? "Checking connection…"
                 : GoogleConnected
-                    ? $"Connected via {Status.GoogleCalendar.ActiveProvider}"
-                    : "Not connected — bookings still save in REIGN")
+                    ? $"Connected via {Status.GoogleCalendar.ActiveProvider} · {CalendarTarget}"
+                    : $"Not connected — sign in as {CalendarTarget} to give REIGN calendar access")
         </div>
     </div>
-    @if (Status != null && !GoogleConnected)
+    @if (Status != null)
     {
-        <a class="btn btn-primary btn-sm" href="@AuthorizeUrl">Connect Google Calendar</a>
-    }
-    else if (Status != null)
-    {
-        <StatusBadge Text="Connected" Kind="success" />
+        <a class="btn btn-primary btn-sm" href="@AuthorizeUrl">@(GoogleConnected ? "Reconnect Google Calendar" : "Connect Google Calendar")</a>
     }
 </div>
+
+@if (Status != null && !string.IsNullOrWhiteSpace(Status.GoogleCalendar.RedirectUri) && Status.GoogleCalendar.RedirectUri.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+{
+    <div class="error-state mb-2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+        <span class="msg">Google OAuth is still using a localhost callback, so production consent cannot complete. Set GOOGLE_REDIRECT_URI to the public API callback, or redeploy the production redirect fix.</span>
+    </div>
+}
 
 <div class="card mb-2">
     <div class="card-title">Book an appointment</div>
@@ -183,6 +187,13 @@ else
     private string AuthorizeUrl => $"{Api.BaseAddress}api/integrations/google/authorize";
 
     private string TimeZoneLabel => string.IsNullOrWhiteSpace(TimeZoneId) ? "Pacific" : TimeZoneId.Replace('_', ' ');
+
+    private string CalendarTarget =>
+        !string.IsNullOrWhiteSpace(Status?.GoogleCalendar.ExpectedAccount)
+            ? Status!.GoogleCalendar.ExpectedAccount!
+            : !string.IsNullOrWhiteSpace(Status?.GoogleCalendar.CalendarId)
+                ? Status!.GoogleCalendar.CalendarId!
+                : "j.collins2491@gmail.com";
 
     protected override async Task OnInitializedAsync() => await Load();
 

@@ -374,6 +374,50 @@ public class GoogleCalendarDebugTests
     }
 
     [Fact]
+    public void Authorize_endpoint_uses_render_public_callback_when_container_has_leftover_5001()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+        env.Set("ASPNETCORE_URLS", "http://+:8080");
+        env.Set("RENDER_EXTERNAL_URL", "https://reign-ai-2.onrender.com");
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var google = Options.Create(new GoogleCalendarOptions
+        {
+            ClientId = "render-client-id",
+            ClientSecret = "render-client-secret",
+            RedirectUri = GoogleRedirectUri.KestrelHttpsCallback,
+            CalendarId = "j.collins2491@gmail.com"
+        });
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.Request.Host = new HostString("reign-ai-2.onrender.com");
+        http.Request.Path = "/api/integrations/google/authorize";
+        var controller = new IntegrationsController(
+            sms: null!,
+            calendar: null!,
+            googleCalendar: null!,
+            google: google,
+            smsOptions: Options.Create(new SmsOptions()),
+            environment: new StubHostEnvironment { EnvironmentName = Environments.Production },
+            logger: NullLogger<IntegrationsController>.Instance)
+        {
+            ControllerContext = new ControllerContext { HttpContext = http }
+        };
+
+        var result = Assert.IsType<RedirectResult>(controller.GoogleAuthorize());
+        Assert.Contains(
+            Uri.EscapeDataString("https://reign-ai-2.onrender.com/api/integrations/google/callback"),
+            result.Url,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:8080", result.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", result.Url, StringComparison.Ordinal);
+        Assert.Contains(Uri.EscapeDataString(GoogleCalendarService.RequiredScope), result.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Debug_account_returns_primary_calendar_email_without_tokens()
     {
         const string accessToken = "SECRET_ACCESS_TOKEN_VALUE_XYZ";
@@ -951,6 +995,8 @@ public class GoogleCalendarDebugTests
             Set("DOTNET_RUNNING_IN_CONTAINER", null);
             Set("ASPNETCORE_HTTP_PORTS", null);
             Set("ASPNETCORE_URLS", null);
+            Set("RENDER_EXTERNAL_URL", null);
+            Set("RENDER_EXTERNAL_HOSTNAME", null);
         }
 
         public void Dispose()
