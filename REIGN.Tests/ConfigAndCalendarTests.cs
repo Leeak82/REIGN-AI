@@ -503,10 +503,10 @@ public class ConfigAndCalendarTests
     public void CreateBuilder_style_sources_keep_appsettings_5001_without_nested_or_alias_env()
     {
         using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
         env.Set("GOOGLE_REDIRECT_URI", null);
         env.Set("GOOGLE_CALENDAR_REDIRECT_URI", null);
         env.Set("GoogleCalendar__RedirectUri", null);
-        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
 
         var manager = CreateBuilderStyleConfiguration();
         ConfigEnvironmentAliases.Apply(manager);
@@ -522,10 +522,10 @@ public class ConfigAndCalendarTests
     public void CreateBuilder_style_GOOGLE_REDIRECT_URI_overrides_appsettings_when_nested_env_is_absent()
     {
         using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
         env.Set("GoogleCalendar__RedirectUri", null);
         env.Set("GOOGLE_CALENDAR_REDIRECT_URI", null);
         env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.DockerCallback);
-        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
 
         var manager = CreateBuilderStyleConfiguration();
         ConfigEnvironmentAliases.Apply(manager);
@@ -541,6 +541,7 @@ public class ConfigAndCalendarTests
     public void Host_GOOGLE_REDIRECT_URI_5001_leaked_as_nested_env_is_rewritten_in_development_container()
     {
         using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
         env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
         env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
         env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
@@ -559,6 +560,7 @@ public class ConfigAndCalendarTests
     public void Development_container_ignores_host_GoogleCalendar_RedirectUri_override()
     {
         using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
         env.Set("GOOGLE_REDIRECT_URI", "https://example.invalid/callback");
         env.Set("GoogleCalendar__RedirectUri", "https://example.invalid/callback");
         env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
@@ -576,9 +578,9 @@ public class ConfigAndCalendarTests
     public void Nested_GoogleCalendar_RedirectUri_8080_wins_over_host_GOOGLE_REDIRECT_URI_5001()
     {
         using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
         env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
         env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.DockerCallback);
-        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
 
         var manager = CreateBuilderStyleConfiguration();
         ConfigEnvironmentAliases.Apply(manager);
@@ -595,6 +597,7 @@ public class ConfigAndCalendarTests
     {
         const string productionCallback = "https://reign-ai-2.onrender.com/api/integrations/google/callback";
         using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
         env.Set("GOOGLE_REDIRECT_URI", productionCallback);
         env.Set("GoogleCalendar__RedirectUri", productionCallback);
         env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
@@ -624,15 +627,67 @@ public class ConfigAndCalendarTests
             "export GoogleCalendar__RedirectUri=http://localhost:8080/api/integrations/google/callback",
             compose,
             StringComparison.Ordinal);
+        Assert.Contains("REIGN_DOCKER: \"1\"", compose, StringComparison.Ordinal);
+        Assert.Contains("export REIGN_DOCKER=1", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("${GOOGLE_REDIRECT_URI:-", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("${GoogleCalendar__RedirectUri", compose, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Production_REIGN_DOCKER_rewrites_leftover_kestrel_5001()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("REIGN_DOCKER", "1");
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var resolved = GoogleRedirectUri.EnsureOAuthCallback(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            request: null,
+            isDevelopment: false);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, resolved);
+        Assert.DoesNotContain("localhost:5001", resolved, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Production_listening_on_8080_rewrites_leftover_kestrel_5001()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("ASPNETCORE_HTTP_PORTS", "8080");
+        env.Set("DOTNET_RUNNING_IN_CONTAINER", "true");
+
+        var resolved = GoogleRedirectUri.EnsureOAuthCallback(
+            GoogleRedirectUri.KestrelHttpsCallback,
+            request: null,
+            isDevelopment: false);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, resolved);
+    }
+
+    [Fact]
+    public void Configured_8080_is_not_overridden_by_host_nested_5001_env()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var resolved = GoogleRedirectUri.EnsureOAuthCallback(
+            GoogleRedirectUri.DockerCallback,
+            request: null,
+            isDevelopment: true);
+
+        Assert.Equal(GoogleRedirectUri.DockerCallback, resolved);
     }
 
     [Fact]
     public void Request_host_localhost_8080_rewrites_appsettings_5001_callback()
     {
         using var env = new EnvScope();
-        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+        env.ClearDockerRuntimeMarkers();
         env.Set("GOOGLE_REDIRECT_URI", null);
         env.Set("GoogleCalendar__RedirectUri", null);
 
@@ -652,7 +707,7 @@ public class ConfigAndCalendarTests
     public void Request_host_localhost_5001_keeps_kestrel_callback_outside_container()
     {
         using var env = new EnvScope();
-        env.Set("DOTNET_RUNNING_IN_CONTAINER", null);
+        env.ClearDockerRuntimeMarkers();
         env.Set("GOOGLE_REDIRECT_URI", null);
         env.Set("GoogleCalendar__RedirectUri", null);
 
@@ -746,6 +801,14 @@ public class ConfigAndCalendarTests
             }
 
             Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void ClearDockerRuntimeMarkers()
+        {
+            Set("REIGN_DOCKER", null);
+            Set("DOTNET_RUNNING_IN_CONTAINER", null);
+            Set("ASPNETCORE_HTTP_PORTS", null);
+            Set("ASPNETCORE_URLS", null);
         }
 
         public void Dispose()

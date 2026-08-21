@@ -210,6 +210,11 @@ public class GoogleCalendarDebugTests
     [Fact]
     public void Authorization_url_forces_offline_consent_and_calendar_events_scope()
     {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("GoogleCalendar__RedirectUri", null);
+        env.Set("GOOGLE_REDIRECT_URI", null);
+
         var url = GoogleCalendarService.BuildAuthorizationUrl(
             "test-client-id",
             "https://localhost:5001/api/integrations/google/callback");
@@ -221,6 +226,23 @@ public class GoogleCalendarDebugTests
         Assert.Contains(Uri.EscapeDataString(GoogleCalendarService.RequiredScope), url, StringComparison.Ordinal);
         Assert.Contains("response_type=code", url, StringComparison.Ordinal);
         Assert.Contains(Uri.EscapeDataString("https://localhost:5001/api/integrations/google/callback"), url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Authorization_url_rewrites_5001_when_REIGN_DOCKER_is_set()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("REIGN_DOCKER", "1");
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+
+        var url = GoogleCalendarService.BuildAuthorizationUrl(
+            "test-client-id",
+            GoogleRedirectUri.KestrelHttpsCallback);
+
+        Assert.Contains(Uri.EscapeDataString(GoogleRedirectUri.DockerCallback), url, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", url, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -251,6 +273,11 @@ public class GoogleCalendarDebugTests
     [Fact]
     public void Authorize_endpoint_uses_docker_localhost_8080_redirect_when_configured()
     {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("GoogleCalendar__RedirectUri", GoogleRedirectUri.KestrelHttpsCallback);
+        env.Set("GOOGLE_REDIRECT_URI", GoogleRedirectUri.KestrelHttpsCallback);
+
         const string dockerCallback = "http://localhost:8080/api/integrations/google/callback";
         var google = Options.Create(new GoogleCalendarOptions
         {
@@ -277,6 +304,9 @@ public class GoogleCalendarDebugTests
     [Fact]
     public void Authorize_endpoint_rewrites_5001_when_request_host_is_localhost_8080()
     {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+
         var google = Options.Create(new GoogleCalendarOptions
         {
             ClientId = "docker-client-id",
@@ -310,6 +340,11 @@ public class GoogleCalendarDebugTests
     [Fact]
     public void Authorize_endpoint_keeps_kestrel_5001_when_request_host_is_localhost_5001()
     {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("GoogleCalendar__RedirectUri", null);
+        env.Set("GOOGLE_REDIRECT_URI", null);
+
         const string kestrelCallback = "https://localhost:5001/api/integrations/google/callback";
         var google = Options.Create(new GoogleCalendarOptions
         {
@@ -510,6 +545,43 @@ public class GoogleCalendarDebugTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("localhost:5001", form, StringComparison.Ordinal);
         Assert.DoesNotContain("FIRST_REFRESH_TOKEN", form, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorization_code_exchange_rewrites_leftover_5001_when_REIGN_DOCKER()
+    {
+        using var env = new EnvScope();
+        env.ClearDockerRuntimeMarkers();
+        env.Set("REIGN_DOCKER", "1");
+
+        await using var harness = await Harness.CreateAsync(
+            storeGrant: false,
+            redirectUri: GoogleRedirectUri.KestrelHttpsCallback);
+        harness.Handler.Respond = request =>
+        {
+            Assert.Equal("https://oauth2.googleapis.com/token", request.RequestUri?.ToString());
+            return JsonResponse(HttpStatusCode.OK, """
+                {
+                  "access_token": "DOCKER_ACCESS_TOKEN",
+                  "refresh_token": "DOCKER_REFRESH_TOKEN",
+                  "expires_in": 3600,
+                  "scope": "https://www.googleapis.com/auth/calendar.events",
+                  "token_type": "Bearer"
+                }
+                """);
+        };
+
+        await harness.Service.StoreAuthorizationCodeAsync(
+            "auth-code",
+            GoogleRedirectUri.KestrelHttpsCallback);
+
+        var form = Assert.Single(harness.Handler.Bodies);
+        Assert.Contains(
+            "redirect_uri=" + Uri.EscapeDataString(GoogleRedirectUri.DockerCallback),
+            form,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:5001", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost%3A5001", form, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -791,7 +863,8 @@ public class GoogleCalendarDebugTests
             string refreshToken = "refresh-token",
             DateTimeOffset? accessExpiresAt = null,
             bool storeGrant = true,
-            string? scope = "https://www.googleapis.com/auth/calendar.events")
+            string? scope = "https://www.googleapis.com/auth/calendar.events",
+            string? redirectUri = null)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -824,7 +897,8 @@ public class GoogleCalendarDebugTests
                     Provider = "Google",
                     ClientId = clientId,
                     ClientSecret = clientSecret,
-                    CalendarId = calendarId
+                    CalendarId = calendarId,
+                    RedirectUri = redirectUri ?? GoogleRedirectUri.KestrelHttpsCallback
                 }),
                 new DbScopeFactory(db),
                 NullLogger<GoogleCalendarService>.Instance);
@@ -854,6 +928,37 @@ public class GoogleCalendarDebugTests
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class EnvScope : IDisposable
+    {
+        private readonly List<(string Name, string? Previous)> _previous = [];
+
+        public void Set(string name, string? value)
+        {
+            if (_previous.All(item => !string.Equals(item.Name, name, StringComparison.Ordinal)))
+            {
+                _previous.Add((name, Environment.GetEnvironmentVariable(name)));
+            }
+
+            Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void ClearDockerRuntimeMarkers()
+        {
+            Set("REIGN_DOCKER", null);
+            Set("DOTNET_RUNNING_IN_CONTAINER", null);
+            Set("ASPNETCORE_HTTP_PORTS", null);
+            Set("ASPNETCORE_URLS", null);
+        }
+
+        public void Dispose()
+        {
+            foreach (var (name, previous) in _previous)
+            {
+                Environment.SetEnvironmentVariable(name, previous);
+            }
         }
     }
 }

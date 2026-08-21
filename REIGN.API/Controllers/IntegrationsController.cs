@@ -147,8 +147,8 @@ public class IntegrationsController : ControllerBase
     }
 
     private string EffectiveRedirectUri() =>
-        GoogleRedirectUri.ResolveForRequest(
+        GoogleRedirectUri.EnsureOAuthCallback(
             _google.RedirectUri,
-            _environment.IsDevelopment(),
-            HttpContext?.Request);
+            HttpContext?.Request,
+            _environment.IsDevelopment());
 }

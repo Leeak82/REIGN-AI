@@ -12,6 +12,8 @@ services:
       - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      # Local compose only. Forces the 8080 Google callback even if appsettings still has :5001.
+      REIGN_DOCKER: "1"
       ConnectionStrings__Reign: Data Source=/data/REIGN.db
       # Pass-through only. Blank/unset host values stay blank and are not secrets.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -53,6 +55,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        export REIGN_DOCKER=1
         export GOOGLE_REDIRECT_URI=http://localhost:8080/api/integrations/google/callback
         export GoogleCalendar__RedirectUri=http://localhost:8080/api/integrations/google/callback
         if [ -n "$$GOOGLE_CLIENT_ID" ] && [ -n "$$GOOGLE_CLIENT_SECRET" ]; then

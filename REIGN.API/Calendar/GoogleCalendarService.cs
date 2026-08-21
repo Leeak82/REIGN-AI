@@ -21,7 +21,7 @@ public class GoogleCalendarService : ICalendarService
     public static string BuildAuthorizationUrl(string clientId, string redirectUri) =>
         "https://accounts.google.com/o/oauth2/v2/auth" +
         $"?client_id={Uri.EscapeDataString(clientId)}" +
-        $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+        $"&redirect_uri={Uri.EscapeDataString(GoogleRedirectUri.EnsureOAuthCallback(redirectUri))}" +
         "&response_type=code" +
         $"&scope={Uri.EscapeDataString(RequiredScope)}" +
         "&access_type=offline" +
@@ -482,7 +482,8 @@ public class GoogleCalendarService : ICalendarService
             ["code"] = code,
             ["client_id"] = _options.ClientId,
             ["client_secret"] = _options.ClientSecret,
-            ["redirect_uri"] = string.IsNullOrWhiteSpace(redirectUri) ? EffectiveRedirectUri() : redirectUri,
+            ["redirect_uri"] = GoogleRedirectUri.EnsureOAuthCallback(
+                string.IsNullOrWhiteSpace(redirectUri) ? EffectiveRedirectUri() : redirectUri),
             ["grant_type"] = "authorization_code"
         });
 
@@ -779,20 +780,8 @@ public class GoogleCalendarService : ICalendarService
         return el.GetString();
     }
 
-    private string EffectiveRedirectUri()
-    {
-        var isDevelopment = string.Equals(
-            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-                ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"),
-            "Development",
-            StringComparison.OrdinalIgnoreCase);
-        if (isDevelopment && GoogleRedirectUri.RunningInContainer())
-        {
-            return GoogleRedirectUri.DockerCallback;
-        }
-
-        return _options.RedirectUri;
-    }
+    private string EffectiveRedirectUri() =>
+        GoogleRedirectUri.EnsureOAuthCallback(_options.RedirectUri);
 
     private static readonly Regex SecretJsonProperty = new(
         """"(access_token|refresh_token|id_token|client_secret|authorization_code)"\s*:\s*"(?:\\.|[^"\\])*"""",

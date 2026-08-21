@@ -121,7 +121,7 @@ GOOGLE_CALENDAR_TIMEZONE=America/New_York
 GoogleCalendar__Provider=Google
 ```
 
-`docker-compose.yml` pins `GoogleCalendar__RedirectUri` and `GOOGLE_REDIRECT_URI` to `http://localhost:8080/api/integrations/google/callback`. It does **not** interpolate host `GOOGLE_REDIRECT_URI` or `GoogleCalendar__RedirectUri`. A `.env` used for `dotnet run` often contains `https://localhost:5001/...`; that value must not enter the container.
+`docker-compose.yml` pins `GoogleCalendar__RedirectUri` and `GOOGLE_REDIRECT_URI` to `http://localhost:8080/api/integrations/google/callback`. It also sets `REIGN_DOCKER=1` so authorize and token exchange still use that 8080 callback if `appsettings.json` or a host `.env` still contains `https://localhost:5001/...`. It does **not** interpolate host `GOOGLE_REDIRECT_URI` or `GoogleCalendar__RedirectUri`. A `.env` used for `dotnet run` often contains `https://localhost:5001/...`; that value must not enter the container. Do not set `REIGN_DOCKER` on Render or other public hosts.
 
 For `dotnet run` without Docker, set `GOOGLE_REDIRECT_URI=https://localhost:5001/api/integrations/google/callback`.
 
