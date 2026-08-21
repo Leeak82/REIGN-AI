@@ -268,7 +268,7 @@ public static class GoogleRedirectUri
 
     private static string HostNameOnly(string hostValue)
     {
-        if (hostValue.StartsWith('[', StringComparison.Ordinal))
+        if (hostValue.StartsWith('[')
         {
             var end = hostValue.IndexOf(']');
             return end > 1 ? hostValue[1..end] : hostValue;
