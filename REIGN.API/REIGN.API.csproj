@@ -6,8 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
+    <ItemGroup>
     <InternalsVisibleTo Include="REIGN.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="Npgsql.EnableLegacyTimestampBehavior" Value="true" />
   </ItemGroup>
 
   <ItemGroup>
