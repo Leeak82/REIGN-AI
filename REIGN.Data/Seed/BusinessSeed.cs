@@ -17,13 +17,13 @@ public static class BusinessSeed
         {
             Id = BusinessId,
             Name = "REIGN",
-            OwnerName = "Miss Reign",
+            OwnerName = ReignContact.ProviderFullName,
             Phone = ReignContact.BusinessPhoneE164,
-            Email = "hello@reign.ai",
+            Email = ReignContact.ProviderCalendar,
             Address = "100 Main Street",
             Industry = "Appointment Services",
             Active = true,
-            Greeting = "Welcome to REIGN. How can we help you schedule a visit today?",
+            Greeting = "Welcome to REIGN. I can help you schedule a visit with Jessica.",
             Tone = "Warm, concise, professional. SMS replies stay under 320 characters.",
             Personality = "Expert appointment coordinator",
             Instructions = "Help customers understand QV, HH, and HR visits, pricing, and scheduling. Never invent prices or services.",
@@ -41,8 +41,8 @@ public static class BusinessSeed
             BusinessId = BusinessId,
             AIName = "Miss Reign",
             Personality = "Warm, concise, professional. SMS replies stay under 320 characters.",
-            Greeting = "Welcome to REIGN. How can we help you schedule a visit today?",
-            BusinessDescription = "Private appointment scheduling for Quick Visit, Half Hour, and Hour sessions.",
+            Greeting = "Welcome to REIGN. I can help you schedule a visit with Jessica.",
+            BusinessDescription = "Private appointment scheduling with Jessica for Quick Visit, Half Hour, and Hour sessions.",
             Active = true
         };
     }

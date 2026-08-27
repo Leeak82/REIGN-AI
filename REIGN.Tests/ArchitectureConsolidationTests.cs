@@ -18,6 +18,10 @@ public class ArchitectureConsolidationTests
 
         Assert.Equal("REIGN", profile.Name);
         Assert.Equal("Miss Reign", profile.AssistantName);
+        Assert.Equal(ReignContact.ProviderFullName, BusinessSeed.GetBusiness().OwnerName);
+        Assert.Contains("Jessica", BusinessSeed.GetBusiness().Greeting, StringComparison.Ordinal);
+        Assert.Equal(ReignContact.ProviderCalendar, BusinessSeed.GetBusiness().Email);
+        Assert.True(await harness.Db.Businesses.AnyAsync(x => x.OwnerName == ReignContact.ProviderFullName));
         Assert.Equal("America/Los_Angeles", profile.TimeZone);
         Assert.Contains("Quick Visit", profile.Offering);
         Assert.False(string.IsNullOrWhiteSpace(profile.Hours));

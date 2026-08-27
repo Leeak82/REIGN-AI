@@ -3,8 +3,14 @@
 Business Name:
 Miss Reign
 
+Service provider:
+Jessica Collins
+
 Business SMS:
 +19073001244 (Straight Talk)
+
+Schedule:
+Jessica's Google Calendar (j.collins2491@gmail.com), America/Los_Angeles.
 
 Service Area:
 Pierce County and King County including Tacoma and Federal Way areas.

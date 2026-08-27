@@ -77,4 +77,16 @@ public class PhoneAndCatalogTests
         Assert.False(ReignContact.IsPlaceholder(ReignContact.BusinessPhoneE164));
         Assert.False(ReignContact.IsPlaceholder("9073001244"));
     }
+
+    [Fact]
+    public void Jessica_is_the_provider_and_calendar_owner()
+    {
+        Assert.Equal("Jessica", ReignContact.ProviderFirstName);
+        Assert.Equal("Jessica Collins", ReignContact.ProviderFullName);
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.ProviderCalendar);
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay("primary"));
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay(null));
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay(""));
+        Assert.Equal("other@example.com", ReignContact.CalendarAccountForDisplay("other@example.com"));
+    }
 }

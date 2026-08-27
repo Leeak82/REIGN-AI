@@ -19,7 +19,7 @@ Use one directive per entry:
 
 <!-- observed: 2026-08-27 | status: active -->
 
-- Always use +19073001244 as the dedicated REIGN / Miss Reign customer SMS number. Live scheduling texts use that Straight Talk SIM (SmsGate) until Twilio A2P is approved. Never send customer texts from the owner personal cell.
+- Always treat Jessica Collins as the service provider. Confirmed visits go on `j.collins2491@gmail.com` so she can see her schedule and provide QV, HH, or HR. Miss Reign is the SMS assistant. Customers text +19073001244.
 
 ## Related
 

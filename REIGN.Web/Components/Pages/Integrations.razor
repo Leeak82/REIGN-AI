@@ -75,7 +75,7 @@ else
                 <div class="kv"><span class="k">Mode</span><span class="v"><StatusBadge Text="Simulated" Kind="info" /></span></div>
             }
             <p class="small faint mt-1" style="margin-bottom:0;">
-                Click Connect while signed into Google as <strong>@(Status.GoogleCalendar.ExpectedAccount ?? "j.collins2491@gmail.com")</strong>.
+                Click Connect while signed into Google as <strong>@(Status.GoogleCalendar.ExpectedAccount ?? ReignContact.ProviderCalendar)</strong>.
                 That grants REIGN permission to view, create, and change events on that calendar.
             </p>
             <a class="btn btn-primary btn-sm mt-1" href="@AuthorizeUrl">@(CalendarConnected ? "Reconnect Google Calendar" : "Connect Google Calendar")</a>

@@ -849,6 +849,35 @@ table.table {
     margin: 0;
 }
 
+.loop-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 22px;
+}
+
+.loop-step {
+    background: rgba(15, 23, 42, 0.35);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+}
+
+.loop-n {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 6px;
+}
+
+.loop-text {
+    font-size: 13.5px;
+    color: var(--text);
+    line-height: 1.4;
+    font-weight: 600;
+}
+
 /* ============ Conversation workspace ============ */
 
 .ws {
@@ -1527,6 +1556,7 @@ table.table {
 
     .grid-4 { grid-template-columns: repeat(2, 1fr); }
     .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .loop-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 900px) {
@@ -1583,6 +1613,10 @@ table.table {
 
 @media (max-width: 640px) {
     .grid-4, .grid-3, .grid-2 {
+        grid-template-columns: 1fr;
+    }
+
+    .loop-strip {
         grid-template-columns: 1fr;
     }
 

@@ -5,8 +5,8 @@
 <PageTitle>Calendar — REIGN AI</PageTitle>
 
 <div class="page-head">
-    <h1>Calendar</h1>
-    <p>Appointments REIGN has booked for your business.</p>
+    <h1>Jessica's schedule</h1>
+    <p>Confirmed customer texts land on Jessica's Google Calendar so she can show up and provide the visit.</p>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(Error))
@@ -27,8 +27,8 @@
         <div class="health-detail">
             @(Status == null ? "Checking connection…"
                 : GoogleConnected
-                    ? $"Connected via {Status.GoogleCalendar.ActiveProvider} · {CalendarTarget}"
-                    : $"Not connected — sign in as {CalendarTarget} to give REIGN calendar access")
+                    ? $"Connected to Jessica's calendar · {CalendarTarget}"
+                    : $"Not connected — Jessica signs in as {CalendarTarget} so booked visits show on her schedule")
         </div>
     </div>
     @if (Status != null)
@@ -47,7 +47,7 @@
 
 <div class="card mb-2">
     <div class="card-title">Book an appointment</div>
-    <div class="card-sub">Creates the visit on REIGN's calendar. Confirm adds it to Google Calendar when connected.</div>
+    <div class="card-sub">Creates the visit on Jessica's calendar when you confirm.</div>
     <div class="grid grid-2 mt-1">
         <div>
             <label class="field-label" for="booking-phone">Customer phone</label>
@@ -82,7 +82,7 @@
     </div>
     <label class="row-flex mt-1" style="gap:8px;">
         <input type="checkbox" @bind="BookConfirm" />
-        <span class="small">Confirm now (adds to Google Calendar when connected)</span>
+        <span class="small">Confirm now (adds to Jessica's Google Calendar when connected)</span>
     </label>
     <div class="mt-1">
         <button class="btn btn-primary" @onclick="Book" disabled="@Busy">Book Appointment</button>
@@ -101,7 +101,7 @@ else if (Appointments.Count == 0)
 {
     <div class="card">
         <EmptyState Title="No appointments yet"
-                    Description="Book from this page or wait for a customer to text REIGN."
+                    Description="@($"Book from this page or wait for a customer to text {ReignContact.BusinessPhoneDisplay}.")"
                     Icon="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
     </div>
 }
@@ -116,6 +116,7 @@ else
                     <th>Time</th>
                     <th>Price</th>
                     <th>Status</th>
+                    <th>Jessica's calendar</th>
                     <th></th>
                 </tr>
             </thead>
@@ -135,6 +136,24 @@ else
                         <td data-label="Price">@Fmt.Money(a.Price)</td>
                         <td data-label="Status">
                             <StatusBadge Text="@a.Status" Kind="@StatusBadge.KindForAppointment(a.Status)" />
+                        </td>
+                        <td data-label="Jessica's calendar">
+                            @if (!string.IsNullOrWhiteSpace(a.ExternalCalendarEventId))
+                            {
+                                <StatusBadge Text="On Google" Kind="success" />
+                            }
+                            else if (a.Status == "Confirmed")
+                            {
+                                <StatusBadge Text="Not on Google yet" Kind="warning" />
+                            }
+                            else if (a.Status == "Pending")
+                            {
+                                <StatusBadge Text="Waiting for YES" Kind="info" />
+                            }
+                            else
+                            {
+                                <span class="small faint">—</span>
+                            }
                         </td>
                         <td>
                             @if (a.Status != "Cancelled")
@@ -189,11 +208,10 @@ else
     private string TimeZoneLabel => string.IsNullOrWhiteSpace(TimeZoneId) ? "Pacific" : TimeZoneId.Replace('_', ' ');
 
     private string CalendarTarget =>
-        !string.IsNullOrWhiteSpace(Status?.GoogleCalendar.ExpectedAccount)
-            ? Status!.GoogleCalendar.ExpectedAccount!
-            : !string.IsNullOrWhiteSpace(Status?.GoogleCalendar.CalendarId)
-                ? Status!.GoogleCalendar.CalendarId!
-                : "j.collins2491@gmail.com";
+        ReignContact.CalendarAccountForDisplay(
+            !string.IsNullOrWhiteSpace(Status?.GoogleCalendar.ExpectedAccount)
+                ? Status!.GoogleCalendar.ExpectedAccount
+                : Status?.GoogleCalendar.CalendarId);
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -242,10 +260,25 @@ else
                 return;
             }
 
-            Notice = result?.Message ?? "Appointment booked.";
-            BookPhone = "";
-            BookName = "";
-            await Load();
+            if (result?.CalendarSynced == true)
+            {
+                Notice = "Booked. Jessica can see this on her Google Calendar.";
+                BookPhone = "";
+                BookName = "";
+                await Load();
+            }
+            else
+            {
+                Notice = result?.Message ?? "Appointment booked.";
+                var calendarError = result?.CalendarSyncError;
+                BookPhone = "";
+                BookName = "";
+                await Load();
+                if (!string.IsNullOrWhiteSpace(calendarError))
+                {
+                    Error = $"Jessica's Google Calendar did not update: {calendarError}";
+                }
+            }
         }
         finally
         {

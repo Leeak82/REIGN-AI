@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
 using REIGN.API.Options;
+using REIGN.Core.Contact;
 using REIGN.Data;
 using REIGN.Data.Models;
 
@@ -59,8 +60,8 @@ public class AppointmentCalendarSync
             {
                 AppointmentId = appointment.Id,
                 ExistingEventId = appointment.ExternalCalendarEventId,
-                Summary = $"REIGN {serviceName} — {who}",
-                Description = BuildEventDescription(
+            Summary = $"{serviceName} — {who}",
+            Description = BuildEventDescription(
                     businessName,
                     appointment.Status,
                     serviceName,
@@ -125,7 +126,7 @@ public class AppointmentCalendarSync
     {
         var lines = new List<string>
         {
-            $"{businessName} appointment (REIGN)",
+            $"{businessName} visit for {ReignContact.ProviderFirstName}",
             $"Status: {status}",
             $"Service: {serviceName}",
             $"Duration: {durationMinutes} minutes",
@@ -139,7 +140,7 @@ public class AppointmentCalendarSync
         }
 
         lines.Add($"Time zone: {timeZoneId}");
-        lines.Add("Booked through REIGN. Do not change the time here without updating REIGN.");
+        lines.Add($"{ReignContact.ProviderFirstName} sees this on her Google Calendar. Do not change the time here without updating REIGN.");
         return string.Join("\n", lines);
     }
 

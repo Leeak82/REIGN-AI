@@ -182,9 +182,9 @@ public class IntegrationsController : ControllerBase
             HttpContext?.Request,
             _environment.IsDevelopment());
 
-    private string? ExpectedGoogleAccount()
+    private string ExpectedGoogleAccount()
     {
         var calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId.Trim();
-        return calendarId.Contains('@', StringComparison.Ordinal) ? calendarId : null;
+        return ReignContact.CalendarAccountForDisplay(calendarId);
     }
 }

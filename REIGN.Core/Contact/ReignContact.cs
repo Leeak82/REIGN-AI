@@ -12,6 +12,22 @@ public static class ReignContact
 
     public const string BusinessPhoneDisplay = "(907) 300-1244";
 
+    public const string ProviderFirstName = "Jessica";
+
+    public const string ProviderFullName = "Jessica Collins";
+
+    public const string ProviderCalendar = "j.collins2491@gmail.com";
+
+    /// <summary>
+    /// Google account Jessica uses to see booked visits. Falls back to her
+    /// calendar when the configured id is "primary" or otherwise not an email.
+    /// </summary>
+    public static string CalendarAccountForDisplay(string? calendarId)
+    {
+        var value = calendarId?.Trim() ?? "";
+        return value.Contains('@', StringComparison.Ordinal) ? value : ProviderCalendar;
+    }
+
     /// <summary>
     /// True when the value is missing or a reserved 555 fictional number.
     /// </summary>
