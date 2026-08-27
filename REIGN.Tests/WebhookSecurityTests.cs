@@ -184,6 +184,13 @@ public class WebhookSecurityTests
             """{"event":"sms:received","payload":{"messageId":"m3","sender":"+15555550123","recipient":"+19073001244","message":"Hi","simNumber":1}}""");
         Assert.NotNull(withSim);
         Assert.Equal(1, withSim!.SimNumber);
+        Assert.Null(withSim.ReportedPhoneNumber);
+
+        var legacyFields = SmsGateWebhookValidator.TryParseReceived(
+            """{"event":"sms:received","payload":{"sender":"+19073001244","phoneNumber":"+13609261856","recipient":"+19073001244","message":"Hi"}}""");
+        Assert.NotNull(legacyFields);
+        Assert.Equal("+19073001244", legacyFields!.From);
+        Assert.Equal("+13609261856", legacyFields.ReportedPhoneNumber);
     }
 
     [Fact]

@@ -84,6 +84,24 @@ public class IncomingSmsProcessor
     {
         try
         {
+            var ownNumbers = OwnDeviceNumbers();
+            var resolved = PhoneNumbers.ResolveInboundEndpoints(
+                incoming.From,
+                incoming.To,
+                incoming.ReportedPhoneNumber,
+                ownNumbers);
+            if (resolved.Swapped)
+            {
+                _logger.LogInformation(
+                    "Inbound endpoints swapped; customer={Customer} device={Device} sim={Sim}",
+                    resolved.From,
+                    resolved.To,
+                    incoming.SimNumber);
+            }
+
+            incoming.From = resolved.From;
+            incoming.To = resolved.To;
+
             var from = PhoneNumbers.Normalize(incoming.From);
             if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(incoming.Body))
             {
@@ -96,7 +114,7 @@ public class IncomingSmsProcessor
                 };
             }
 
-            if (ShouldIgnoreNonCustomer(incoming, from))
+            if (ShouldIgnoreNonCustomer(incoming, from, ownNumbers))
             {
                 _logger.LogInformation("Ignored inbound from non-customer number {Phone}", from);
                 return new IncomingSmsResult
@@ -184,7 +202,11 @@ public class IncomingSmsProcessor
         {
             _logger.LogError(ex, "Incoming SMS processing failed");
             const string fallback = "I'm having trouble on my side. Please try again in a moment.";
-            var outbound = await TrySendAsync(incoming.From, fallback, sendReplyViaProvider, cancellationToken);
+            var outbound = await TrySendAsync(
+                PhoneNumbers.Normalize(incoming.From),
+                fallback,
+                sendReplyViaProvider,
+                cancellationToken);
             return new IncomingSmsResult
             {
                 Phone = incoming.From,
@@ -197,23 +219,25 @@ public class IncomingSmsProcessor
         }
     }
 
-    private bool ShouldIgnoreNonCustomer(IncomingSmsMessage incoming, string from)
+    private bool ShouldIgnoreNonCustomer(
+        IncomingSmsMessage incoming,
+        string from,
+        IReadOnlyList<string> ownNumbers)
     {
-        if (!string.IsNullOrWhiteSpace(_smsOptions.OwnerPhoneNumber) &&
-            PhoneNumbers.AreSame(from, _smsOptions.OwnerPhoneNumber))
-        {
-            return false;
-        }
-
         if (!string.IsNullOrWhiteSpace(incoming.To) && PhoneNumbers.AreSame(from, incoming.To))
         {
             return true;
         }
 
-        var ownNumbers = OwnDeviceNumbers();
         if (PhoneNumbers.IsOwnDeviceNumber(from, ownNumbers))
         {
             return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_smsOptions.OwnerPhoneNumber) &&
+            PhoneNumbers.AreSame(from, _smsOptions.OwnerPhoneNumber))
+        {
+            return false;
         }
 
         if (incoming.SimNumber is >= 1 and <= 3 &&
@@ -239,21 +263,11 @@ public class IncomingSmsProcessor
         return !_smsSender.IsSimulated && ReignContact.IsPlaceholder(from);
     }
 
-    private IReadOnlyList<string> OwnDeviceNumbers()
-    {
-        var values = new List<string?>
-        {
-            ReignContact.BusinessPhoneE164,
+    private IReadOnlyList<string> OwnDeviceNumbers() =>
+        PhoneNumbers.GatewayOwnNumbers(
             _smsOptions.BusinessPhoneNumber,
-            _smsOptions.SmsGate.FromNumber
-        };
-        values.AddRange(PhoneNumbers.SplitNumberList(_smsOptions.SmsGate.IgnoreFromNumbers));
-        return values
-            .Select(PhoneNumbers.Normalize)
-            .Where(static n => n.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
+            _smsOptions.SmsGate.FromNumber,
+            _smsOptions.SmsGate.IgnoreFromNumbers);
 
     private async Task<SmsSendResult?> TrySendAsync(
         string to,
@@ -266,11 +280,18 @@ public class IncomingSmsProcessor
             return null;
         }
 
+        var dest = PhoneNumbers.Normalize(to);
+        if (PhoneNumbers.IsOwnDeviceNumber(dest, OwnDeviceNumbers()))
+        {
+            _logger.LogWarning("Refusing to send SMS to gateway number {Phone}", dest);
+            return SmsSendResult.Fail(_smsSender.ProviderName, "Refusing to text the gateway phone.");
+        }
+
         try
         {
             var outbound = await _smsSender.SendAsync(new SmsSendRequest
             {
-                To = to,
+                To = dest,
                 Body = body
             }, cancellationToken);
 

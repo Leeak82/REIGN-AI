@@ -124,7 +124,9 @@ public static class SmsGateWebhookValidator
             return null;
         }
 
-        var from = ReadString(payload, "sender") ?? ReadString(payload, "phoneNumber");
+        var sender = ReadString(payload, "sender");
+        var reported = ReadString(payload, "phoneNumber");
+        var from = sender ?? reported;
         var to = ReadString(payload, "recipient");
         var body = ReadString(payload, "message") ?? ReadString(payload, "text");
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(body))
@@ -139,7 +141,8 @@ public static class SmsGateWebhookValidator
             Body = body,
             ProviderMessageId = ReadString(payload, "messageId") ?? ReadString(root, "id"),
             Provider = "SmsGate",
-            SimNumber = ReadInt(payload, "simNumber")
+            SimNumber = ReadInt(payload, "simNumber"),
+            ReportedPhoneNumber = reported
         };
     }
 

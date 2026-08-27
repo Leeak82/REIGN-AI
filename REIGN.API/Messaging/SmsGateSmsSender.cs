@@ -42,6 +42,17 @@ public class SmsGateSmsSender : ISmsSender
             return SmsSendResult.Fail(ProviderName, from.Error);
         }
 
+        var dest = PhoneNumbers.Normalize(request.To);
+        var ownNumbers = PhoneNumbers.GatewayOwnNumbers(
+            _options.BusinessPhoneNumber,
+            _options.SmsGate.FromNumber,
+            _options.SmsGate.IgnoreFromNumbers);
+        if (PhoneNumbers.IsOwnDeviceNumber(dest, ownNumbers))
+        {
+            _logger.LogWarning("Refusing SmsGate send to gateway number {Phone}", dest);
+            return SmsSendResult.Fail(ProviderName, "Refusing to text the gateway phone.");
+        }
+
         var baseUrl = string.IsNullOrWhiteSpace(_options.SmsGate.BaseUrl)
             ? DefaultBaseUrl
             : _options.SmsGate.BaseUrl.TrimEnd('/');
@@ -54,7 +65,7 @@ public class SmsGateSmsSender : ISmsSender
         var payload = new Dictionary<string, object?>
         {
             ["textMessage"] = new Dictionary<string, string> { ["text"] = request.Body },
-            ["phoneNumbers"] = new[] { PhoneNumbers.Normalize(request.To) },
+            ["phoneNumbers"] = new[] { dest },
             // >99 bypasses the Android app's send limits and delays.
             ["priority"] = 100
         };
@@ -83,7 +94,7 @@ public class SmsGateSmsSender : ISmsSender
                     "SmsGate send failed: {Status} From={From} To={To} {Body}",
                     (int)response.StatusCode,
                     from.Number,
-                    PhoneNumbers.Normalize(request.To),
+                    dest,
                     Truncate(body));
                 return SmsSendResult.Fail(ProviderName, $"SmsGate HTTP {(int)response.StatusCode}");
             }
@@ -92,7 +103,7 @@ public class SmsGateSmsSender : ISmsSender
             _logger.LogInformation(
                 "SmsGate send accepted From={From} To={To} Id={Id}",
                 from.Number,
-                PhoneNumbers.Normalize(request.To),
+                dest,
                 id);
             return SmsSendResult.Ok(ProviderName, id);
         }
