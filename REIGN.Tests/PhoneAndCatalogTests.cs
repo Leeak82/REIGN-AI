@@ -72,6 +72,8 @@ public class PhoneAndCatalogTests
         Assert.True(ReignContact.IsPlaceholder("+15555550100"));
         Assert.True(ReignContact.IsPlaceholder("555-555-0199"));
         Assert.True(ReignContact.IsPlaceholder(""));
+        Assert.True(ReignContact.IsPlaceholder("+13605550100"));
+        Assert.False(ReignContact.IsPlaceholder("+12065551234"));
         Assert.False(ReignContact.IsPlaceholder(ReignContact.BusinessPhoneE164));
         Assert.False(ReignContact.IsPlaceholder("9073001244"));
     }

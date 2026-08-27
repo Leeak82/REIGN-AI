@@ -28,6 +28,14 @@ public static class ReignContact
             digits = digits[1..];
         }
 
-        return digits.Length == 10 && digits.AsSpan(3, 3).SequenceEqual("555");
+        if (digits.Length != 10)
+        {
+            return false;
+        }
+
+        var npa = digits[..3];
+        var exchange = digits[3..6];
+        var line = digits[6..];
+        return npa == "555" || (exchange == "555" && line.StartsWith("01", StringComparison.Ordinal));
     }
 }

@@ -144,14 +144,14 @@ public class ConfigAndCalendarTests
         try
         {
             Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", null);
-            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", "+12065551234");
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", "+13609261856");
             var manager = new ConfigurationManager();
             manager.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Sms:BusinessPhoneNumber"] = "+15555550100"
             });
             ConfigEnvironmentAliases.Apply(manager);
-            Assert.Equal("+12065551234", manager["Sms:BusinessPhoneNumber"]);
+            Assert.Equal("+13609261856", manager["Sms:BusinessPhoneNumber"]);
         }
         finally
         {
