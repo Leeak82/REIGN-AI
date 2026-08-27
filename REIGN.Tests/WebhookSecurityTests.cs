@@ -221,4 +221,42 @@ public class WebhookSecurityTests
                 .Cast<Microsoft.AspNetCore.Mvc.ConsumesAttribute>(),
             a => a.ContentTypes.Contains("application/x-www-form-urlencoded"));
     }
+
+    [Fact]
+    public void SkipCalls_parser_reads_inbound_and_ignores_outbound()
+    {
+        var received = SkipCallsWebhookValidator.TryParseReceived(
+            """{"from":"+13609261856","to":"+15555550100","body":"Book QV","id":"sms-1"}""");
+        Assert.NotNull(received);
+        Assert.Equal("+13609261856", received!.From);
+        Assert.Equal("+15555550100", received.To);
+        Assert.Equal("Book QV", received.Body);
+        Assert.Equal("sms-1", received.ProviderMessageId);
+        Assert.Equal("SkipCalls", received.Provider);
+
+        var zapier = SkipCallsWebhookValidator.TryParseReceived(
+            """{"payload":{"phoneNumberFrom":"+13609261856","content":"Hi Miss Reign","conversationId":"c1"}}""");
+        Assert.NotNull(zapier);
+        Assert.Equal("+13609261856", zapier!.From);
+        Assert.Equal("Hi Miss Reign", zapier.Body);
+
+        Assert.Null(SkipCallsWebhookValidator.TryParseReceived(
+            """{"event":"sms_sent","from":"+15555550100","to":"+13609261856","body":"outbound"}"""));
+        Assert.True(SkipCallsWebhookValidator.IsAuthorized("secret-key", "secret-key"));
+        Assert.True(SkipCallsWebhookValidator.IsAuthorized("secret-key", "Bearer secret-key"));
+        Assert.False(SkipCallsWebhookValidator.IsAuthorized("secret-key", "other"));
+    }
+
+    [Fact]
+    public void SkipCalls_webhook_listens_on_skipcalls_path()
+    {
+        var method = typeof(REIGN.API.Controllers.SmsWebhookController).GetMethod(
+            nameof(REIGN.API.Controllers.SmsWebhookController.SkipCalls));
+        Assert.NotNull(method);
+        var posts = method!.GetCustomAttributes(typeof(Microsoft.AspNetCore.Mvc.HttpPostAttribute), false)
+            .Cast<Microsoft.AspNetCore.Mvc.HttpPostAttribute>()
+            .Select(a => a.Template)
+            .ToArray();
+        Assert.Contains("skipcalls", posts);
+    }
 }

@@ -48,6 +48,11 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:SmsGate:DeviceId", "SMSGATE_DEVICE_ID");
         TryAlias(configuration, extras, "Sms:SmsGate:SimNumber", "SMSGATE_SIM_NUMBER");
         TryAlias(configuration, extras, "Sms:SmsGate:IgnoreFromNumbers", "SMSGATE_IGNORE_FROM");
+        TryAlias(configuration, extras, "Sms:SkipCalls:AccessToken", "SKIPCALLS_TOKEN", "SKIPCALLS_ACCESS_TOKEN");
+        TryAlias(configuration, extras, "Sms:SkipCalls:BaseUrl", "SKIPCALLS_BASE_URL");
+        TryAlias(configuration, extras, "Sms:SkipCalls:FromNumber", "SKIPCALLS_FROM_NUMBER");
+        TryAlias(configuration, extras, "Sms:SkipCalls:AgentId", "SKIPCALLS_AGENT_ID");
+        TryAlias(configuration, extras, "Sms:SkipCalls:WebhookSecret", "SKIPCALLS_WEBHOOK_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:ApiKey", "VONAGE_API_KEY");
         TryAlias(configuration, extras, "Sms:Vonage:ApiSecret", "VONAGE_API_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:SignatureSecret", "VONAGE_SIGNATURE_SECRET");
@@ -108,7 +113,7 @@ public static class ConfigEnvironmentAliases
             if (SmsProviderSelection.IsSimulated(extras["Sms:Provider"]))
             {
                 throw new InvalidOperationException(
-                    "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
+                    "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, SkipCalls, Twilio, or Vonage.");
             }
 
             if (CalendarProviderSelection.IsSimulated(extras["GoogleCalendar:Provider"]))

@@ -56,6 +56,12 @@ public class ConfigAndCalendarTests
         Assert.Equal("Twilio", SmsProviderSelection.Resolve("", isDevelopment: false));
         Assert.Equal("Vonage", SmsProviderSelection.Resolve("Vonage", isDevelopment: false));
         Assert.Equal("SmsGate", SmsProviderSelection.Resolve("SmsGate", isDevelopment: false));
+        Assert.Equal("SkipCalls", SmsProviderSelection.Resolve("SkipCalls", isDevelopment: false));
+        Assert.Equal("SkipCalls", SmsProviderSelection.Resolve(
+            "SkipCalls",
+            isDevelopment: false,
+            businessNumber: ReignContact.BusinessPhoneE164,
+            twilioFromNumber: ""));
         Assert.Equal("Twilio", SmsProviderSelection.Resolve("Twilio", isDevelopment: true));
         Assert.Equal(
             "SmsGate",
