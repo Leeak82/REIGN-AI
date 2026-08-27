@@ -21,8 +21,9 @@ Runtime configuration is bound from ASP.NET Core keys, with aliases applied at s
 Also set for live SMS/calendar (not secrets, but required):
 
 ```
-SMS_PROVIDER=Twilio
-Sms__Provider=Twilio
+SMS_PROVIDER=SmsGate
+Sms__Provider=SmsGate
+Sms__BusinessPhoneNumber=+19073001244
 GoogleCalendar__Provider=Google
 GOOGLE_REDIRECT_URI=https://YOUR_DOMAIN/api/integrations/google/callback
 REIGN_API_BASE_URL=https://YOUR_API_ORIGIN/
@@ -192,7 +193,7 @@ If inbound shows 403 in Twilio Debugger, the signed URL did not match. Confirm t
 
 ## SmsGate (Android, open source)
 
-Free path for unknown customers: a dedicated Android phone + SIM running [SMS Gateway for Android](https://sms-gate.app/). The dedicated REIGN business number is the Straight Talk SIM **+19073001244**. Set `Sms__Provider=SmsGate`, `SMSGATE_USERNAME`, `SMSGATE_PASSWORD`, `SMSGATE_SIGNING_KEY`, and `SMSGATE_FROM_NUMBER=+19073001244`. Register HTTP POST `https://YOUR_HOST/api/sms/webhooks/smsgate` as the `sms:received` webhook. Details are in `HOSTING.md`.
+Live customer SMS while Twilio A2P is in review: a dedicated Android phone + Straight Talk SIM **+19073001244** running [SMS Gateway for Android](https://sms-gate.app/). Set `Sms__Provider=SmsGate`, `SMSGATE_USERNAME`, `SMSGATE_PASSWORD`, `SMSGATE_SIGNING_KEY`, and `SMSGATE_FROM_NUMBER=+19073001244`. Register HTTP POST `https://reign-ai-3.onrender.com/api/sms/webhooks/smsgate` as the `sms:received` webhook. Details are in `HOSTING.md`.
 
 ## Health
 

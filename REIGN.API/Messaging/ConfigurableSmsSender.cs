@@ -17,7 +17,12 @@ public class ConfigurableSmsSender : ISmsSender
         TextNowUnsupportedSmsSender textNow,
         IHostEnvironment environment)
     {
-        var provider = SmsProviderSelection.Resolve(options.Value.Provider, environment.IsDevelopment());
+        var sms = options.Value;
+        var provider = SmsProviderSelection.Resolve(
+            sms.Provider,
+            environment.IsDevelopment(),
+            sms.BusinessPhoneNumber,
+            sms.Twilio.FromNumber);
         _inner = provider.Trim().ToLowerInvariant() switch
         {
             "twilio" => twilio,

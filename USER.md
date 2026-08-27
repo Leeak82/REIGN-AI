@@ -19,7 +19,7 @@ Use one directive per entry:
 
 <!-- observed: 2026-08-27 | status: active -->
 
-- Always use +19073001244 as the dedicated REIGN / Miss Reign business SMS number. Never send customer texts from the owner personal cell.
+- Always use +19073001244 as the dedicated REIGN / Miss Reign customer SMS number. Live scheduling texts use that Straight Talk SIM (SmsGate) until Twilio A2P is approved. Never send customer texts from the owner personal cell.
 
 ## Related
 

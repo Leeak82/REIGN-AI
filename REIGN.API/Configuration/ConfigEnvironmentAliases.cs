@@ -92,7 +92,9 @@ public static class ConfigEnvironmentAliases
         var extras = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         extras["Sms:Provider"] = SmsProviderSelection.Resolve(
             configuration["Sms:Provider"],
-            environment.IsDevelopment());
+            environment.IsDevelopment(),
+            configuration["Sms:BusinessPhoneNumber"],
+            configuration["Sms:Twilio:FromNumber"]);
 
         if (!environment.IsDevelopment())
         {

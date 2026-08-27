@@ -57,6 +57,62 @@ public class ConfigAndCalendarTests
         Assert.Equal("Vonage", SmsProviderSelection.Resolve("Vonage", isDevelopment: false));
         Assert.Equal("SmsGate", SmsProviderSelection.Resolve("SmsGate", isDevelopment: false));
         Assert.Equal("Twilio", SmsProviderSelection.Resolve("Twilio", isDevelopment: true));
+        Assert.Equal(
+            "SmsGate",
+            SmsProviderSelection.Resolve(
+                "Twilio",
+                isDevelopment: false,
+                businessNumber: ReignContact.BusinessPhoneE164,
+                twilioFromNumber: ""));
+        Assert.Equal(
+            "SmsGate",
+            SmsProviderSelection.Resolve(
+                "Simulated",
+                isDevelopment: false,
+                businessNumber: "9073001244",
+                twilioFromNumber: "+15555550100"));
+        Assert.Equal(
+            "Twilio",
+            SmsProviderSelection.Resolve(
+                "Twilio",
+                isDevelopment: false,
+                businessNumber: ReignContact.BusinessPhoneE164,
+                twilioFromNumber: ReignContact.BusinessPhoneE164));
+        Assert.Equal(
+            "Vonage",
+            SmsProviderSelection.Resolve(
+                "Vonage",
+                isDevelopment: false,
+                businessNumber: ReignContact.BusinessPhoneE164,
+                twilioFromNumber: ""));
+    }
+
+    [Fact]
+    public void Runtime_defaults_route_straight_talk_to_smsgate_while_a2p_is_pending()
+    {
+        var previousProvider = Environment.GetEnvironmentVariable("SMS_PROVIDER");
+        var previousNested = Environment.GetEnvironmentVariable("Sms__Provider");
+        try
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", "Twilio");
+            Environment.SetEnvironmentVariable("Sms__Provider", "Twilio");
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:Provider"] = "Twilio",
+                ["Sms:BusinessPhoneNumber"] = ReignContact.BusinessPhoneE164,
+                ["Sms:Twilio:FromNumber"] = ""
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            var environment = new StubHostEnvironment { EnvironmentName = Environments.Production };
+            ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(manager, environment);
+            Assert.Equal("SmsGate", manager["Sms:Provider"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", previousProvider);
+            Environment.SetEnvironmentVariable("Sms__Provider", previousNested);
+        }
     }
 
     [Fact]
@@ -914,6 +970,8 @@ public class ConfigAndCalendarTests
     {
         var json = File.ReadAllText(Path.Combine(FindRepoRoot(), "REIGN.API", "appsettings.Production.json"));
         Assert.Contains("\"CalendarId\": \"j.collins2491@gmail.com\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Provider\": \"SmsGate\"", json, StringComparison.Ordinal);
+        Assert.Contains(ReignContact.BusinessPhoneE164, json, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -8,7 +8,7 @@ public class SmsOptions
 
     /// <summary>
     /// Simulated (Development/tests only), Twilio, Vonage, SmsGate, or TextNow.
-    /// Production defaults to Twilio unless SMS_PROVIDER is Vonage or SmsGate.
+    /// Production uses SmsGate for the Straight Talk SIM while Twilio A2P is pending.
     /// TextNow has no supported application SMS API and will not send or receive.
     /// SmsGate is the open-source Android SMS gateway (a real SIM on a phone).
     /// </summary>
