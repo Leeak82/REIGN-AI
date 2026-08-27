@@ -4,6 +4,7 @@ using REIGN.API.Calendar;
 using REIGN.API.Configuration;
 using REIGN.API.Messaging;
 using REIGN.API.Options;
+using REIGN.Core.Contact;
 
 namespace REIGN.API.Controllers;
 
@@ -48,7 +49,9 @@ public class IntegrationsController : ControllerBase
                 activeProvider = _sms.ProviderName,
                 simulated = _sms.IsSimulated,
                 credentialsPresent = _sms.IsConfigured,
-                businessPhoneConfigured = !string.IsNullOrWhiteSpace(_smsOptions.BusinessPhoneNumber),
+                businessPhoneNumber = PhoneNumbers.Normalize(_smsOptions.BusinessPhoneNumber),
+                businessPhoneDisplay = PhoneNumbers.FormatDisplay(_smsOptions.BusinessPhoneNumber),
+                businessPhoneConfigured = !ReignContact.IsPlaceholder(_smsOptions.BusinessPhoneNumber),
                 ownerPhoneConfigured = !string.IsNullOrWhiteSpace(_smsOptions.OwnerPhoneNumber),
                 textNowSupported = false,
                 textNowReason = TextNowUnsupportedSmsSender.Reason
@@ -179,9 +182,9 @@ public class IntegrationsController : ControllerBase
             HttpContext?.Request,
             _environment.IsDevelopment());
 
-    private string? ExpectedGoogleAccount()
+    private string ExpectedGoogleAccount()
     {
         var calendarId = string.IsNullOrWhiteSpace(_google.CalendarId) ? "primary" : _google.CalendarId.Trim();
-        return calendarId.Contains('@', StringComparison.Ordinal) ? calendarId : null;
+        return ReignContact.CalendarAccountForDisplay(calendarId);
     }
 }

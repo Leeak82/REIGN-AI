@@ -1,3 +1,7 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using REIGN.Core.Contact;
+
 namespace REIGN.API.Configuration;
 
 public static class ConfigStartupValidator
@@ -109,10 +113,10 @@ public static class ConfigStartupValidator
         }
         else if (smsProvider.Equals("TextNow", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogError("TextNow has no supported application SMS API. Set Sms__Provider to Simulated, Twilio, Vonage, or SmsGate.");
+            logger.LogError("TextNow has no supported application SMS API. Set Sms__Provider to Twilio, Vonage, or SmsGate.");
         }
 
-        if (Missing(configuration, "Sms:BusinessPhoneNumber"))
+        if (ReignContact.IsPlaceholder(configuration["Sms:BusinessPhoneNumber"]))
         {
             logger.LogWarning("Sms__BusinessPhoneNumber is not set. Incoming routing and outbound From-number checks need a dedicated REIGN business number.");
         }
@@ -182,21 +186,29 @@ public static class ConfigStartupValidator
             return;
         }
 
-        if (smsProvider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        var liveSms = SmsProviderSelection.Resolve(
+            smsProvider,
+            isDevelopment: false,
+            configuration["Sms:BusinessPhoneNumber"],
+            configuration["Sms:Twilio:FromNumber"]);
+        if (SmsProviderSelection.IsSimulated(liveSms))
         {
-            logger.LogWarning("Production is using Simulated SMS. Set Sms__Provider to Twilio, Vonage, or SmsGate before live customer traffic.");
+            throw new InvalidOperationException(
+                "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
         }
 
-        if (calendarProvider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
+        var liveCalendar = CalendarProviderSelection.Resolve(calendarProvider, isDevelopment: false);
+        if (CalendarProviderSelection.IsSimulated(liveCalendar))
         {
-            logger.LogWarning("Production is using Simulated Calendar. Set GoogleCalendar__Provider=Google, supply OAuth credentials, and complete the consent flow.");
+            throw new InvalidOperationException(
+                "Production cannot use Simulated Calendar. Set GoogleCalendar__Provider=Google, supply OAuth credentials, and complete the consent flow.");
         }
 
         var allowSimulator = configuration.GetValue("Sms:AllowInternalSimulator", false);
-        if (allowSimulator && Missing(configuration, "Sms:InternalApiKey"))
+        if (allowSimulator)
         {
-            logger.LogWarning(
-                "Production has Sms:AllowInternalSimulator enabled without Sms__InternalApiKey. The internal simulator is disabled until a key is set.");
+            throw new InvalidOperationException(
+                "Production cannot enable the internal SMS simulator. Set Sms__AllowInternalSimulator=false.");
         }
     }
 
@@ -206,7 +218,7 @@ public static class ConfigStartupValidator
     {
         if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return false;
         }
 
         if (provider.Equals("Twilio", StringComparison.OrdinalIgnoreCase))
@@ -235,7 +247,7 @@ public static class ConfigStartupValidator
     {
         if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return false;
         }
 
         return !Missing(configuration, "GoogleCalendar:ClientId")

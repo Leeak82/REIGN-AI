@@ -87,7 +87,9 @@ public class AppointmentCalendarSyncTests
 
         Assert.NotNull(calendar.LastRequest);
         Assert.Contains("REIGN", calendar.LastRequest!.Description, StringComparison.Ordinal);
-        Assert.Contains("Quick Visit", calendar.LastRequest.Description, StringComparison.Ordinal);
+        Assert.Contains("Miss Reign", calendar.LastRequest.Description, StringComparison.Ordinal);
+        Assert.Contains("Quick Visit", calendar.LastRequest.Summary, StringComparison.Ordinal);
+        Assert.Contains("Test", calendar.LastRequest.Summary, StringComparison.Ordinal);
         Assert.Contains("Duration: 20 minutes", calendar.LastRequest.Description, StringComparison.Ordinal);
         Assert.Contains("150", calendar.LastRequest.Description, StringComparison.Ordinal);
         Assert.Contains("+15555550123", calendar.LastRequest.Description, StringComparison.Ordinal);

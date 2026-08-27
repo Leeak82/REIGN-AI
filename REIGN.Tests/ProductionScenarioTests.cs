@@ -47,6 +47,7 @@ public class ProductionScenarioTests
         }, sendReplyViaProvider: false);
 
         Assert.Contains("YES", booked.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Miss Reign", booked.Reply, StringComparison.OrdinalIgnoreCase);
         var appointment = Assert.Single(harness.Db.Appointments.Include(x => x.Service));
         Assert.Equal(ServiceCatalog.HalfHourName, appointment.Service.Name);
         Assert.Equal(300m, appointment.Price);
@@ -60,6 +61,7 @@ public class ProductionScenarioTests
 
         Assert.Equal("confirm", confirmed.Intent);
         Assert.Contains("Confirmed", confirmed.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Miss Reign", confirmed.Reply, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Confirmed", (await harness.Db.Appointments.SingleAsync()).Status);
         Assert.False(string.IsNullOrWhiteSpace((await harness.Db.Appointments.SingleAsync()).ExternalCalendarEventId));
         Assert.Single(harness.Calendar.Events);

@@ -17,7 +17,18 @@ public class ConfigurableSmsSender : ISmsSender
         TextNowUnsupportedSmsSender textNow,
         IHostEnvironment environment)
     {
-        var provider = SmsProviderSelection.Resolve(options.Value.Provider, environment.IsDevelopment());
+        var sms = options.Value;
+        var provider = SmsProviderSelection.Resolve(
+            sms.Provider,
+            environment.IsDevelopment(),
+            sms.BusinessPhoneNumber,
+            sms.Twilio.FromNumber);
+        if (!environment.IsDevelopment() && SmsProviderSelection.IsSimulated(provider))
+        {
+            throw new InvalidOperationException(
+                "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
+        }
+
         _inner = provider.Trim().ToLowerInvariant() switch
         {
             "twilio" => twilio,

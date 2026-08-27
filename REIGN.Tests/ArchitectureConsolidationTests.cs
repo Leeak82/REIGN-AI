@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using REIGN.API.Services;
 using REIGN.Core.Catalog;
+using REIGN.Core.Contact;
 using REIGN.Data.Seed;
 using Xunit;
 
@@ -17,10 +18,16 @@ public class ArchitectureConsolidationTests
 
         Assert.Equal("REIGN", profile.Name);
         Assert.Equal("Miss Reign", profile.AssistantName);
+        Assert.Equal(ReignContact.PublicName, BusinessSeed.GetBusiness().OwnerName);
+        Assert.Contains("Miss Reign", BusinessSeed.GetBusiness().Greeting, StringComparison.Ordinal);
+        Assert.Equal(ReignContact.PublicEmail, BusinessSeed.GetBusiness().Email);
+        Assert.True(await harness.Db.Businesses.AnyAsync(x => x.OwnerName == ReignContact.PublicName));
         Assert.Equal("America/Los_Angeles", profile.TimeZone);
         Assert.Contains("Quick Visit", profile.Offering);
         Assert.False(string.IsNullOrWhiteSpace(profile.Hours));
         Assert.Equal(BusinessSeed.BusinessId, profile.Id);
+        Assert.Equal(ReignContact.BusinessPhoneE164, BusinessSeed.GetBusiness().Phone);
+        Assert.True(await harness.Db.Businesses.AnyAsync(x => x.Phone == ReignContact.BusinessPhoneE164));
         Assert.True(await harness.Db.Businesses.AnyAsync());
         Assert.True(await harness.Db.BusinessAIProfiles.AnyAsync(x => x.AIName == "Miss Reign"));
     }

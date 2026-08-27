@@ -1,3 +1,5 @@
+using REIGN.Core.Contact;
+
 namespace REIGN.API.Options;
 
 public class SmsOptions
@@ -6,7 +8,7 @@ public class SmsOptions
 
     /// <summary>
     /// Simulated (Development/tests only), Twilio, Vonage, SmsGate, or TextNow.
-    /// Production defaults to Twilio unless SMS_PROVIDER is Vonage or SmsGate.
+    /// Production uses SmsGate for the Straight Talk SIM while Twilio A2P is pending.
     /// TextNow has no supported application SMS API and will not send or receive.
     /// SmsGate is the open-source Android SMS gateway (a real SIM on a phone).
     /// </summary>
@@ -15,7 +17,7 @@ public class SmsOptions
     /// <summary>
     /// Dedicated REIGN business number. Must not be the owner's personal cell.
     /// </summary>
-    public string BusinessPhoneNumber { get; set; } = "+15555550100";
+    public string BusinessPhoneNumber { get; set; } = ReignContact.BusinessPhoneE164;
 
     /// <summary>
     /// Owner's personal number. Never used as the customer-facing From number.
@@ -95,10 +97,22 @@ public class SmsGateOptions
 
     /// <summary>
     /// HMAC-SHA256 signing key from the app Settings → Webhooks → Signing Key.
+    /// This is a secret, not the webhook URL.
     /// </summary>
     public string SigningKey { get; set; } = "";
 
-    public string FromNumber { get; set; } = "";
+    /// <summary>
+    /// Cloud device id from the app Home tab. Pins outbound SMS to that phone.
+    /// </summary>
+    public string DeviceId { get; set; } = "";
+
+    /// <summary>
+    /// 1-based SIM slot. Use 1 for the Straight Talk *1244 line on the dual-SIM Motorola.
+    /// 0 means let the app choose/rotate.
+    /// </summary>
+    public int SimNumber { get; set; }
+
+    public string FromNumber { get; set; } = ReignContact.BusinessPhoneE164;
 
     public bool RequireSignedWebhooks { get; set; } = true;
 }

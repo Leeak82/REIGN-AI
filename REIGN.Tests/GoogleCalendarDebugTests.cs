@@ -709,7 +709,8 @@ public class GoogleCalendarDebugTests
             calendar: new ConfigurableCalendarService(
                 Options.Create(options),
                 new SimulatedCalendarService(),
-                harness.Service),
+                harness.Service,
+                new StubHostEnvironment { EnvironmentName = Environments.Production }),
             googleCalendar: harness.Service,
             google: Options.Create(options),
             smsOptions: Options.Create(new SmsOptions()),

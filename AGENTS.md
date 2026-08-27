@@ -50,6 +50,7 @@ Memory is limited. "Mental notes" don't survive session restarts; files do. Befo
 ## Red Lines
 
 - Don't exfiltrate private data. Ever.
+- Never put a person's legal name in customer SMS, public pages, calendar event text, or dashboard copy. The public name is Miss Reign.
 - Don't run destructive commands without asking.
 - Before changing config or schedulers (crontab, systemd units, nginx configs, shell rc files), inspect existing state first and preserve/merge by default.
 - Prefer `trash` over `rm` - recoverable beats gone forever.

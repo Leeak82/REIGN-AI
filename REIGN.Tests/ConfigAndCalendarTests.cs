@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
 using REIGN.API.Configuration;
 using REIGN.API.Options;
+using REIGN.Core.Contact;
 using REIGN.Data;
 using REIGN.Data.Schema;
 using Xunit;
@@ -56,6 +57,106 @@ public class ConfigAndCalendarTests
         Assert.Equal("Vonage", SmsProviderSelection.Resolve("Vonage", isDevelopment: false));
         Assert.Equal("SmsGate", SmsProviderSelection.Resolve("SmsGate", isDevelopment: false));
         Assert.Equal("Twilio", SmsProviderSelection.Resolve("Twilio", isDevelopment: true));
+        Assert.Equal(
+            "SmsGate",
+            SmsProviderSelection.Resolve(
+                "Twilio",
+                isDevelopment: false,
+                businessNumber: ReignContact.BusinessPhoneE164,
+                twilioFromNumber: ""));
+        Assert.Equal(
+            "SmsGate",
+            SmsProviderSelection.Resolve(
+                "Simulated",
+                isDevelopment: false,
+                businessNumber: "9073001244",
+                twilioFromNumber: "+15555550100"));
+        Assert.Equal(
+            "Twilio",
+            SmsProviderSelection.Resolve(
+                "Twilio",
+                isDevelopment: false,
+                businessNumber: ReignContact.BusinessPhoneE164,
+                twilioFromNumber: ReignContact.BusinessPhoneE164));
+        Assert.Equal(
+            "Vonage",
+            SmsProviderSelection.Resolve(
+                "Vonage",
+                isDevelopment: false,
+                businessNumber: ReignContact.BusinessPhoneE164,
+                twilioFromNumber: ""));
+    }
+
+    [Fact]
+    public void Production_calendar_never_stays_simulated()
+    {
+        Assert.Equal("Simulated", CalendarProviderSelection.Resolve("Simulated", isDevelopment: true));
+        Assert.Equal("Simulated", CalendarProviderSelection.Resolve("", isDevelopment: true));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("Simulated", isDevelopment: false));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("", isDevelopment: false));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("Google", isDevelopment: false));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("Google", isDevelopment: true));
+    }
+
+    [Fact]
+    public void Production_runtime_defaults_reject_simulated_calendar()
+    {
+        var manager = new ConfigurationManager();
+        manager.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Sms:Provider"] = "SmsGate",
+            ["Sms:BusinessPhoneNumber"] = ReignContact.BusinessPhoneE164,
+            ["GoogleCalendar:Provider"] = "Simulated"
+        });
+        var environment = new StubHostEnvironment { EnvironmentName = Environments.Production };
+        ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(manager, environment);
+        Assert.Equal("SmsGate", manager["Sms:Provider"]);
+        Assert.Equal("Google", manager["GoogleCalendar:Provider"]);
+        Assert.Equal("false", manager["Sms:AllowInternalSimulator"]);
+    }
+
+    [Fact]
+    public void Production_startup_rejects_internal_sms_simulator()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Sms:Provider"] = "SmsGate",
+            ["GoogleCalendar:Provider"] = "Google",
+            ["Sms:AllowInternalSimulator"] = "true"
+        }).Build();
+
+        var logger = new ListLogger();
+        var error = Assert.Throws<InvalidOperationException>(
+            () => ConfigStartupValidator.Validate(configuration, logger, isProduction: true));
+        Assert.Contains("simulator", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Runtime_defaults_route_straight_talk_to_smsgate_while_a2p_is_pending()
+    {
+        var previousProvider = Environment.GetEnvironmentVariable("SMS_PROVIDER");
+        var previousNested = Environment.GetEnvironmentVariable("Sms__Provider");
+        try
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", "Twilio");
+            Environment.SetEnvironmentVariable("Sms__Provider", "Twilio");
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:Provider"] = "Twilio",
+                ["Sms:BusinessPhoneNumber"] = ReignContact.BusinessPhoneE164,
+                ["Sms:Twilio:FromNumber"] = ""
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            var environment = new StubHostEnvironment { EnvironmentName = Environments.Production };
+            ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(manager, environment);
+            Assert.Equal("SmsGate", manager["Sms:Provider"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", previousProvider);
+            Environment.SetEnvironmentVariable("Sms__Provider", previousNested);
+        }
     }
 
     [Fact]
@@ -100,6 +201,83 @@ public class ConfigAndCalendarTests
         {
             Environment.SetEnvironmentVariable("RENDER_EXTERNAL_URL", previousUrl);
             Environment.SetEnvironmentVariable("REIGN_PUBLIC_BASE_URL", previousPublic);
+        }
+    }
+
+    [Fact]
+    public void Apply_replaces_placeholder_with_straight_talk_business_number()
+    {
+        var previous = Environment.GetEnvironmentVariable("REIGN_BUSINESS_PHONE");
+        var previousNested = Environment.GetEnvironmentVariable("Sms__BusinessPhoneNumber");
+        var previousGate = Environment.GetEnvironmentVariable("Sms__SmsGate__FromNumber");
+        var previousSmsgate = Environment.GetEnvironmentVariable("SMSGATE_FROM_NUMBER");
+        try
+        {
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", null);
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", null);
+            Environment.SetEnvironmentVariable("Sms__SmsGate__FromNumber", null);
+            Environment.SetEnvironmentVariable("SMSGATE_FROM_NUMBER", null);
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:BusinessPhoneNumber"] = "+15555550100",
+                ["Sms:SmsGate:FromNumber"] = ""
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:BusinessPhoneNumber"]);
+            Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:SmsGate:FromNumber"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", previous);
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", previousNested);
+            Environment.SetEnvironmentVariable("Sms__SmsGate__FromNumber", previousGate);
+            Environment.SetEnvironmentVariable("SMSGATE_FROM_NUMBER", previousSmsgate);
+        }
+    }
+
+    [Fact]
+    public void Apply_maps_smsgate_device_and_sim_aliases()
+    {
+        var previousDevice = Environment.GetEnvironmentVariable("SMSGATE_DEVICE_ID");
+        var previousSim = Environment.GetEnvironmentVariable("SMSGATE_SIM_NUMBER");
+        try
+        {
+            Environment.SetEnvironmentVariable("SMSGATE_DEVICE_ID", "device-abc");
+            Environment.SetEnvironmentVariable("SMSGATE_SIM_NUMBER", "1");
+            var manager = new ConfigurationManager();
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal("device-abc", manager["Sms:SmsGate:DeviceId"]);
+            Assert.Equal("1", manager["Sms:SmsGate:SimNumber"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SMSGATE_DEVICE_ID", previousDevice);
+            Environment.SetEnvironmentVariable("SMSGATE_SIM_NUMBER", previousSim);
+        }
+    }
+
+    [Fact]
+    public void Apply_keeps_explicit_non_placeholder_business_number()
+    {
+        var previous = Environment.GetEnvironmentVariable("REIGN_BUSINESS_PHONE");
+        var previousNested = Environment.GetEnvironmentVariable("Sms__BusinessPhoneNumber");
+        try
+        {
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", null);
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", "+13609261856");
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:BusinessPhoneNumber"] = "+15555550100"
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal("+13609261856", manager["Sms:BusinessPhoneNumber"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", previous);
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", previousNested);
         }
     }
 
@@ -853,10 +1031,13 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
-    public void Production_appsettings_targets_collins_calendar()
+    public void Production_appsettings_targets_google_calendar_id()
     {
         var json = File.ReadAllText(Path.Combine(FindRepoRoot(), "REIGN.API", "appsettings.Production.json"));
         Assert.Contains("\"CalendarId\": \"j.collins2491@gmail.com\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Provider\": \"SmsGate\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Provider\": \"Google\"", json, StringComparison.Ordinal);
+        Assert.Contains(ReignContact.BusinessPhoneE164, json, StringComparison.Ordinal);
     }
 
     [Fact]

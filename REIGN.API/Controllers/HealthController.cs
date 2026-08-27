@@ -96,7 +96,7 @@ public class HealthController : ControllerBase
         var provider = _sms.Provider ?? "Simulated";
         if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return false;
         }
 
         if (provider.Equals("Twilio", StringComparison.OrdinalIgnoreCase))
@@ -129,7 +129,7 @@ public class HealthController : ControllerBase
         var provider = CalendarProvider();
         if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return false;
         }
 
         return !string.IsNullOrWhiteSpace(_google.ClientId) &&

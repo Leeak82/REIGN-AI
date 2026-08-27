@@ -540,6 +540,8 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
         public decimal Price { get; set; }
 
         public int DurationMinutes { get; set; }
+
+        public string? ExternalCalendarEventId { get; set; }
     }
 
     public class AppointmentWriteDto
@@ -599,6 +601,10 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
         public bool CredentialsPresent { get; set; }
 
         public bool BusinessPhoneConfigured { get; set; }
+
+        public string? BusinessPhoneNumber { get; set; }
+
+        public string? BusinessPhoneDisplay { get; set; }
 
         public bool OwnerPhoneConfigured { get; set; }
     }

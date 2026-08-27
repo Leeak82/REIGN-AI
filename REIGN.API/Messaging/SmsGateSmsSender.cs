@@ -51,12 +51,23 @@ public class SmsGateSmsSender : ISmsSender
         var credentials = Convert.ToBase64String(
             Encoding.UTF8.GetBytes($"{_options.SmsGate.Username}:{_options.SmsGate.Password}"));
         message.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        var payload = new Dictionary<string, object?>
+        {
+            ["textMessage"] = new Dictionary<string, string> { ["text"] = request.Body },
+            ["phoneNumbers"] = new[] { PhoneNumbers.Normalize(request.To) }
+        };
+        if (!string.IsNullOrWhiteSpace(_options.SmsGate.DeviceId))
+        {
+            payload["deviceId"] = _options.SmsGate.DeviceId.Trim();
+        }
+
+        if (_options.SmsGate.SimNumber is >= 1 and <= 3)
+        {
+            payload["simNumber"] = _options.SmsGate.SimNumber;
+        }
+
         message.Content = new StringContent(
-            JsonSerializer.Serialize(new
-            {
-                textMessage = new { text = request.Body },
-                phoneNumbers = new[] { PhoneNumbers.Normalize(request.To) }
-            }),
+            JsonSerializer.Serialize(payload),
             Encoding.UTF8,
             "application/json");
 

@@ -1,3 +1,5 @@
+using REIGN.Core.Contact;
+
 namespace REIGN.API.Legal;
 
 /// <summary>
@@ -12,10 +14,10 @@ public static class SmsProgramPages
 
     public static string PrivacyHtml() => Page(
         "Privacy Policy — Miss Reign",
-        """
+        $"""
         <h1>Miss Reign SMS Privacy Policy</h1>
         <p>Effective date: August 27, 2026</p>
-        <p>This policy describes how Miss Reign (operated with REIGN AI) collects and uses information when you text our dedicated scheduling number.</p>
+        <p>This policy describes how Miss Reign (operated with REIGN AI) collects and uses information when you text our dedicated scheduling number {ReignContact.BusinessPhoneDisplay}.</p>
 
         <h2>Who we are</h2>
         <p>Miss Reign is an appointment scheduling and customer-care service for Pierce County and King County, Washington, including Tacoma and Federal Way. Visits offered: Quick Visit (QV) $150 / under 30 minutes, Half Hour (HH) $300 / 30 minutes, and Hour (HR) $500 / 60 minutes.</p>
@@ -33,23 +35,23 @@ public static class SmsProgramPages
         <p>Reply <strong>STOP</strong> to opt out of SMS. Reply <strong>HELP</strong> for help. You may also text START to the same dedicated Miss Reign number to opt in again.</p>
 
         <h2>Contact</h2>
-        <p>For privacy questions, text HELP to the dedicated Miss Reign scheduling number, or ask for a human owner during an SMS conversation.</p>
+        <p>For privacy questions, text HELP to {ReignContact.BusinessPhoneDisplay}, or ask for a human owner during an SMS conversation.</p>
 
         <p><a href="/sms">SMS program</a> · <a href="/terms">Terms and Conditions</a></p>
         """);
 
     public static string TermsHtml() => Page(
         "SMS Terms — Miss Reign",
-        """
+        $"""
         <h1>Miss Reign SMS Terms and Conditions</h1>
         <p>Effective date: August 27, 2026</p>
-        <p>These terms cover the Miss Reign / REIGN AI text-messaging program on our dedicated Twilio 10DLC number.</p>
+        <p>These terms cover the Miss Reign / REIGN AI text-messaging program on our dedicated scheduling number {ReignContact.BusinessPhoneDisplay} ({ReignContact.BusinessPhoneE164}).</p>
 
         <h2>Program</h2>
         <p>Miss Reign sends customer-care SMS about appointment scheduling, availability, confirmations, reschedules, and cancellations for Quick Visit ($150), Half Hour ($300), and Hour ($500) visits in Pierce County and King County, Washington.</p>
 
         <h2>Consent</h2>
-        <p>You opt in by texting the dedicated Miss Reign scheduling number, or by texting START to that number. SMS is optional. You do not have to join the text program to request in-person service by other means.</p>
+        <p>You opt in by texting {ReignContact.BusinessPhoneDisplay}, or by texting START to that number. SMS is optional. You do not have to join the text program to request in-person service by other means.</p>
 
         <h2>Frequency and rates</h2>
         <p>Message frequency varies. Message and data rates may apply.</p>
@@ -61,7 +63,7 @@ public static class SmsProgramPages
         <p>Carriers are not liable for any delayed or undelivered messages.</p>
 
         <h2>Support</h2>
-        <p>Text HELP to the dedicated Miss Reign scheduling number for customer support.</p>
+        <p>Text HELP to {ReignContact.BusinessPhoneDisplay} for customer support.</p>
 
         <p>Privacy Policy: <a href="/privacy">https://reign-ai-3.onrender.com/privacy</a></p>
         <p><a href="/sms">SMS program</a></p>
@@ -69,7 +71,7 @@ public static class SmsProgramPages
 
     public static string ProgramHtml() => Page(
         "Miss Reign SMS Program",
-        """
+        $"""
         <h1>Miss Reign</h1>
         <p>Customer-care and appointment scheduling assistant for Pierce County and King County, Washington (Tacoma and Federal Way areas). Scheduling uses Google Calendar in America/Los_Angeles.</p>
 
@@ -81,7 +83,7 @@ public static class SmsProgramPages
         </ul>
 
         <h2>How to opt in</h2>
-        <p>Text the dedicated Miss Reign scheduling number, or text START to that number. By doing so you agree to receive customer-care texts from Miss Reign about scheduling. Message frequency varies. Message and data rates may apply. Reply STOP to opt out. Reply HELP for help.</p>
+        <p>Text {ReignContact.BusinessPhoneDisplay} ({ReignContact.BusinessPhoneE164}), or text START to that number. By doing so you agree to receive customer-care texts from Miss Reign about scheduling. Message frequency varies. Message and data rates may apply. Reply STOP to opt out. Reply HELP for help.</p>
         <p>No website checkbox is used. Consent is not pre-checked and is not required to receive in-person service.</p>
 
         <p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms and Conditions</a></p>

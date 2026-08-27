@@ -85,6 +85,7 @@ public class IncomingSmsProcessorTests
         }, sendReplyViaProvider: false);
 
         Assert.Contains("YES", timed.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Miss Reign", timed.Reply, StringComparison.OrdinalIgnoreCase);
         var appointment = Assert.Single(harness.Db.Appointments);
         Assert.Equal(15, appointment.AppointmentTime.Hour);
         Assert.Equal(DayOfWeek.Friday, appointment.AppointmentTime.DayOfWeek);
@@ -118,6 +119,9 @@ public class IncomingSmsProcessorTests
         });
 
         var ok = Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(result);
+        var json = System.Text.Json.JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("Miss Reign", json, StringComparison.Ordinal);
+        Assert.Contains("Google Calendar", json, StringComparison.Ordinal);
         Assert.Single(harness.Db.Appointments);
         var appointment = harness.Db.Appointments.Include(x => x.Service).Include(x => x.Customer).Single();
         Assert.Equal("Confirmed", appointment.Status);
@@ -144,6 +148,7 @@ public class IncomingSmsProcessorTests
         Assert.True(result.AutoReplied);
         Assert.Contains("Quick Visit", result.Reply, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("YES", result.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Miss Reign", result.Reply, StringComparison.OrdinalIgnoreCase);
         Assert.True(result.Outbound?.Simulated);
         Assert.True(result.Persisted);
 
@@ -162,6 +167,7 @@ public class IncomingSmsProcessorTests
         }, sendReplyViaProvider: false);
 
         Assert.Contains("Confirmed", confirmed.Reply, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Miss Reign", confirmed.Reply, StringComparison.OrdinalIgnoreCase);
         appointment = await harness.Db.Appointments.SingleAsync();
         Assert.Equal("Confirmed", appointment.Status);
         Assert.False(string.IsNullOrWhiteSpace(appointment.ExternalCalendarEventId));

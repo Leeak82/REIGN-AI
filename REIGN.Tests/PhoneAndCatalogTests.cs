@@ -1,6 +1,8 @@
 using REIGN.API.Messaging;
 using REIGN.API.Options;
 using REIGN.Core.Catalog;
+using REIGN.Core.Contact;
+using REIGN.Data.Seed;
 using Xunit;
 
 namespace REIGN.Tests;
@@ -46,12 +48,51 @@ public class PhoneAndCatalogTests
     {
         var options = new SmsOptions
         {
-            BusinessPhoneNumber = "+15555550100",
+            BusinessPhoneNumber = ReignContact.BusinessPhoneE164,
             OwnerPhoneNumber = "+15555550199"
         };
 
         var result = BusinessNumberGuard.ResolveFromNumber(options, null, null);
         Assert.Null(result.Error);
-        Assert.Equal("+15555550100", result.Number);
+        Assert.Equal(ReignContact.BusinessPhoneE164, result.Number);
+    }
+
+    [Theory]
+    [InlineData("9073001244", "+19073001244")]
+    [InlineData("+1 (907) 300-1244", "+19073001244")]
+    [InlineData("19073001244", "+19073001244")]
+    public void Straight_talk_business_number_normalizes_to_e164(string input, string expected)
+    {
+        Assert.Equal(expected, PhoneNumbers.Normalize(input));
+        Assert.Equal(ReignContact.BusinessPhoneDisplay, PhoneNumbers.FormatDisplay(input));
+    }
+
+    [Fact]
+    public void Fictional_555_numbers_are_placeholders()
+    {
+        Assert.True(ReignContact.IsPlaceholder("+15555550100"));
+        Assert.True(ReignContact.IsPlaceholder("555-555-0199"));
+        Assert.True(ReignContact.IsPlaceholder(""));
+        Assert.True(ReignContact.IsPlaceholder("+13605550100"));
+        Assert.False(ReignContact.IsPlaceholder("+12065551234"));
+        Assert.False(ReignContact.IsPlaceholder(ReignContact.BusinessPhoneE164));
+        Assert.False(ReignContact.IsPlaceholder("9073001244"));
+    }
+
+    [Fact]
+    public void Public_name_is_miss_reign()
+    {
+        Assert.Equal("Miss Reign", ReignContact.PublicName);
+        Assert.Equal("hello@reign.ai", ReignContact.PublicEmail);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetBusiness().Greeting, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetAIProfile().Greeting, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetAIProfile().BusinessDescription, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetBusiness().OwnerName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetBusiness().Email, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.ProviderCalendar);
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay("primary"));
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay(null));
+        Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay(""));
+        Assert.Equal("other@example.com", ReignContact.CalendarAccountForDisplay("other@example.com"));
     }
 }

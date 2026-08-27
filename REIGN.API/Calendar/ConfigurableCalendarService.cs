@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using REIGN.API.Configuration;
 using REIGN.API.Options;
 
 namespace REIGN.API.Calendar;
@@ -11,14 +12,22 @@ public class ConfigurableCalendarService : ICalendarService
     public ConfigurableCalendarService(
         IOptions<GoogleCalendarOptions> options,
         SimulatedCalendarService simulated,
-        GoogleCalendarService google)
+        GoogleCalendarService google,
+        IHostEnvironment environment)
     {
         _google = google;
-        _inner = options.Value.Provider.Trim().ToLowerInvariant() switch
+        var provider = CalendarProviderSelection.Resolve(
+            options.Value.Provider,
+            environment.IsDevelopment());
+        if (!environment.IsDevelopment() && CalendarProviderSelection.IsSimulated(provider))
         {
-            "google" => google,
-            _ => simulated
-        };
+            throw new InvalidOperationException(
+                "Production cannot use Simulated Calendar. Set GoogleCalendar__Provider=Google.");
+        }
+
+        _inner = provider.Equals("google", StringComparison.OrdinalIgnoreCase)
+            ? google
+            : environment.IsDevelopment() ? simulated : google;
     }
 
     public string ProviderName => _inner.ProviderName;

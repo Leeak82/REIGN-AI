@@ -107,7 +107,9 @@ public class AppointmentsController : ControllerBase
             return Ok(new
             {
                 message = appointment.Status == "Confirmed"
-                    ? "Appointment booked"
+                    ? (write.CalendarSync?.Succeeded == true
+                        ? "Appointment booked. Miss Reign has it on the Google Calendar."
+                        : "Appointment booked.")
                     : "Appointment saved. Confirm to add it to the calendar.",
                 appointment.Id,
                 customer = customer.Name ?? customer.PhoneNumber,

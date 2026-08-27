@@ -84,17 +84,17 @@ You do not need a `/data` disk for PostgreSQL.
 
 Sending a message from the Twilio Console uses Twilio's own API. It does **not** call REIGN. Live customer texts only work when the **phone number** webhook is HTTP POST:
 
-`https://reign-ai-2.onrender.com/api/sms/incoming`
+`https://reign-ai-3.onrender.com/api/sms/incoming`
 
 Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (live token, not test), `TWILIO_FROM_NUMBER` (the dedicated Twilio number), and `TWILIO_WEBHOOK_URL` to that same URL. Twilio form-POSTs `From`, `To`, `Body`, and `MessageSid`. JSON POST `/api/sms/incoming` is still the Development simulator and is disabled in production. `/api/sms/webhooks/twilio` remains a compatible alias.
 
 ## SmsGate (open-source Android SMS)
 
-This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://sms-gate.app/) (Apache 2.0). Unknown customers text the **SIM number** on that phone. Replies go out through the same SIM. Cost is the phone’s SMS plan, not Twilio.
+This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://sms-gate.app/) (Apache 2.0). This is the **live customer number while Twilio A2P is in review**. Unknown customers text the dedicated Straight Talk SIM **+19073001244**. Replies go out through the same SIM. Cost is the phone’s SMS plan, not Twilio.
 
 1. Put a dedicated SIM (not the owner personal cell) in an Android phone. Keep the phone charged and online.
 2. Install **SMS Gateway for Android**. Use **Cloud** mode so Render can reach it.
-3. Copy username/password from the app Home tab. Copy the webhook **Signing Key** from Settings → Webhooks.
+3. Copy username/password from the app Home tab. Copy the webhook **Signing Key** from Settings → Webhooks. That field is a secret used for HMAC. Do **not** paste the webhook URL into Signing Key.
 4. On Render set:
 
 | Key | Value |
@@ -102,23 +102,25 @@ This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://s
 | `Sms__Provider` | `SmsGate` |
 | `SMSGATE_USERNAME` | app username |
 | `SMSGATE_PASSWORD` | app password |
-| `SMSGATE_SIGNING_KEY` | webhook signing key |
-| `SMSGATE_FROM_NUMBER` | the SIM number in E.164 |
-| `Sms__BusinessPhoneNumber` | same SIM number |
+| `SMSGATE_SIGNING_KEY` | webhook signing key (must match Settings → Webhooks) |
+| `SMSGATE_FROM_NUMBER` | `+19073001244` (Straight Talk SIM) |
+| `SMSGATE_DEVICE_ID` | Home tab Device ID (pins the Motorola) |
+| `SMSGATE_SIM_NUMBER` | `1` (Straight Talk *1244; skip if the phone has one SIM) |
+| `Sms__BusinessPhoneNumber` | `+19073001244` |
 | `Sms__OwnerPhoneNumber` | owner personal cell |
 
-5. Register the inbound webhook (Cloud mode):
+5. Register the inbound webhook (Cloud mode), not in the Signing Key field:
 
 ```
 curl -X POST -u USER:PASS \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://reign-ai-2.onrender.com/api/sms/webhooks/smsgate","event":"sms:received"}' \
+  -d '{"url":"https://reign-ai-3.onrender.com/api/sms/webhooks/smsgate","event":"sms:received"}' \
   https://api.sms-gate.app/3rdparty/v1/webhooks
 ```
 
 6. Text the SIM number from another phone. Miss Reign replies through the Android device.
 
-Carriers can still flag automated SMS on a consumer SIM. This is the free path; paid Twilio + A2P remains the reliable public-number path.
+Carriers can still flag automated SMS on a consumer SIM. Twilio A2P remains the later public-number path after campaign approval.
 
 ## Docker
 

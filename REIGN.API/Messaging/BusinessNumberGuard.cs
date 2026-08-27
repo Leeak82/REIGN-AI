@@ -21,7 +21,7 @@ public static class BusinessNumberGuard
         {
             return new FromNumberResult("",
                 "The REIGN business number must be separate from the owner's personal number. " +
-                "Provision a dedicated Twilio or Vonage number instead of toggling a personal cell.");
+                "Use the dedicated Straight Talk SIM or a Twilio/Vonage number instead of toggling a personal cell.");
         }
 
         return new FromNumberResult(business, null);

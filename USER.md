@@ -17,9 +17,13 @@ Use one directive per entry:
 
 ## Directives
 
-<!-- observed: YYYY-MM-DD | status: active -->
+<!-- observed: 2026-08-27 | status: superseded -->
 
-- Prefer ...
+- Named a private person as the service provider in public copy.
+
+<!-- observed: 2026-08-27 | status: active -->
+
+- Always use Miss Reign as the public name. Never put a legal name in customer SMS, public pages, calendar event text, or dashboard copy. Customers text +19073001244. Booked visits sync to the configured Google Calendar account.
 
 ## Related
 

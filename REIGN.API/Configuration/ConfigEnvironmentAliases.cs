@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Configuration;
+using REIGN.API.Messaging;
+using REIGN.Core.Contact;
 
 namespace REIGN.API.Configuration;
 
@@ -43,11 +45,13 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:SmsGate:BaseUrl", "SMSGATE_BASE_URL");
         TryAlias(configuration, extras, "Sms:SmsGate:SigningKey", "SMSGATE_SIGNING_KEY");
         TryAlias(configuration, extras, "Sms:SmsGate:FromNumber", "SMSGATE_FROM_NUMBER");
+        TryAlias(configuration, extras, "Sms:SmsGate:DeviceId", "SMSGATE_DEVICE_ID");
+        TryAlias(configuration, extras, "Sms:SmsGate:SimNumber", "SMSGATE_SIM_NUMBER");
         TryAlias(configuration, extras, "Sms:Vonage:ApiKey", "VONAGE_API_KEY");
         TryAlias(configuration, extras, "Sms:Vonage:ApiSecret", "VONAGE_API_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:SignatureSecret", "VONAGE_SIGNATURE_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:FromNumber", "VONAGE_FROM_NUMBER");
-        TryAlias(configuration, extras, "Sms:BusinessPhoneNumber", "REIGN_BUSINESS_PHONE");
+        TryAlias(configuration, extras, "Sms:BusinessPhoneNumber", allowOverride: true, "REIGN_BUSINESS_PHONE");
         TryAlias(configuration, extras, "Sms:OwnerPhoneNumber", "REIGN_OWNER_PHONE");
         TryAlias(configuration, extras, "Sms:InternalApiKey", "REIGN_INTERNAL_API_KEY");
         TryAlias(configuration, extras, "Sms:PublicBaseUrl", "REIGN_PUBLIC_BASE_URL", "RENDER_EXTERNAL_URL");
@@ -77,6 +81,8 @@ public static class ConfigEnvironmentAliases
             extras["Sms:Provider"] = smsProvider.Trim();
         }
 
+        ApplyDedicatedBusinessNumber(configuration, extras);
+
         if (extras.Count > 0)
         {
             configuration.AddInMemoryCollection(extras);
@@ -88,11 +94,27 @@ public static class ConfigEnvironmentAliases
         var extras = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         extras["Sms:Provider"] = SmsProviderSelection.Resolve(
             configuration["Sms:Provider"],
+            environment.IsDevelopment(),
+            configuration["Sms:BusinessPhoneNumber"],
+            configuration["Sms:Twilio:FromNumber"]);
+        extras["GoogleCalendar:Provider"] = CalendarProviderSelection.Resolve(
+            configuration["GoogleCalendar:Provider"],
             environment.IsDevelopment());
 
         if (!environment.IsDevelopment())
         {
             extras["Sms:AllowInternalSimulator"] = "false";
+            if (SmsProviderSelection.IsSimulated(extras["Sms:Provider"]))
+            {
+                throw new InvalidOperationException(
+                    "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
+            }
+
+            if (CalendarProviderSelection.IsSimulated(extras["GoogleCalendar:Provider"]))
+            {
+                throw new InvalidOperationException(
+                    "Production cannot use Simulated Calendar. Set GoogleCalendar__Provider=Google and complete Google consent.");
+            }
         }
 
         configuration.AddInMemoryCollection(extras);
@@ -181,6 +203,34 @@ public static class ConfigEnvironmentAliases
         {
             extras["GoogleCalendar:RedirectUri"] = publicCallback;
         }
+    }
+
+    private static void ApplyDedicatedBusinessNumber(
+        IConfiguration configuration,
+        IDictionary<string, string?> extras)
+    {
+        extras["Sms:BusinessPhoneNumber"] = ResolveDedicatedNumber(
+            extras,
+            configuration,
+            "Sms:BusinessPhoneNumber");
+        extras["Sms:SmsGate:FromNumber"] = ResolveDedicatedNumber(
+            extras,
+            configuration,
+            "Sms:SmsGate:FromNumber");
+    }
+
+    private static string ResolveDedicatedNumber(
+        IDictionary<string, string?> extras,
+        IConfiguration configuration,
+        string configurationKey)
+    {
+        extras.TryGetValue(configurationKey, out var aliased);
+        var current = NullIfWhiteSpace(aliased)
+            ?? NullIfWhiteSpace(configuration[configurationKey]);
+        var normalized = PhoneNumbers.Normalize(current);
+        return ReignContact.IsPlaceholder(normalized)
+            ? ReignContact.BusinessPhoneE164
+            : normalized;
     }
 
     private static string? NullIfWhiteSpace(string? value) =>

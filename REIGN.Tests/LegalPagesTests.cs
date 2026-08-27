@@ -1,5 +1,6 @@
 using REIGN.API.Controllers;
 using REIGN.API.Legal;
+using REIGN.Core.Contact;
 using Xunit;
 
 namespace REIGN.Tests;
@@ -17,6 +18,7 @@ public class LegalPagesTests
         Assert.Contains("STOP", html, StringComparison.Ordinal);
         Assert.Contains("HELP", html, StringComparison.Ordinal);
         Assert.Contains("Miss Reign", html, StringComparison.Ordinal);
+        Assert.Contains(ReignContact.BusinessPhoneDisplay, html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -29,6 +31,8 @@ public class LegalPagesTests
         Assert.Contains("Carriers are not liable", html, StringComparison.Ordinal);
         Assert.Contains("/privacy", html, StringComparison.Ordinal);
         Assert.Contains("Miss Reign", html, StringComparison.Ordinal);
+        Assert.Contains(ReignContact.BusinessPhoneDisplay, html, StringComparison.Ordinal);
+        Assert.Contains(ReignContact.BusinessPhoneE164, html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -40,6 +44,8 @@ public class LegalPagesTests
         Assert.Contains("Message and data rates may apply", html, StringComparison.Ordinal);
         Assert.Contains("/privacy", html, StringComparison.Ordinal);
         Assert.Contains("/terms", html, StringComparison.Ordinal);
+        Assert.Contains(ReignContact.BusinessPhoneDisplay, html, StringComparison.Ordinal);
+        Assert.Contains(ReignContact.BusinessPhoneE164, html, StringComparison.Ordinal);
     }
 
     [Fact]
