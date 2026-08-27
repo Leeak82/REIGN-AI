@@ -94,7 +94,7 @@ This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://s
 
 1. Put a dedicated SIM (not the owner personal cell) in an Android phone. Keep the phone charged and online.
 2. Install **SMS Gateway for Android**. Use **Cloud** mode so Render can reach it.
-3. Copy username/password from the app Home tab. Copy the webhook **Signing Key** from Settings → Webhooks.
+3. Copy username/password from the app Home tab. Copy the webhook **Signing Key** from Settings → Webhooks. That field is a secret used for HMAC. Do **not** paste the webhook URL into Signing Key.
 4. On Render set:
 
 | Key | Value |
@@ -102,12 +102,14 @@ This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://s
 | `Sms__Provider` | `SmsGate` |
 | `SMSGATE_USERNAME` | app username |
 | `SMSGATE_PASSWORD` | app password |
-| `SMSGATE_SIGNING_KEY` | webhook signing key |
+| `SMSGATE_SIGNING_KEY` | webhook signing key (must match Settings → Webhooks) |
 | `SMSGATE_FROM_NUMBER` | `+19073001244` (Straight Talk SIM) |
+| `SMSGATE_DEVICE_ID` | Home tab Device ID (pins the Motorola) |
+| `SMSGATE_SIM_NUMBER` | `1` (Straight Talk *1244; skip if the phone has one SIM) |
 | `Sms__BusinessPhoneNumber` | `+19073001244` |
 | `Sms__OwnerPhoneNumber` | owner personal cell |
 
-5. Register the inbound webhook (Cloud mode):
+5. Register the inbound webhook (Cloud mode), not in the Signing Key field:
 
 ```
 curl -X POST -u USER:PASS \

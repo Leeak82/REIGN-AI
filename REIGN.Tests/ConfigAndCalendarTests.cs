@@ -237,6 +237,27 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Apply_maps_smsgate_device_and_sim_aliases()
+    {
+        var previousDevice = Environment.GetEnvironmentVariable("SMSGATE_DEVICE_ID");
+        var previousSim = Environment.GetEnvironmentVariable("SMSGATE_SIM_NUMBER");
+        try
+        {
+            Environment.SetEnvironmentVariable("SMSGATE_DEVICE_ID", "device-abc");
+            Environment.SetEnvironmentVariable("SMSGATE_SIM_NUMBER", "1");
+            var manager = new ConfigurationManager();
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal("device-abc", manager["Sms:SmsGate:DeviceId"]);
+            Assert.Equal("1", manager["Sms:SmsGate:SimNumber"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SMSGATE_DEVICE_ID", previousDevice);
+            Environment.SetEnvironmentVariable("SMSGATE_SIM_NUMBER", previousSim);
+        }
+    }
+
+    [Fact]
     public void Apply_keeps_explicit_non_placeholder_business_number()
     {
         var previous = Environment.GetEnvironmentVariable("REIGN_BUSINESS_PHONE");

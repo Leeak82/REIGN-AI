@@ -97,8 +97,20 @@ public class SmsGateOptions
 
     /// <summary>
     /// HMAC-SHA256 signing key from the app Settings → Webhooks → Signing Key.
+    /// This is a secret, not the webhook URL.
     /// </summary>
     public string SigningKey { get; set; } = "";
+
+    /// <summary>
+    /// Cloud device id from the app Home tab. Pins outbound SMS to that phone.
+    /// </summary>
+    public string DeviceId { get; set; } = "";
+
+    /// <summary>
+    /// 1-based SIM slot. Use 1 for the Straight Talk *1244 line on the dual-SIM Motorola.
+    /// 0 means let the app choose/rotate.
+    /// </summary>
+    public int SimNumber { get; set; }
 
     public string FromNumber { get; set; } = ReignContact.BusinessPhoneE164;
 
