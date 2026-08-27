@@ -113,13 +113,15 @@ public static class PhoneNumbers
     public static IReadOnlyList<string> GatewayOwnNumbers(
         string? businessNumber,
         string? smsGateFromNumber,
-        string? ignoreFromNumbers)
+        string? ignoreFromNumbers,
+        string? skipCallsFromNumber = null)
     {
         var values = new List<string?>
         {
             ReignContact.BusinessPhoneE164,
             businessNumber,
-            smsGateFromNumber
+            smsGateFromNumber,
+            skipCallsFromNumber
         };
         values.AddRange(SplitNumberList(ignoreFromNumbers));
         return values

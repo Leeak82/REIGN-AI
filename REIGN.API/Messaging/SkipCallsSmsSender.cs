@@ -48,8 +48,12 @@ public class SkipCallsSmsSender : ISmsSender
         }
 
         var dest = PhoneNumbers.Normalize(request.To);
-        if (PhoneNumbers.AreSame(dest, from.Number) ||
-            PhoneNumbers.AreSame(dest, _options.SkipCalls.FromNumber))
+        var ownNumbers = PhoneNumbers.GatewayOwnNumbers(
+            _options.BusinessPhoneNumber,
+            _options.SmsGate.FromNumber,
+            _options.SmsGate.IgnoreFromNumbers,
+            _options.SkipCalls.FromNumber);
+        if (PhoneNumbers.IsOwnDeviceNumber(dest, ownNumbers))
         {
             _logger.LogWarning("Refusing SkipCalls send to the SkipCalls number {Phone}", dest);
             return SmsSendResult.Fail(ProviderName, "Refusing to text the SkipCalls business number.");

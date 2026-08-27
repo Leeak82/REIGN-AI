@@ -166,7 +166,9 @@ public class SmsWebhookController : ControllerBase
         var incoming = SkipCallsWebhookValidator.TryParseReceived(rawBody);
         if (incoming == null || string.IsNullOrWhiteSpace(incoming.From) || string.IsNullOrWhiteSpace(incoming.Body))
         {
-            _logger.LogInformation("Ignored SkipCalls webhook that was not an inbound SMS.");
+            _logger.LogInformation(
+                "Ignored SkipCalls webhook that was not an inbound SMS. Keys={Keys}",
+                SkipCallsWebhookValidator.DescribeKeys(rawBody));
             return Ok(new { ok = true, ignored = true });
         }
 

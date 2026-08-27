@@ -42,6 +42,21 @@ public static class SkipCallsWebhookValidator
         return false;
     }
 
+    public static string DescribeKeys(string rawBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(rawBody);
+            var names = new SortedSet<string>(StringComparer.Ordinal);
+            CollectKeys(doc.RootElement, "", names, depth: 0);
+            return names.Count == 0 ? "(none)" : string.Join(",", names);
+        }
+        catch
+        {
+            return "(unparsed)";
+        }
+    }
+
     public static IncomingSmsMessage? TryParseReceived(string rawBody)
     {
         if (string.IsNullOrWhiteSpace(rawBody))
@@ -55,43 +70,53 @@ public static class SkipCallsWebhookValidator
             var root = doc.RootElement;
             var eventName = ReadString(root, "event")
                 ?? ReadString(root, "type")
-                ?? ReadString(root, "trigger");
+                ?? ReadString(root, "trigger")
+                ?? ReadString(root, "eventName");
             if (LooksLikeOutbound(eventName))
             {
                 return null;
             }
 
             var payload = Unwrap(root);
-            var direction = ReadString(payload, "direction") ?? ReadString(payload, "kind");
+            var direction = ReadPhoneOrString(payload, "direction")
+                ?? ReadPhoneOrString(payload, "kind");
             if (LooksLikeOutbound(direction))
             {
                 return null;
             }
 
-            var from = FirstNonEmpty(
-                payload,
+            var contact = ObjectOf(payload, "contact")
+                ?? ObjectOf(payload, "customer")
+                ?? ObjectOf(root, "contact")
+                ?? ObjectOf(payload, "conversation");
+            var contactPhone = contact is JsonElement contactEl
+                ? ReadPhone(contactEl, "phoneNumber", "phone", "number", "customerPhone", "from")
+                : null;
+
+            var from = ReadPhone(payload,
                 "from",
                 "fromNumber",
                 "phoneNumberFrom",
                 "phone_number_from",
                 "sender",
                 "customerPhone",
-                "customer_phone",
-                "phoneNumber",
-                "phone_number");
-            var to = FirstNonEmpty(
-                payload,
+                "customer_phone")
+                ?? contactPhone;
+            var to = ReadPhone(payload,
                 "to",
                 "toNumber",
                 "phoneNumberTo",
                 "phone_number_to",
-                "recipient");
-            var body = FirstNonEmpty(
-                payload,
-                "body",
-                "message",
-                "content",
-                "text");
+                "recipient",
+                "agentPhoneNumber",
+                "businessPhoneNumber");
+            var reported = ReadPhone(payload, "phoneNumber", "phone_number") ?? contactPhone;
+            if (string.IsNullOrWhiteSpace(from))
+            {
+                from = reported;
+            }
+
+            var body = ReadText(payload, "body", "message", "content", "text", "smsBody");
             if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(body))
             {
                 return null;
@@ -102,9 +127,10 @@ public static class SkipCallsWebhookValidator
                 From = from,
                 To = to ?? "",
                 Body = body,
-                ProviderMessageId = FirstNonEmpty(payload, "messageId", "message_id", "id")
-                    ?? FirstNonEmpty(root, "id"),
-                Provider = "SkipCalls"
+                ProviderMessageId = ReadText(payload, "messageId", "message_id", "smsId", "id")
+                    ?? ReadText(root, "id"),
+                Provider = "SkipCalls",
+                ReportedPhoneNumber = reported
             };
         }
         catch
@@ -121,6 +147,12 @@ public static class SkipCallsWebhookValidator
         }
 
         var text = value.Trim();
+        if (text.Contains("received", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("inbound", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         return text.Contains("sent", StringComparison.OrdinalIgnoreCase)
             || text.Contains("outbound", StringComparison.OrdinalIgnoreCase)
             || text.Contains("failed", StringComparison.OrdinalIgnoreCase);
@@ -128,7 +160,7 @@ public static class SkipCallsWebhookValidator
 
     private static JsonElement Unwrap(JsonElement root)
     {
-        foreach (var name in new[] { "payload", "data", "sms", "message" })
+        foreach (var name in new[] { "payload", "data", "sms", "record" })
         {
             if (root.TryGetProperty(name, out var nested) && nested.ValueKind == JsonValueKind.Object)
             {
@@ -136,10 +168,56 @@ public static class SkipCallsWebhookValidator
             }
         }
 
+        if (root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.Object)
+        {
+            return message;
+        }
+
         return root;
     }
 
-    private static string? FirstNonEmpty(JsonElement element, params string[] names)
+    private static JsonElement? ObjectOf(JsonElement element, string name)
+    {
+        if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Object)
+        {
+            return value;
+        }
+
+        return null;
+    }
+
+    private static string? ReadPhone(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value))
+            {
+                continue;
+            }
+
+            var phone = PhoneFrom(value);
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                return phone;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? PhoneFrom(JsonElement value) =>
+        value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.ToString(),
+            JsonValueKind.Object => ReadPhone(value, "phoneNumber", "phone", "number", "e164", "from", "to"),
+            _ => null
+        };
+
+    private static string? ReadPhoneOrString(JsonElement element, string name) =>
+        ReadPhone(element, name) ?? ReadString(element, name);
+
+    private static string? ReadText(JsonElement element, params string[] names)
     {
         foreach (var name in names)
         {
@@ -166,5 +244,28 @@ public static class SkipCallsWebhookValidator
             JsonValueKind.Number => value.ToString(),
             _ => null
         };
+    }
+
+    private static void CollectKeys(JsonElement element, string prefix, ISet<string> names, int depth)
+    {
+        if (depth > 4)
+        {
+            return;
+        }
+
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            var path = string.IsNullOrEmpty(prefix) ? property.Name : prefix + "." + property.Name;
+            names.Add(path);
+            if (property.Value.ValueKind == JsonValueKind.Object)
+            {
+                CollectKeys(property.Value, path, names, depth + 1);
+            }
+        }
     }
 }

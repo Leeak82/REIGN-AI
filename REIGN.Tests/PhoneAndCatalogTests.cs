@@ -124,6 +124,20 @@ public class PhoneAndCatalogTests
         Assert.Equal("+13609261856", phoneNumberOnly.From);
         Assert.True(phoneNumberOnly.Swapped);
 
+        var skipCalls = PhoneNumbers.GatewayOwnNumbers(
+            ReignContact.BusinessPhoneE164,
+            ReignContact.BusinessPhoneE164,
+            "+19072132242",
+            "+18136380375");
+        var skipInbound = PhoneNumbers.ResolveInboundEndpoints(
+            "+18136380375",
+            "+12538319100",
+            "+12538319100",
+            skipCalls);
+        Assert.Equal("+12538319100", skipInbound.From);
+        Assert.Equal("+18136380375", skipInbound.To);
+        Assert.True(skipInbound.Swapped);
+
         var bothOwn = PhoneNumbers.ResolveInboundEndpoints(
             ReignContact.BusinessPhoneE164,
             "+19072132242",

@@ -267,7 +267,8 @@ public class IncomingSmsProcessor
         PhoneNumbers.GatewayOwnNumbers(
             _smsOptions.BusinessPhoneNumber,
             _smsOptions.SmsGate.FromNumber,
-            _smsOptions.SmsGate.IgnoreFromNumbers);
+            _smsOptions.SmsGate.IgnoreFromNumbers,
+            _smsOptions.SkipCalls.FromNumber);
 
     private async Task<SmsSendResult?> TrySendAsync(
         string to,
