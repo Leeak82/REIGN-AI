@@ -118,6 +118,13 @@ public class HealthController : ControllerBase
                    !string.IsNullOrWhiteSpace(_sms.SmsGate.Password);
         }
 
+        if (provider.Equals("SkipCalls", StringComparison.OrdinalIgnoreCase) ||
+            provider.Equals("Skip-Calls", StringComparison.OrdinalIgnoreCase) ||
+            provider.Equals("Cail", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(_sms.SkipCalls.AccessToken);
+        }
+
         return false;
     }
 

@@ -562,6 +562,24 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Startup_validator_reports_skipcalls_without_printing_token()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Sms:Provider"] = "SkipCalls",
+            ["Sms:SkipCalls:AccessToken"] = "super-secret-skipcalls-token",
+            ["Sms:SkipCalls:FromNumber"] = "+18136380375"
+        }).Build();
+
+        var logger = new ListLogger();
+        ConfigStartupValidator.Validate(configuration, logger, isProduction: true);
+
+        Assert.Contains(logger.Messages, m => m.Contains("SkipCalls credentials are present", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(logger.Messages, m => m.Contains("sms=configured", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Messages, m => m.Contains("super-secret-skipcalls-token"));
+    }
+
+    [Fact]
     public void Development_cors_includes_localhost_and_rejects_wildcard()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
