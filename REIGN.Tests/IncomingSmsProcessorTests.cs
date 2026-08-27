@@ -353,6 +353,25 @@ public class IncomingSmsProcessorTests
     }
 
     [Fact]
+    public async Task SkipCalls_inbox_is_not_treated_as_a_companion_sim()
+    {
+        await using var harness = await Harness.CreateAsync(skipCallsFrom: "+18136380375");
+
+        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+12538319100",
+            To = "+18136380375",
+            Body = "Hi Miss Reign",
+            Provider = "SkipCalls"
+        }, sendReplyViaProvider: true);
+
+        Assert.True(result.AutoReplied);
+        Assert.NotEqual("ignored_non_customer", result.Intent);
+        Assert.Equal("+12538319100", result.Phone);
+        Assert.Equal("+12538319100", Assert.Single(harness.Sms.Sent).To);
+    }
+
+    [Fact]
     public async Task Swapped_gateway_endpoints_reply_to_the_customer_handset()
     {
         await using var harness = await Harness.CreateAsync(ignoreFrom: "+19072132242", simNumber: 1);
@@ -425,7 +444,10 @@ public class IncomingSmsProcessorTests
             OwnerAssistant = ownerAssistant;
         }
 
-        public static async Task<Harness> CreateAsync(string? ignoreFrom = null, int simNumber = 0)
+        public static async Task<Harness> CreateAsync(
+            string? ignoreFrom = null,
+            int simNumber = 0,
+            string? skipCallsFrom = null)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -447,6 +469,10 @@ public class IncomingSmsProcessorTests
                 {
                     IgnoreFromNumbers = ignoreFrom ?? "",
                     SimNumber = simNumber
+                },
+                SkipCalls = new SkipCallsOptions
+                {
+                    FromNumber = skipCallsFrom ?? ""
                 }
             });
             var profiles = new BusinessProfileService(db);
