@@ -96,7 +96,7 @@ public class IncomingSmsProcessor
                 };
             }
 
-            if (ShouldIgnoreNonCustomer(from))
+            if (ShouldIgnoreNonCustomer(incoming, from))
             {
                 _logger.LogInformation("Ignored inbound from non-customer number {Phone}", from);
                 return new IncomingSmsResult
@@ -197,7 +197,7 @@ public class IncomingSmsProcessor
         }
     }
 
-    private bool ShouldIgnoreNonCustomer(string from)
+    private bool ShouldIgnoreNonCustomer(IncomingSmsMessage incoming, string from)
     {
         if (!string.IsNullOrWhiteSpace(_smsOptions.OwnerPhoneNumber) &&
             PhoneNumbers.AreSame(from, _smsOptions.OwnerPhoneNumber))
@@ -205,14 +205,54 @@ public class IncomingSmsProcessor
             return false;
         }
 
-        if (PhoneNumbers.IsShortCode(from) ||
-            PhoneNumbers.AreSame(from, ReignContact.BusinessPhoneE164) ||
-            PhoneNumbers.AreSame(from, _smsOptions.BusinessPhoneNumber))
+        if (!string.IsNullOrWhiteSpace(incoming.To) && PhoneNumbers.AreSame(from, incoming.To))
+        {
+            return true;
+        }
+
+        var ownNumbers = OwnDeviceNumbers();
+        if (PhoneNumbers.IsOwnDeviceNumber(from, ownNumbers))
+        {
+            return true;
+        }
+
+        if (incoming.SimNumber is >= 1 and <= 3 &&
+            _smsOptions.SmsGate.SimNumber is >= 1 and <= 3 &&
+            incoming.SimNumber != _smsOptions.SmsGate.SimNumber)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(incoming.To) &&
+            PhoneNumbers.IsOwnDeviceNumber(incoming.To, ownNumbers) &&
+            !PhoneNumbers.AreSame(incoming.To, ReignContact.BusinessPhoneE164) &&
+            !PhoneNumbers.AreSame(incoming.To, _smsOptions.BusinessPhoneNumber))
+        {
+            return true;
+        }
+
+        if (PhoneNumbers.IsShortCode(from))
         {
             return true;
         }
 
         return !_smsSender.IsSimulated && ReignContact.IsPlaceholder(from);
+    }
+
+    private IReadOnlyList<string> OwnDeviceNumbers()
+    {
+        var values = new List<string?>
+        {
+            ReignContact.BusinessPhoneE164,
+            _smsOptions.BusinessPhoneNumber,
+            _smsOptions.SmsGate.FromNumber
+        };
+        values.AddRange(PhoneNumbers.SplitNumberList(_smsOptions.SmsGate.IgnoreFromNumbers));
+        return values
+            .Select(PhoneNumbers.Normalize)
+            .Where(static n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private async Task<SmsSendResult?> TrySendAsync(

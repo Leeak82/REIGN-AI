@@ -106,6 +106,7 @@ This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://s
 | `SMSGATE_FROM_NUMBER` | `+19073001244` (Straight Talk SIM) |
 | `SMSGATE_DEVICE_ID` | Home tab Device ID (pins the Motorola) |
 | `SMSGATE_SIM_NUMBER` | `1` (Straight Talk *1244; skip if the phone has one SIM) |
+| `SMSGATE_IGNORE_FROM` | other SIMs in the same phone, comma-separated (the Motorola Verizon line is `+19072132242`) |
 | `Sms__BusinessPhoneNumber` | `+19073001244` |
 | `Sms__OwnerPhoneNumber` | owner personal cell |
 
@@ -118,7 +119,7 @@ curl -X POST -u USER:PASS \
   https://api.sms-gate.app/3rdparty/v1/webhooks
 ```
 
-6. Text **(907) 300-1244** from a **different physical phone**. The Motorola cannot text itself. Do not text from the other SIM in that same phone. Open the app after reboot and tap **START SERVICE** (turn **Start on boot** on). Miss Reign replies through the Straight Talk SIM.
+6. Text **(907) 300-1244** from a **different physical phone**. The Motorola cannot text itself. Do not text from the other SIM in that same phone — that is how Miss Reign ended up answering the gateway. Open the app after reboot and tap **START SERVICE** (turn **Start on boot** on). Miss Reign replies through the Straight Talk SIM.
 
 Carriers can still flag automated SMS on a consumer SIM. Twilio A2P remains the later public-number path after campaign approval. Render's free web service sleeps after ~15 minutes idle; SmsGate gives up a webhook after 30 seconds if the instance is cold. Wake `https://reign-ai-3.onrender.com/health` first, then send the test text. Verizon short codes such as `611611` are ignored and never replied to.
 

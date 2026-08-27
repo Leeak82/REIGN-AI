@@ -81,4 +81,32 @@ public static class PhoneNumbers
 
         return string.IsNullOrWhiteSpace(businessNumber) || !AreSame(normalized, businessNumber);
     }
+
+    public static IReadOnlyList<string> SplitNumberList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        return value
+            .Split([',', ';', ' ', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Normalize)
+            .Where(static n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public static bool IsOwnDeviceNumber(string? value, IEnumerable<string?> ownNumbers)
+    {
+        foreach (var own in ownNumbers)
+        {
+            if (AreSame(value, own))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

@@ -313,6 +313,45 @@ public class IncomingSmsProcessorTests
         Assert.Empty(harness.Db.Customers);
     }
 
+    [Fact]
+    public async Task Gateway_own_sims_do_not_get_a_reply()
+    {
+        await using var harness = await Harness.CreateAsync(ignoreFrom: "+19072132242", simNumber: 1);
+
+        var fromBusiness = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+19073001244",
+            To = "+19072132242",
+            Body = "Hi Miss Reign",
+            Provider = "SmsGate",
+            SimNumber = 2
+        }, sendReplyViaProvider: true);
+        Assert.Equal("ignored_non_customer", fromBusiness.Intent);
+        Assert.Empty(harness.Sms.Sent);
+
+        var fromCompanion = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+19072132242",
+            To = "+19073001244",
+            Body = "Hi from the other SIM",
+            Provider = "SmsGate",
+            SimNumber = 1
+        }, sendReplyViaProvider: true);
+        Assert.Equal("ignored_non_customer", fromCompanion.Intent);
+
+        var onCompanionSim = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+13609261856",
+            To = "+19072132242",
+            Body = "Book QV",
+            Provider = "SmsGate",
+            SimNumber = 2
+        }, sendReplyViaProvider: true);
+        Assert.Equal("ignored_non_customer", onCompanionSim.Intent);
+        Assert.Empty(harness.Sms.Sent);
+        Assert.Empty(harness.Db.Customers);
+    }
+
     internal sealed class Harness : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;
@@ -342,7 +381,7 @@ public class IncomingSmsProcessorTests
             OwnerAssistant = ownerAssistant;
         }
 
-        public static async Task<Harness> CreateAsync()
+        public static async Task<Harness> CreateAsync(string? ignoreFrom = null, int simNumber = 0)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -359,7 +398,12 @@ public class IncomingSmsProcessorTests
             {
                 Provider = "Simulated",
                 BusinessPhoneNumber = "+15555550100",
-                OwnerPhoneNumber = "+15555550199"
+                OwnerPhoneNumber = "+15555550199",
+                SmsGate = new SmsGateOptions
+                {
+                    IgnoreFromNumbers = ignoreFrom ?? "",
+                    SimNumber = simNumber
+                }
             });
             var profiles = new BusinessProfileService(db);
 

@@ -179,6 +179,11 @@ public class WebhookSecurityTests
         Assert.Equal("+15555550123", batch[0].From);
         Assert.Equal("6505551212", batch[1].From);
         Assert.Equal("QV", batch[1].Body);
+
+        var withSim = SmsGateWebhookValidator.TryParseReceived(
+            """{"event":"sms:received","payload":{"messageId":"m3","sender":"+15555550123","recipient":"+19073001244","message":"Hi","simNumber":1}}""");
+        Assert.NotNull(withSim);
+        Assert.Equal(1, withSim!.SimNumber);
     }
 
     [Fact]

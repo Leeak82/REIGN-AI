@@ -11,6 +11,11 @@ public class IncomingSmsMessage
     public string? ProviderMessageId { get; set; }
 
     public string Provider { get; set; } = "";
+
+    /// <summary>
+    /// 1-based SIM that received the SMS, when the gateway includes it.
+    /// </summary>
+    public int? SimNumber { get; set; }
 }
 
 public class SmsSendRequest

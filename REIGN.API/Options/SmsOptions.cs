@@ -114,5 +114,11 @@ public class SmsGateOptions
 
     public string FromNumber { get; set; } = ReignContact.BusinessPhoneE164;
 
+    /// <summary>
+    /// Other SIMs in the gateway phone. Comma-separated E.164. Inbound from these
+    /// numbers is the phone talking to itself, not a customer.
+    /// </summary>
+    public string IgnoreFromNumbers { get; set; } = "";
+
     public bool RequireSignedWebhooks { get; set; } = true;
 }
