@@ -53,8 +53,31 @@ public class FallbackAiProvider : IAiProvider
 
     private static string BuildReturningReply(AiCompletionRequest request)
     {
+        var name = ReadReturningName(request.MemoryContext);
+        var greeting = string.IsNullOrWhiteSpace(name)
+            ? "Welcome back."
+            : $"Welcome back, {name}.";
         return
-            $"{request.MemoryContext} I can help with {ServiceCatalog.CatalogSummary}. " +
+            $"{greeting} I can help with {ServiceCatalog.CatalogSummary}. " +
             "Would you like to book QV, HH, or HR?";
+    }
+
+    private static string? ReadReturningName(string memory)
+    {
+        const string prefix = "Returning customer: ";
+        if (!memory.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var rest = memory[prefix.Length..];
+        var end = rest.IndexOf('.');
+        var name = (end >= 0 ? rest[..end] : rest).Trim();
+        if (string.IsNullOrWhiteSpace(name) || name.StartsWith('+') || name.Any(char.IsDigit))
+        {
+            return null;
+        }
+
+        return name;
     }
 }

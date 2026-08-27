@@ -70,6 +70,8 @@ public class ConversationStateService
             ReignIntentKind.Confirm => "Confirmed",
             ReignIntentKind.Cancel => "Cancelled",
             ReignIntentKind.NameCapture => "Active",
+            ReignIntentKind.Greeting or ReignIntentKind.Unknown when string.IsNullOrWhiteSpace(customer.Name)
+                => "AwaitingName",
             _ => string.IsNullOrWhiteSpace(state.CurrentStep) || state.CurrentStep == "None" || state.CurrentStep == "New"
                 ? "Active"
                 : state.CurrentStep
