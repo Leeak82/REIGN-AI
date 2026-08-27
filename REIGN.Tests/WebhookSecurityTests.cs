@@ -260,6 +260,17 @@ public class WebhookSecurityTests
             """{"event":"sms_sent","from":"+15555550100","to":"+13609261856","body":"outbound"}"""));
         Assert.NotNull(SkipCallsWebhookValidator.TryParseReceived(
             """{"event":"SMS_RECEIVED","from":"+12538319100","to":"+18136380375","body":"still inbound"}"""));
+
+        var skipDefault = SkipCallsWebhookValidator.TryParseReceived(
+            """{"event":"SMS_RECEIVED","webhookId":"wh-1","timestamp":"2026-08-27T22:00:40Z","contact":{"id":"ct-1","phoneNumber":"+12538319100","firstName":null},"phoneNumber":{"fromNumber":"+12538319100","toNumber":"+18136380375"},"smsMessage":{"id":"sms-33","direction":"INBOUND","content":"Book QV","status":"received","isAiGenerated":false},"smsConversation":{"id":"conv-1","lastMessage":"Book QV","messageCount":1},"agent":{"id":"ag-1","name":"Miss reign"}}""");
+        Assert.NotNull(skipDefault);
+        Assert.Equal("+12538319100", skipDefault!.From);
+        Assert.Equal("+18136380375", skipDefault.To);
+        Assert.Equal("Book QV", skipDefault.Body);
+        Assert.Equal("sms-33", skipDefault.ProviderMessageId);
+
+        Assert.Null(SkipCallsWebhookValidator.TryParseReceived(
+            """{"event":"SMS_RECEIVED","smsMessage":{"direction":"OUTBOUND","content":"agent reply","id":"sms-out"},"phoneNumber":{"fromNumber":"+18136380375","toNumber":"+12538319100"},"contact":{"phoneNumber":"+12538319100"}}"""));
         Assert.Contains("data.from", SkipCallsWebhookValidator.DescribeKeys(
             """{"event":"SMS_RECEIVED","data":{"from":"+1"}}"""), StringComparison.Ordinal);
         Assert.True(SkipCallsWebhookValidator.IsAuthorized("secret-key", "secret-key"));

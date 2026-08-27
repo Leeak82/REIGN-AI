@@ -78,7 +78,11 @@ public static class SkipCallsWebhookValidator
             }
 
             var payload = Unwrap(root);
-            var direction = ReadPhoneOrString(payload, "direction")
+            var sms = ObjectOf(payload, "smsMessage") ?? ObjectOf(root, "smsMessage");
+            var phones = ObjectOf(payload, "phoneNumber") ?? ObjectOf(root, "phoneNumber");
+            var conversation = ObjectOf(payload, "smsConversation") ?? ObjectOf(root, "smsConversation");
+            var direction = ReadText(sms ?? payload, "direction", "kind")
+                ?? ReadPhoneOrString(payload, "direction")
                 ?? ReadPhoneOrString(payload, "kind");
             if (LooksLikeOutbound(direction))
             {
@@ -88,35 +92,56 @@ public static class SkipCallsWebhookValidator
             var contact = ObjectOf(payload, "contact")
                 ?? ObjectOf(payload, "customer")
                 ?? ObjectOf(root, "contact")
-                ?? ObjectOf(payload, "conversation");
+                ?? ObjectOf(payload, "conversation")
+                ?? conversation;
             var contactPhone = contact is JsonElement contactEl
                 ? ReadPhone(contactEl, "phoneNumber", "phone", "number", "customerPhone", "from")
                 : null;
 
-            var from = ReadPhone(payload,
-                "from",
+            var from = ReadPhone(phones ?? payload,
                 "fromNumber",
+                "from",
                 "phoneNumberFrom",
                 "phone_number_from",
                 "sender",
                 "customerPhone",
                 "customer_phone")
+                ?? ReadPhone(payload,
+                    "from",
+                    "fromNumber",
+                    "phoneNumberFrom",
+                    "phone_number_from",
+                    "sender",
+                    "customerPhone",
+                    "customer_phone")
                 ?? contactPhone;
-            var to = ReadPhone(payload,
-                "to",
+            var to = ReadPhone(phones ?? payload,
                 "toNumber",
+                "to",
                 "phoneNumberTo",
                 "phone_number_to",
                 "recipient",
                 "agentPhoneNumber",
-                "businessPhoneNumber");
-            var reported = ReadPhone(payload, "phoneNumber", "phone_number") ?? contactPhone;
+                "businessPhoneNumber")
+                ?? ReadPhone(payload,
+                    "to",
+                    "toNumber",
+                    "phoneNumberTo",
+                    "phone_number_to",
+                    "recipient",
+                    "agentPhoneNumber",
+                    "businessPhoneNumber");
+            var reported = contactPhone
+                ?? ReadPhone(phones ?? payload, "fromNumber", "phoneNumber", "phone_number")
+                ?? ReadPhone(payload, "phoneNumber", "phone_number");
             if (string.IsNullOrWhiteSpace(from))
             {
                 from = reported;
             }
 
-            var body = ReadText(payload, "body", "message", "content", "text", "smsBody");
+            var body = ReadText(sms ?? payload, "content", "body", "message", "text", "smsBody")
+                ?? ReadText(conversation ?? payload, "lastMessage", "content")
+                ?? ReadText(payload, "body", "message", "content", "text", "smsBody");
             if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(body))
             {
                 return null;
@@ -127,7 +152,8 @@ public static class SkipCallsWebhookValidator
                 From = from,
                 To = to ?? "",
                 Body = body,
-                ProviderMessageId = ReadText(payload, "messageId", "message_id", "smsId", "id")
+                ProviderMessageId = ReadText(sms ?? payload, "id", "messageId", "message_id", "smsId")
+                    ?? ReadText(payload, "messageId", "message_id", "smsId", "id")
                     ?? ReadText(root, "id"),
                 Provider = "SkipCalls",
                 ReportedPhoneNumber = reported
@@ -155,6 +181,7 @@ public static class SkipCallsWebhookValidator
 
         return text.Contains("sent", StringComparison.OrdinalIgnoreCase)
             || text.Contains("outbound", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("outgoing", StringComparison.OrdinalIgnoreCase)
             || text.Contains("failed", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -210,7 +237,7 @@ public static class SkipCallsWebhookValidator
         {
             JsonValueKind.String => value.GetString(),
             JsonValueKind.Number => value.ToString(),
-            JsonValueKind.Object => ReadPhone(value, "phoneNumber", "phone", "number", "e164", "from", "to"),
+            JsonValueKind.Object => ReadPhone(value, "fromNumber", "toNumber", "phoneNumber", "phone", "number", "e164", "from", "to"),
             _ => null
         };
 
