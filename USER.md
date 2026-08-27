@@ -21,13 +21,21 @@ Use one directive per entry:
 
 - Named a private person as the service provider in public copy.
 
-<!-- observed: 2026-08-27 | status: active -->
+<!-- observed: 2026-08-27 | status: superseded -->
 
 - Always use Miss Reign as the public name. Never put a legal name in customer SMS, public pages, calendar event text, or dashboard copy. Customers text +19073001244 unless they have switched that line to SkipCalls. Booked visits sync to the configured Google Calendar account.
 
 <!-- observed: 2026-08-27 | status: active -->
 
+- Always use Miss Reign as the public name. Never put a legal name in customer SMS, public pages, calendar event text, or dashboard copy. Customers text SkipCalls SMS at +18136380375. Voice still forwards from +19073001244. Booked visits sync to the configured Google Calendar account.
+
+<!-- observed: 2026-08-27 | status: superseded -->
+
 - Prefer SkipCalls as the SMS transport when the user is using the SkipCalls app instead of the Motorola SMS Gateway. Never let SkipCalls' own AI auto-reply on the same customer texts Miss Reign handles.
+
+<!-- observed: 2026-08-27 | status: active -->
+
+- Always treat SkipCalls as Miss Reign's live SMS provider on REIGN-AI-3. Never enable SkipCalls autoRespondToSms while Miss Reign handles those threads. Never print or commit the SkipCalls API token.
 
 ## Related
 
