@@ -261,6 +261,13 @@ public static class ConfigStartupValidator
                 && !Missing(configuration, "Sms:SmsGate:Password");
         }
 
+        if (provider.Equals("SkipCalls", StringComparison.OrdinalIgnoreCase) ||
+            provider.Equals("Skip-Calls", StringComparison.OrdinalIgnoreCase) ||
+            provider.Equals("Cail", StringComparison.OrdinalIgnoreCase))
+        {
+            return !Missing(configuration, "Sms:SkipCalls:AccessToken");
+        }
+
         return false;
     }
 

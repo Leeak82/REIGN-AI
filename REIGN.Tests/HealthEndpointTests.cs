@@ -50,4 +50,42 @@ public class HealthEndpointTests
         Assert.DoesNotContain("super-secret-calendar", JsonSerializer.Serialize(result.Value), StringComparison.Ordinal);
         Assert.DoesNotContain("health-client-id", JsonSerializer.Serialize(result.Value), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Production_health_marks_skipcalls_sms_configured_without_leaking_token()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var db = new ReignDbContext(new DbContextOptionsBuilder<ReignDbContext>().UseSqlite(connection).Options);
+        await SqliteSchemaUpgrades.ApplyAsync(db);
+
+        var controller = new HealthController(
+            new FallbackAiProvider(new ConversationAIService(), new ReignAssistant()),
+            new ConfigurationBuilder().Build(),
+            db,
+            Options.Create(new AiOptions()),
+            Options.Create(new SmsOptions
+            {
+                Provider = "SkipCalls",
+                SkipCalls = new SkipCallsOptions
+                {
+                    AccessToken = "super-secret-skipcalls-token",
+                    FromNumber = "+18136380375"
+                }
+            }),
+            Options.Create(new GoogleCalendarOptions
+            {
+                Provider = "Google",
+                ClientId = "health-client-id",
+                ClientSecret = "super-secret-calendar"
+            }));
+
+        var result = Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(await controller.Production());
+        var json = JsonSerializer.Serialize(result.Value);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.GetProperty("smsConfigured").GetBoolean());
+        Assert.DoesNotContain("super-secret-skipcalls-token", json, StringComparison.Ordinal);
+    }
 }
