@@ -169,6 +169,19 @@ public class WebhookSecurityTests
     }
 
     [Fact]
+    public void SmsGate_parser_reads_batch_and_numeric_sender()
+    {
+        var batch = SmsGateWebhookValidator.ParseReceived(
+            """{"event":"sms:batch:received","payload":{"messages":[{"messageId":"m1","sender":"+15555550123","message":"Hi"},{"messageId":"m2","sender":6505551212,"message":"QV"}]}}""",
+            out var eventName);
+        Assert.Equal("sms:batch:received", eventName);
+        Assert.Equal(2, batch.Count);
+        Assert.Equal("+15555550123", batch[0].From);
+        Assert.Equal("6505551212", batch[1].From);
+        Assert.Equal("QV", batch[1].Body);
+    }
+
+    [Fact]
     public void Vonage_jwt_validates_signature_and_payload_hash()
     {
         var secret = "vonage-signature-secret-32-bytes-min";

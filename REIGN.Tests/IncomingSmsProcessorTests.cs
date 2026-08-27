@@ -295,6 +295,24 @@ public class IncomingSmsProcessorTests
         Assert.Empty(harness.Db.Customers);
     }
 
+    [Fact]
+    public async Task Carrier_short_codes_do_not_get_a_reply()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "611611",
+            Body = "Your Verizon account...",
+            Provider = "SmsGate"
+        }, sendReplyViaProvider: true);
+
+        Assert.Equal("ignored_non_customer", result.Intent);
+        Assert.False(result.AutoReplied);
+        Assert.Null(result.Reply);
+        Assert.Empty(harness.Sms.Sent);
+        Assert.Empty(harness.Db.Customers);
+    }
+
     internal sealed class Harness : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;

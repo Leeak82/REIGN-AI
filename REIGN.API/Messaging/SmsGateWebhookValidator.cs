@@ -60,54 +60,100 @@ public static class SmsGateWebhookValidator
             .ToLowerInvariant();
     }
 
-    public static IncomingSmsMessage? TryParseReceived(string rawBody)
+    public static IncomingSmsMessage? TryParseReceived(string rawBody) =>
+        ParseReceived(rawBody, out _).FirstOrDefault();
+
+    public static IReadOnlyList<IncomingSmsMessage> ParseReceived(string rawBody, out string? eventName)
     {
+        eventName = null;
         if (string.IsNullOrWhiteSpace(rawBody))
         {
-            return null;
+            return [];
         }
 
         try
         {
             using var doc = JsonDocument.Parse(rawBody);
             var root = doc.RootElement;
-            var eventName = ReadString(root, "event");
-            if (!string.IsNullOrWhiteSpace(eventName) &&
-                !eventName.Equals("sms:received", StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
+            eventName = ReadString(root, "event");
             if (!root.TryGetProperty("payload", out var payload) || payload.ValueKind != JsonValueKind.Object)
             {
                 payload = root;
             }
 
-            var from = ReadString(payload, "sender") ?? ReadString(payload, "phoneNumber");
-            var to = ReadString(payload, "recipient");
-            var body = ReadString(payload, "message") ?? ReadString(payload, "text");
-            if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(body))
+            if (string.Equals(eventName, "sms:batch:received", StringComparison.OrdinalIgnoreCase))
             {
-                return null;
+                if (!payload.TryGetProperty("messages", out var messages) ||
+                    messages.ValueKind != JsonValueKind.Array)
+                {
+                    return [];
+                }
+
+                var batch = new List<IncomingSmsMessage>();
+                foreach (var item in messages.EnumerateArray())
+                {
+                    var parsed = ParsePayload(item, root);
+                    if (parsed != null)
+                    {
+                        batch.Add(parsed);
+                    }
+                }
+
+                return batch;
             }
 
-            return new IncomingSmsMessage
+            if (!string.IsNullOrWhiteSpace(eventName) &&
+                !eventName.Equals("sms:received", StringComparison.OrdinalIgnoreCase))
             {
-                From = from,
-                To = to ?? "",
-                Body = body,
-                ProviderMessageId = ReadString(payload, "messageId") ?? ReadString(root, "id"),
-                Provider = "SmsGate"
-            };
+                return [];
+            }
+
+            var single = ParsePayload(payload, root);
+            return single == null ? [] : [single];
         }
         catch
         {
-            return null;
+            return [];
         }
     }
 
-    private static string? ReadString(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
+    private static IncomingSmsMessage? ParsePayload(JsonElement payload, JsonElement root)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var from = ReadString(payload, "sender") ?? ReadString(payload, "phoneNumber");
+        var to = ReadString(payload, "recipient");
+        var body = ReadString(payload, "message") ?? ReadString(payload, "text");
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        return new IncomingSmsMessage
+        {
+            From = from,
+            To = to ?? "",
+            Body = body,
+            ProviderMessageId = ReadString(payload, "messageId") ?? ReadString(root, "id"),
+            Provider = "SmsGate"
+        };
+    }
+
+    private static string? ReadString(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.ToString(),
+            _ => null
+        };
+    }
 }
