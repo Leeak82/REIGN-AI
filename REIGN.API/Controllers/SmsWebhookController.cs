@@ -119,6 +119,12 @@ public class SmsWebhookController : ControllerBase
         // can exceed that on a Render free cold start, so ACK first.
         foreach (var message in incoming)
         {
+            _logger.LogInformation(
+                "SmsGate inbound queued From={From} To={To} Sim={Sim} Id={Id}",
+                message.From,
+                message.To,
+                message.SimNumber,
+                message.ProviderMessageId);
             QueueSmsGate(message);
         }
 
