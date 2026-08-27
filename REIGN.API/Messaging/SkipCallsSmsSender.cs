@@ -107,6 +107,8 @@ public class SkipCallsSmsSender : ISmsSender
             return existing;
         }
 
+        var syncNumber = SearchQueries(phone).FirstOrDefault()
+            ?? new string(phone.Where(char.IsDigit).ToArray());
         using var sync = Authenticated(HttpMethod.Post, "/users/me/contacts/sync");
         sync.Content = JsonContent(new
         {
@@ -114,7 +116,7 @@ public class SkipCallsSmsSender : ISmsSender
             {
                 new
                 {
-                    phoneNumber = phone,
+                    phoneNumber = syncNumber,
                     firstName = "Customer",
                     companyName = "Miss Reign",
                     source = "WEB"
@@ -122,11 +124,17 @@ public class SkipCallsSmsSender : ISmsSender
             }
         });
         using var syncResponse = await _http.SendAsync(sync, cancellationToken);
+        var syncBody = await syncResponse.Content.ReadAsStringAsync(cancellationToken);
         if (!syncResponse.IsSuccessStatusCode)
         {
-            var syncBody = await syncResponse.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogWarning("SkipCalls contact sync failed: {Status} {Body}", (int)syncResponse.StatusCode, Truncate(syncBody));
             return null;
+        }
+
+        var syncedId = TryReadContactId(syncBody);
+        if (!string.IsNullOrWhiteSpace(syncedId))
+        {
+            return syncedId;
         }
 
         return await SearchContactIdAsync(phone, cancellationToken);
@@ -134,9 +142,23 @@ public class SkipCallsSmsSender : ISmsSender
 
     private async Task<string?> SearchContactIdAsync(string phone, CancellationToken cancellationToken)
     {
+        foreach (var query in SearchQueries(phone))
+        {
+            var id = await SearchContactIdOnceAsync(phone, query, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<string?> SearchContactIdOnceAsync(string phone, string query, CancellationToken cancellationToken)
+    {
         using var search = Authenticated(
             HttpMethod.Post,
-            "/users/me/contacts/search?query=" + Uri.EscapeDataString(phone) + "&limit=10");
+            "/users/me/contacts/search?query=" + Uri.EscapeDataString(query) + "&limit=10");
         using var response = await _http.SendAsync(search, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -177,6 +199,41 @@ public class SkipCallsSmsSender : ISmsSender
         return null;
     }
 
+    // SkipCalls search ignores E.164 with a leading plus (`+1253...` returns no contacts).
+    internal static IReadOnlyList<string> SearchQueries(string phone)
+    {
+        var queries = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var digits = new string(phone.Where(char.IsDigit).ToArray());
+
+        void Add(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.StartsWith('+') || !seen.Add(value))
+            {
+                return;
+            }
+
+            queries.Add(value);
+        }
+
+        Add(digits);
+        if (digits.Length == 11 && digits.StartsWith('1'))
+        {
+            Add(digits[1..]);
+        }
+        else if (digits.Length == 10)
+        {
+            Add("1" + digits);
+        }
+
+        if (queries.Count == 0)
+        {
+            Add(phone);
+        }
+
+        return queries;
+    }
+
     private HttpRequestMessage Authenticated(HttpMethod method, string path)
     {
         var baseUrl = string.IsNullOrWhiteSpace(_options.SkipCalls.BaseUrl)
@@ -201,16 +258,74 @@ public class SkipCallsSmsSender : ISmsSender
         try
         {
             using var doc = JsonDocument.Parse(json);
-            foreach (var name in new[] { "id", "messageId", "smsId" })
+            return ReadId(doc.RootElement, "id", "messageId", "smsId");
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static string? TryReadContactId(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var id = ReadId(root, "id", "contactId");
+            if (!string.IsNullOrWhiteSpace(id))
             {
-                if (doc.RootElement.TryGetProperty(name, out var id))
+                return id;
+            }
+
+            foreach (var name in new[] { "contacts", "created", "updated", "data" })
+            {
+                if (!root.TryGetProperty(name, out var node))
                 {
-                    return id.ValueKind == JsonValueKind.String ? id.GetString() : id.ToString();
+                    continue;
+                }
+
+                if (node.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in node.EnumerateArray())
+                    {
+                        id = ReadId(item, "id", "contactId");
+                        if (!string.IsNullOrWhiteSpace(id))
+                        {
+                            return id;
+                        }
+                    }
+                }
+                else if (node.ValueKind == JsonValueKind.Object)
+                {
+                    id = ReadId(node, "id", "contactId");
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        return id;
+                    }
                 }
             }
         }
         catch
         {
+        }
+
+        return null;
+    }
+
+    private static string? ReadId(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var id) && id.ValueKind is JsonValueKind.String or JsonValueKind.Number)
+            {
+                var value = id.ValueKind == JsonValueKind.String ? id.GetString() : id.ToString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
         }
 
         return null;
