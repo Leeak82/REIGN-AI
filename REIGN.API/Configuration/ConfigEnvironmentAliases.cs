@@ -95,10 +95,24 @@ public static class ConfigEnvironmentAliases
             environment.IsDevelopment(),
             configuration["Sms:BusinessPhoneNumber"],
             configuration["Sms:Twilio:FromNumber"]);
+        extras["GoogleCalendar:Provider"] = CalendarProviderSelection.Resolve(
+            configuration["GoogleCalendar:Provider"],
+            environment.IsDevelopment());
 
         if (!environment.IsDevelopment())
         {
             extras["Sms:AllowInternalSimulator"] = "false";
+            if (SmsProviderSelection.IsSimulated(extras["Sms:Provider"]))
+            {
+                throw new InvalidOperationException(
+                    "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
+            }
+
+            if (CalendarProviderSelection.IsSimulated(extras["GoogleCalendar:Provider"]))
+            {
+                throw new InvalidOperationException(
+                    "Production cannot use Simulated Calendar. Set GoogleCalendar__Provider=Google and complete Google consent.");
+            }
         }
 
         configuration.AddInMemoryCollection(extras);

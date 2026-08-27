@@ -23,6 +23,12 @@ public class ConfigurableSmsSender : ISmsSender
             environment.IsDevelopment(),
             sms.BusinessPhoneNumber,
             sms.Twilio.FromNumber);
+        if (!environment.IsDevelopment() && SmsProviderSelection.IsSimulated(provider))
+        {
+            throw new InvalidOperationException(
+                "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
+        }
+
         _inner = provider.Trim().ToLowerInvariant() switch
         {
             "twilio" => twilio,

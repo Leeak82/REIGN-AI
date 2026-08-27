@@ -48,7 +48,7 @@ else
             <div class="kv"><span class="k">Credentials</span><span class="v">@(sms.CredentialsPresent ? "Configured" : "Missing")</span></div>
             @if (sms.Simulated)
             {
-                <div class="kv"><span class="k">Mode</span><span class="v"><StatusBadge Text="Simulated" Kind="info" /></span></div>
+                <div class="kv"><span class="k">Mode</span><span class="v"><StatusBadge Text="Not live" Kind="warning" /></span></div>
             }
             <p class="small faint mt-1" style="margin-bottom:0;">
                 Customers text @(sms.BusinessPhoneDisplay ?? "(907) 300-1244") to schedule and ask questions.

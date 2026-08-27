@@ -88,6 +88,50 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
+    public void Production_calendar_never_stays_simulated()
+    {
+        Assert.Equal("Simulated", CalendarProviderSelection.Resolve("Simulated", isDevelopment: true));
+        Assert.Equal("Simulated", CalendarProviderSelection.Resolve("", isDevelopment: true));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("Simulated", isDevelopment: false));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("", isDevelopment: false));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("Google", isDevelopment: false));
+        Assert.Equal("Google", CalendarProviderSelection.Resolve("Google", isDevelopment: true));
+    }
+
+    [Fact]
+    public void Production_runtime_defaults_reject_simulated_calendar()
+    {
+        var manager = new ConfigurationManager();
+        manager.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Sms:Provider"] = "SmsGate",
+            ["Sms:BusinessPhoneNumber"] = ReignContact.BusinessPhoneE164,
+            ["GoogleCalendar:Provider"] = "Simulated"
+        });
+        var environment = new StubHostEnvironment { EnvironmentName = Environments.Production };
+        ConfigEnvironmentAliases.ApplyRuntimeSmsDefaults(manager, environment);
+        Assert.Equal("SmsGate", manager["Sms:Provider"]);
+        Assert.Equal("Google", manager["GoogleCalendar:Provider"]);
+        Assert.Equal("false", manager["Sms:AllowInternalSimulator"]);
+    }
+
+    [Fact]
+    public void Production_startup_rejects_internal_sms_simulator()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Sms:Provider"] = "SmsGate",
+            ["GoogleCalendar:Provider"] = "Google",
+            ["Sms:AllowInternalSimulator"] = "true"
+        }).Build();
+
+        var logger = new ListLogger();
+        var error = Assert.Throws<InvalidOperationException>(
+            () => ConfigStartupValidator.Validate(configuration, logger, isProduction: true));
+        Assert.Contains("simulator", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Runtime_defaults_route_straight_talk_to_smsgate_while_a2p_is_pending()
     {
         var previousProvider = Environment.GetEnvironmentVariable("SMS_PROVIDER");
@@ -971,6 +1015,7 @@ public class ConfigAndCalendarTests
         var json = File.ReadAllText(Path.Combine(FindRepoRoot(), "REIGN.API", "appsettings.Production.json"));
         Assert.Contains("\"CalendarId\": \"j.collins2491@gmail.com\"", json, StringComparison.Ordinal);
         Assert.Contains("\"Provider\": \"SmsGate\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Provider\": \"Google\"", json, StringComparison.Ordinal);
         Assert.Contains(ReignContact.BusinessPhoneE164, json, StringComparison.Ordinal);
     }
 

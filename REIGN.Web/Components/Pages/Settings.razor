@@ -42,7 +42,7 @@ else
                 <div class="kv">
                     <span class="k">SMS</span>
                     <span class="v">@Integrations.Sms.ActiveProvider
-                        <StatusBadge Text="@(Integrations.Sms.CredentialsPresent && !Integrations.Sms.Simulated ? "Live" : Integrations.Sms.Simulated ? "Simulated" : "Not configured")"
+                        <StatusBadge Text="@(Integrations.Sms.CredentialsPresent && !Integrations.Sms.Simulated ? "Live" : "Not live")"
                                      Kind="@(Integrations.Sms.CredentialsPresent && !Integrations.Sms.Simulated ? "success" : "warning")" />
                     </span>
                 </div>

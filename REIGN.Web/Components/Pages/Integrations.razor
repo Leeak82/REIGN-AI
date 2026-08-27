@@ -34,7 +34,7 @@ else
                     <div class="health-name">SMS</div>
                     <div class="health-detail">Customer messaging</div>
                 </div>
-                <StatusBadge Text="@(SmsLive ? "Live" : Status.Sms.Simulated ? "Simulated" : "Not configured")"
+                <StatusBadge Text="@(SmsLive ? "Live" : "Not live")"
                              Kind="@(SmsLive ? "success" : "warning")" />
             </div>
             <div class="divider"></div>
@@ -72,22 +72,28 @@ else
             }
             @if (Status.GoogleCalendar.Simulated)
             {
-                <div class="kv"><span class="k">Mode</span><span class="v"><StatusBadge Text="Simulated" Kind="info" /></span></div>
+                <div class="kv"><span class="k">Mode</span><span class="v"><StatusBadge Text="Not live" Kind="warning" /></span></div>
+                <p class="small faint mt-1" style="margin-bottom:0;">
+                    Simulated calendar is blocked for customers. Connect Google as <strong>@(Status.GoogleCalendar.ExpectedAccount ?? ReignContact.ProviderCalendar)</strong>.
+                </p>
             }
+            else
+            {
             <p class="small faint mt-1" style="margin-bottom:0;">
                 Click Connect while signed into Google as <strong>@(Status.GoogleCalendar.ExpectedAccount ?? ReignContact.ProviderCalendar)</strong>.
                 That grants REIGN permission to view, create, and change events on that calendar.
             </p>
+            }
             <a class="btn btn-primary btn-sm mt-1" href="@AuthorizeUrl">@(CalendarConnected ? "Reconnect Google Calendar" : "Connect Google Calendar")</a>
         </div>
     </div>
 
-    @if (HostEnvironment.IsDevelopment())
+    @if (HostEnvironment.IsDevelopment() && (Status.Sms.Simulated || Status.GoogleCalendar.Simulated))
     {
         <div class="card mt-2">
-            <div class="card-title">Development note</div>
+            <div class="card-title">Not live on this machine</div>
             <p class="small dim" style="margin:6px 0 0;">
-                Local development uses simulated providers until credentials are supplied in API configuration.
+                This local dashboard is not the customer path. Production uses live Google Calendar and the Straight Talk SIM. Simulated SMS or calendar cannot book a real visit.
             </p>
         </div>
     }
