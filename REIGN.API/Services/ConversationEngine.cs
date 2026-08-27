@@ -61,28 +61,33 @@ public class ConversationEngine
             await _intentMemory.RecordAsync(customer, intent, message);
         }
 
-        if (string.IsNullOrWhiteSpace(customer.Name))
+        var extracted = ConversationService.TryExtractName(message);
+        if (string.IsNullOrWhiteSpace(customer.Name) && !string.IsNullOrWhiteSpace(extracted))
         {
-            var extracted = ConversationService.TryExtractName(message);
-            if (!string.IsNullOrWhiteSpace(extracted))
-            {
-                customer.Name = extracted;
-                await _db.SaveChangesAsync();
-                return new ConversationReply
-                {
-                    Text = $"Thanks {customer.Name}. I saved your information. {ServiceCatalog.CatalogSummary}. Which would you like?",
-                    Provider = "Rules"
-                };
-            }
+            customer.Name = extracted;
+            await _db.SaveChangesAsync();
+        }
 
-            if (intent.Kind is ReignIntentKind.Greeting or ReignIntentKind.Unknown or ReignIntentKind.NameCapture)
+        if (intent.Kind == ReignIntentKind.NameCapture && !string.IsNullOrWhiteSpace(customer.Name))
+        {
+            return new ConversationReply
             {
-                return new ConversationReply
-                {
-                    Text = "I'd be happy to help. May I get your name first?",
-                    Provider = "Rules"
-                };
-            }
+                Text = $"Thanks {customer.Name}. I saved your information. {ServiceCatalog.CatalogSummary}. Which would you like?",
+                Provider = "Rules"
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(customer.Name) &&
+            intent.Kind is ReignIntentKind.Greeting or ReignIntentKind.Unknown or ReignIntentKind.NameCapture)
+        {
+            var waiting = await _state.GetOrCreate(customer.Id);
+            waiting.CurrentStep = "AwaitingName";
+            await _db.SaveChangesAsync();
+            return new ConversationReply
+            {
+                Text = "I'd be happy to help. May I get your name first?",
+                Provider = "Rules"
+            };
         }
 
         var memory = await _memory.GetCustomerContext(customer.Id);

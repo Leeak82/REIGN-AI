@@ -76,9 +76,19 @@ public class IntentDetectionService
             };
         }
 
-        if (string.IsNullOrWhiteSpace(customer?.Name) && ConversationService.TryExtractName(text) != null)
+        var extractedName = ConversationService.TryExtractName(text);
+        if (extractedName != null &&
+            (string.IsNullOrWhiteSpace(customer?.Name) ||
+             customer?.ConversationState?.CurrentStep == "AwaitingName" ||
+             string.Equals(customer?.Name, extractedName, StringComparison.OrdinalIgnoreCase)))
         {
             return new DetectedIntent { Kind = ReignIntentKind.NameCapture, Label = "name_capture", Confidence = 0.8 };
+        }
+
+        if (string.IsNullOrWhiteSpace(customer?.Name) &&
+            customer?.ConversationState?.CurrentStep == "AwaitingName")
+        {
+            return new DetectedIntent { Kind = ReignIntentKind.NameCapture, Label = "name_capture", Confidence = 0.6 };
         }
 
         if (lower is "hi" or "hello" or "hey" || lower.StartsWith("hi ") || lower.StartsWith("hello"))
