@@ -249,8 +249,7 @@ public class IncomingSmsProcessor
 
         if (!string.IsNullOrWhiteSpace(incoming.To) &&
             PhoneNumbers.IsOwnDeviceNumber(incoming.To, ownNumbers) &&
-            !PhoneNumbers.AreSame(incoming.To, ReignContact.BusinessPhoneE164) &&
-            !PhoneNumbers.AreSame(incoming.To, _smsOptions.BusinessPhoneNumber))
+            !IsCustomerFacingInbox(incoming.To))
         {
             return true;
         }
@@ -262,6 +261,12 @@ public class IncomingSmsProcessor
 
         return !_smsSender.IsSimulated && ReignContact.IsPlaceholder(from);
     }
+
+    private bool IsCustomerFacingInbox(string to) =>
+        PhoneNumbers.AreSame(to, ReignContact.BusinessPhoneE164)
+        || PhoneNumbers.AreSame(to, _smsOptions.BusinessPhoneNumber)
+        || PhoneNumbers.AreSame(to, _smsOptions.SmsGate.FromNumber)
+        || PhoneNumbers.AreSame(to, _smsOptions.SkipCalls.FromNumber);
 
     private IReadOnlyList<string> OwnDeviceNumbers() =>
         PhoneNumbers.GatewayOwnNumbers(
