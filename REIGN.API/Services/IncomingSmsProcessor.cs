@@ -246,7 +246,7 @@ public class IncomingSmsProcessor
 
                 return new ConversationReply
                 {
-                    Text = $"Confirmed. Your {confirmed.Appointment.Service?.Name} is booked for {confirmed.Appointment.AppointmentTime:g} Pacific. {ReignContact.ProviderFirstName} has it on her schedule.",
+                    Text = $"Confirmed. Your {confirmed.Appointment.Service?.Name} is booked for {confirmed.Appointment.AppointmentTime:g} Pacific. {ReignContact.PublicName} has it on the schedule.",
                     Provider = "Rules"
                 };
             }
@@ -320,8 +320,8 @@ public class IncomingSmsProcessor
                     if (write.Rescheduled)
                     {
                         var confirmHint = write.Appointment.Status.Equals("Confirmed", StringComparison.OrdinalIgnoreCase)
-                            ? $"It's updated on {ReignContact.ProviderFirstName}'s schedule."
-                            : $"Reply YES to confirm and put it on {ReignContact.ProviderFirstName}'s schedule.";
+                            ? $"It's updated on {ReignContact.PublicName}'s schedule."
+                            : $"Reply YES to confirm and put it on {ReignContact.PublicName}'s schedule.";
                         return new ConversationReply
                         {
                             Text = $"I updated your {booking.ServiceName} to {write.Appointment.AppointmentTime:g}. {confirmHint}",
@@ -331,7 +331,7 @@ public class IncomingSmsProcessor
 
                     return new ConversationReply
                     {
-                        Text = $"Your {booking.ServiceName} for {booking.RequestedDate:g} Pacific is saved. Reply YES to confirm and put it on {ReignContact.ProviderFirstName}'s schedule.",
+                        Text = $"Your {booking.ServiceName} for {booking.RequestedDate:g} Pacific is saved. Reply YES to confirm and put it on {ReignContact.PublicName}'s schedule.",
                         Provider = "Rules"
                     };
                 }

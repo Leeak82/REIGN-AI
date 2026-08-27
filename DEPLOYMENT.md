@@ -137,7 +137,7 @@ On Render, leftover `https://localhost:5001/...` from `appsettings.json` used to
 
 `https://reign-ai-2.onrender.com/api/integrations/google/callback`
 
-Still set these on the API service (not secrets, but required for the Collins calendar):
+Still set these on the API service (not secrets, but required for Google Calendar):
 
 | Key | Value |
 | --- | --- |
@@ -155,7 +155,7 @@ In Google Cloud Console, the OAuth **Web** client's authorized redirect URIs mus
 
 Authorize and the token POST use the same canonical callback. If exchange fails, the JSON includes Google's `error` / `error_description` (never the secret) plus the `redirectUri` that was sent.
 
-Do not complete consent as `lee.anthony57@gmail.com`. Cursor Calendar MCP is that account and cannot write to Collins' calendar until Collins shares it. REIGN must receive Collins' own OAuth grant.
+Do not complete consent as `lee.anthony57@gmail.com`. Cursor Calendar MCP is that account and cannot write to the live booking calendar. REIGN must receive the Google account's own OAuth grant.
 
 ## Twilio webhook setup
 

@@ -5,8 +5,8 @@
 <PageTitle>Calendar — REIGN AI</PageTitle>
 
 <div class="page-head">
-    <h1>Jessica's schedule</h1>
-    <p>Confirmed customer texts land on Jessica's Google Calendar so she can show up and provide the visit.</p>
+    <h1>Schedule</h1>
+    <p>Confirmed customer texts land on Miss Reign's Google Calendar so the visit can be provided.</p>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(Error))
@@ -27,8 +27,8 @@
         <div class="health-detail">
             @(Status == null ? "Checking connection…"
                 : GoogleConnected
-                    ? $"Connected to Jessica's calendar · {CalendarTarget}"
-                    : $"Not connected — Jessica signs in as {CalendarTarget} so booked visits show on her schedule")
+                    ? $"Connected to Google Calendar · {CalendarTarget}"
+                    : $"Not connected — sign in as {CalendarTarget} so booked visits show on the schedule")
         </div>
     </div>
     @if (Status != null)
@@ -47,7 +47,7 @@
 
 <div class="card mb-2">
     <div class="card-title">Book an appointment</div>
-    <div class="card-sub">Creates the visit on Jessica's calendar when you confirm.</div>
+    <div class="card-sub">Creates the visit on Miss Reign's calendar when you confirm.</div>
     <div class="grid grid-2 mt-1">
         <div>
             <label class="field-label" for="booking-phone">Customer phone</label>
@@ -82,7 +82,7 @@
     </div>
     <label class="row-flex mt-1" style="gap:8px;">
         <input type="checkbox" @bind="BookConfirm" />
-        <span class="small">Confirm now (adds to Jessica's Google Calendar when connected)</span>
+        <span class="small">Confirm now (adds to Google Calendar when connected)</span>
     </label>
     <div class="mt-1">
         <button class="btn btn-primary" @onclick="Book" disabled="@Busy">Book Appointment</button>
@@ -116,7 +116,7 @@ else
                     <th>Time</th>
                     <th>Price</th>
                     <th>Status</th>
-                    <th>Jessica's calendar</th>
+                    <th>Calendar</th>
                     <th></th>
                 </tr>
             </thead>
@@ -137,7 +137,7 @@ else
                         <td data-label="Status">
                             <StatusBadge Text="@a.Status" Kind="@StatusBadge.KindForAppointment(a.Status)" />
                         </td>
-                        <td data-label="Jessica's calendar">
+                        <td data-label="Calendar">
                             @if (!string.IsNullOrWhiteSpace(a.ExternalCalendarEventId))
                             {
                                 <StatusBadge Text="On Google" Kind="success" />
@@ -262,7 +262,7 @@ else
 
             if (result?.CalendarSynced == true)
             {
-                Notice = "Booked. Jessica can see this on her Google Calendar.";
+                Notice = "Booked. Miss Reign has it on the Google Calendar.";
                 BookPhone = "";
                 BookName = "";
                 await Load();
@@ -276,7 +276,7 @@ else
                 await Load();
                 if (!string.IsNullOrWhiteSpace(calendarError))
                 {
-                    Error = $"Jessica's Google Calendar did not update: {calendarError}";
+                    Error = $"Google Calendar did not update: {calendarError}";
                 }
             }
         }

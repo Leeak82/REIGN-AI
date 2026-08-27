@@ -113,7 +113,7 @@ public class BookingService
             return $"I can schedule your {request.ServiceName}. What day and time works best?";
         }
 
-        return $"Your {request.ServiceName} for {request.RequestedDate:g} Pacific is saved. Reply YES to confirm and put it on {ReignContact.ProviderFirstName}'s schedule.";
+        return $"Your {request.ServiceName} for {request.RequestedDate:g} Pacific is saved. Reply YES to confirm and put it on {ReignContact.PublicName}'s schedule.";
     }
 
     private static DateTime? TryParseDay(string text, DateTime today)

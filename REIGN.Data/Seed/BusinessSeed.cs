@@ -17,16 +17,16 @@ public static class BusinessSeed
         {
             Id = BusinessId,
             Name = "REIGN",
-            OwnerName = ReignContact.ProviderFullName,
+            OwnerName = ReignContact.PublicName,
             Phone = ReignContact.BusinessPhoneE164,
-            Email = ReignContact.ProviderCalendar,
+            Email = ReignContact.PublicEmail,
             Address = "100 Main Street",
             Industry = "Appointment Services",
             Active = true,
-            Greeting = "Welcome to REIGN. I can help you schedule a visit with Jessica.",
+            Greeting = "Welcome to REIGN. I can help you schedule a visit with Miss Reign.",
             Tone = "Warm, concise, professional. SMS replies stay under 320 characters.",
             Personality = "Expert appointment coordinator",
-            Instructions = "Help customers understand QV, HH, and HR visits, pricing, and scheduling. Never invent prices or services.",
+            Instructions = "Help customers understand QV, HH, and HR visits, pricing, and scheduling. Never invent prices or services. Never use a legal name. The public name is Miss Reign.",
             Hours = "By appointment, typically 9am–5pm. Same-day visits need at least one hour notice.",
             TimeZone = "America/Los_Angeles",
             CreatedAt = new DateTime(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc)
@@ -41,8 +41,8 @@ public static class BusinessSeed
             BusinessId = BusinessId,
             AIName = "Miss Reign",
             Personality = "Warm, concise, professional. SMS replies stay under 320 characters.",
-            Greeting = "Welcome to REIGN. I can help you schedule a visit with Jessica.",
-            BusinessDescription = "Private appointment scheduling with Jessica for Quick Visit, Half Hour, and Hour sessions.",
+            Greeting = "Welcome to REIGN. I can help you schedule a visit with Miss Reign.",
+            BusinessDescription = "Private appointment scheduling with Miss Reign for Quick Visit, Half Hour, and Hour sessions.",
             Active = true
         };
     }

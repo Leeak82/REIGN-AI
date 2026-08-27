@@ -7,7 +7,7 @@
 
 <div class="hero">
     <h1>@Fmt.Greeting()@(string.IsNullOrWhiteSpace(BusinessName) ? "" : $", {BusinessName}")</h1>
-    <p>Here's what Miss Reign is booking for Jessica.</p>
+    <p>Here's what Miss Reign is booking.</p>
     <div class="loop-strip">
         <div class="loop-step">
             <div class="loop-n">1</div>
@@ -19,11 +19,11 @@
         </div>
         <div class="loop-step">
             <div class="loop-n">3</div>
-            <div class="loop-text">They reply YES — it lands on Jessica's Google Calendar</div>
+            <div class="loop-text">They reply YES — it lands on Google Calendar</div>
         </div>
         <div class="loop-step">
             <div class="loop-n">4</div>
-            <div class="loop-text">Jessica sees her schedule and provides the visit</div>
+            <div class="loop-text">Miss Reign sees the schedule and provides the visit</div>
         </div>
     </div>
 </div>
@@ -53,7 +53,7 @@ else
                   Note="@(WaitingCount == 0 ? "Nobody is waiting right now" : "Latest message is from the customer")"
                   Icon="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
                   Color="linear-gradient(135deg,#f59e0b,#fbbf24)" IconColor="#fbbf24" />
-        <StatCard Label="Jessica's visits today"
+        <StatCard Label="Visits today"
                   Value="@TodayAppointments.Count.ToString()"
                   Note="@(ConfirmedToday + " confirmed")"
                   Icon="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"
@@ -120,16 +120,16 @@ else
             <div class="card" style="padding:0;">
                 <div class="ws-col-head row-flex">
                     <div class="grow">
-                        <div class="card-title">Jessica's visits today</div>
+                        <div class="card-title">Today's visits</div>
                         <div class="card-sub" style="margin:2px 0 0;">@Fmt.TodayIn(TimeZoneId).ToString("dddd, MMMM d")</div>
                     </div>
-                    <a class="btn btn-ghost btn-sm" href="calendar">Jessica's schedule</a>
+                    <a class="btn btn-ghost btn-sm" href="calendar">Schedule</a>
                 </div>
 
                 @if (TodayAppointments.Count == 0)
                 {
                     <EmptyState Title="No visits today"
-                                Description="When a customer confirms by text, the visit shows here and on Jessica's Google Calendar."
+                                Description="When a customer confirms by text, the visit shows here and on Google Calendar."
                                 Icon="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
                 }
                 else
@@ -145,7 +145,7 @@ else
                                 <StatusBadge Text="@a.Status" Kind="@StatusBadge.KindForAppointment(a.Status)" />
                                 @if (!string.IsNullOrWhiteSpace(a.ExternalCalendarEventId))
                                 {
-                                    <StatusBadge Text="On Jessica's calendar" Kind="success" />
+                                    <StatusBadge Text="On Google Calendar" Kind="success" />
                                 }
                             </div>
                         </div>

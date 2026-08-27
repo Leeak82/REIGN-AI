@@ -1010,7 +1010,7 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
-    public void Production_appsettings_targets_collins_calendar()
+    public void Production_appsettings_targets_google_calendar_id()
     {
         var json = File.ReadAllText(Path.Combine(FindRepoRoot(), "REIGN.API", "appsettings.Production.json"));
         Assert.Contains("\"CalendarId\": \"j.collins2491@gmail.com\"", json, StringComparison.Ordinal);

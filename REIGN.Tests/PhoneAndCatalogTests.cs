@@ -2,6 +2,7 @@ using REIGN.API.Messaging;
 using REIGN.API.Options;
 using REIGN.Core.Catalog;
 using REIGN.Core.Contact;
+using REIGN.Data.Seed;
 using Xunit;
 
 namespace REIGN.Tests;
@@ -79,10 +80,15 @@ public class PhoneAndCatalogTests
     }
 
     [Fact]
-    public void Jessica_is_the_provider_and_calendar_owner()
+    public void Public_name_is_miss_reign()
     {
-        Assert.Equal("Jessica", ReignContact.ProviderFirstName);
-        Assert.Equal("Jessica Collins", ReignContact.ProviderFullName);
+        Assert.Equal("Miss Reign", ReignContact.PublicName);
+        Assert.Equal("hello@reign.ai", ReignContact.PublicEmail);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetBusiness().Greeting, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetAIProfile().Greeting, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetAIProfile().BusinessDescription, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetBusiness().OwnerName, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Jessica", BusinessSeed.GetBusiness().Email, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("j.collins2491@gmail.com", ReignContact.ProviderCalendar);
         Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay("primary"));
         Assert.Equal("j.collins2491@gmail.com", ReignContact.CalendarAccountForDisplay(null));

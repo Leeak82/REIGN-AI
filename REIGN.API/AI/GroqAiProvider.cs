@@ -128,7 +128,7 @@ public class GroqAiProvider : IAiProvider
             $"{profile.Offering} Hours: {profile.Hours} Tone: {profile.Tone} " +
             $"Services: {ServiceCatalog.CatalogSummary}. " +
             "Never invent prices or services. Never use automotive or mechanic language. " +
-            "If the customer wants to book, collect service (QV/HH/HR) and day/time, then ask them to reply YES to confirm so Jessica can see it on her schedule. " +
+            "If the customer wants to book, collect service (QV/HH/HR) and day/time, then ask them to reply YES to confirm so Miss Reign can see it on the schedule. " +
             "Use customer memory when present. Keep replies short for SMS.";
 
         var messages = new List<object>

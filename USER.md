@@ -17,9 +17,13 @@ Use one directive per entry:
 
 ## Directives
 
+<!-- observed: 2026-08-27 | status: superseded -->
+
+- Named a private person as the service provider in public copy.
+
 <!-- observed: 2026-08-27 | status: active -->
 
-- Always treat Jessica Collins as the service provider. Confirmed visits go on `j.collins2491@gmail.com` so she can see her schedule and provide QV, HH, or HR. Miss Reign is the SMS assistant. Customers text +19073001244.
+- Always use Miss Reign as the public name. Never put a legal name in customer SMS, public pages, calendar event text, or dashboard copy. Customers text +19073001244. Booked visits sync to the configured Google Calendar account.
 
 ## Related
 

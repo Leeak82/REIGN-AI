@@ -126,7 +126,7 @@ public class AppointmentCalendarSync
     {
         var lines = new List<string>
         {
-            $"{businessName} visit for {ReignContact.ProviderFirstName}",
+            $"{businessName} visit for {ReignContact.PublicName}",
             $"Status: {status}",
             $"Service: {serviceName}",
             $"Duration: {durationMinutes} minutes",
@@ -140,7 +140,7 @@ public class AppointmentCalendarSync
         }
 
         lines.Add($"Time zone: {timeZoneId}");
-        lines.Add($"{ReignContact.ProviderFirstName} sees this on her Google Calendar. Do not change the time here without updating REIGN.");
+        lines.Add("Do not change the time here without updating REIGN.");
         return string.Join("\n", lines);
     }
 

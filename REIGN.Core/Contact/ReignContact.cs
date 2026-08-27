@@ -3,6 +3,7 @@ namespace REIGN.Core.Contact;
 /// <summary>
 /// Canonical customer-facing contact for REIGN / Miss Reign.
 /// The business SMS number is a dedicated Straight Talk SIM, never the owner cell.
+/// Public copy uses Miss Reign only. Never put a legal name in SMS, pages, or UI.
 /// </summary>
 public static class ReignContact
 {
@@ -12,15 +13,18 @@ public static class ReignContact
 
     public const string BusinessPhoneDisplay = "(907) 300-1244";
 
-    public const string ProviderFirstName = "Jessica";
+    public const string PublicName = "Miss Reign";
 
-    public const string ProviderFullName = "Jessica Collins";
+    public const string PublicEmail = "hello@reign.ai";
 
+    /// <summary>
+    /// Internal Google Calendar id for booked visits. Not a public-facing name.
+    /// </summary>
     public const string ProviderCalendar = "j.collins2491@gmail.com";
 
     /// <summary>
-    /// Google account Jessica uses to see booked visits. Falls back to her
-    /// calendar when the configured id is "primary" or otherwise not an email.
+    /// Google account used to write booked visits. Falls back to the internal
+    /// calendar id when the configured id is "primary" or otherwise not an email.
     /// </summary>
     public static string CalendarAccountForDisplay(string? calendarId)
     {

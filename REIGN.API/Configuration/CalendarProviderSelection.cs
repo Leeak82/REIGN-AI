@@ -2,7 +2,7 @@ namespace REIGN.API.Configuration;
 
 /// <summary>
 /// Simulated Calendar is a Development/test provider only.
-/// Production always uses Google Calendar for Jessica's live schedule.
+/// Production always uses Google Calendar for live bookings.
 /// </summary>
 public static class CalendarProviderSelection
 {
