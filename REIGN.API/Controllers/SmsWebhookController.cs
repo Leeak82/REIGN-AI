@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using REIGN.API.Messaging;
 using REIGN.API.Options;
@@ -12,15 +13,18 @@ namespace REIGN.API.Controllers;
 public class SmsWebhookController : ControllerBase
 {
     private readonly IncomingSmsProcessor _processor;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly SmsOptions _options;
     private readonly ILogger<SmsWebhookController> _logger;
 
     public SmsWebhookController(
         IncomingSmsProcessor processor,
+        IServiceScopeFactory scopeFactory,
         IOptions<SmsOptions> options,
         ILogger<SmsWebhookController> logger)
     {
         _processor = processor;
+        _scopeFactory = scopeFactory;
         _options = options.Value;
         _logger = logger;
     }
@@ -104,14 +108,21 @@ public class SmsWebhookController : ControllerBase
             }
         }
 
-        var incoming = SmsGateWebhookValidator.TryParseReceived(rawBody);
-        if (incoming == null)
+        var incoming = SmsGateWebhookValidator.ParseReceived(rawBody, out var eventName);
+        if (incoming.Count == 0)
         {
+            _logger.LogInformation("Ignored SmsGate webhook event={Event}", eventName ?? "unknown");
             return Ok(new { ok = true, ignored = true });
         }
 
-        await ProcessSafelyAsync("SmsGate", incoming);
-        return Ok(new { ok = true });
+        // SmsGate retries unless it gets 2xx within 30s. Groq + Postgres + send
+        // can exceed that on a Render free cold start, so ACK first.
+        foreach (var message in incoming)
+        {
+            QueueSmsGate(message);
+        }
+
+        return Ok(new { ok = true, queued = incoming.Count });
     }
 
     [HttpPost("vonage")]
@@ -147,15 +158,38 @@ public class SmsWebhookController : ControllerBase
         return Ok(new { ok = true });
     }
 
-    private async Task ProcessSafelyAsync(string provider, IncomingSmsMessage incoming)
+    private void QueueSmsGate(IncomingSmsMessage incoming)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var processor = scope.ServiceProvider.GetRequiredService<IncomingSmsProcessor>();
+                await ProcessSafelyAsync(processor, "SmsGate", incoming);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SmsGate background processing failed.");
+            }
+        });
+    }
+
+    private async Task ProcessSafelyAsync(string provider, IncomingSmsMessage incoming) =>
+        await ProcessSafelyAsync(_processor, provider, incoming);
+
+    private async Task ProcessSafelyAsync(
+        IncomingSmsProcessor processor,
+        string provider,
+        IncomingSmsMessage incoming)
     {
         try
         {
-            var result = await _processor.ProcessAsync(incoming, sendReplyViaProvider: true);
+            var result = await processor.ProcessAsync(incoming, sendReplyViaProvider: true);
             if (result.Outbound is { Succeeded: false })
             {
                 _logger.LogWarning(
-                    "{Provider} inbound processed for {Phone} but outbound send failed: {Error}. The Twilio From number must be the dedicated Twilio number (TWILIO_FROM_NUMBER), not the owner cell. Console Send SMS does not use this From check.",
+                    "{Provider} inbound processed for {Phone} but outbound send failed: {Error}",
                     provider,
                     result.Phone,
                     result.Outbound.Error);

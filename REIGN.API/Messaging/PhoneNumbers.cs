@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using REIGN.Core.Contact;
 
 namespace REIGN.API.Messaging;
 
@@ -53,5 +54,31 @@ public static class PhoneNumbers
         var a = Normalize(left);
         var b = Normalize(right);
         return !string.IsNullOrWhiteSpace(a) && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsShortCode(string? value)
+    {
+        var digits = new string(Normalize(value).Where(char.IsDigit).ToArray());
+        return digits.Length is > 0 and < 10;
+    }
+
+    /// <summary>
+    /// True for a real customer handset. False for short codes (611611),
+    /// fictional 555 numbers, and the business SIM itself.
+    /// </summary>
+    public static bool IsReplyableCustomerNumber(string? value, string? businessNumber = null)
+    {
+        var normalized = Normalize(value);
+        if (string.IsNullOrWhiteSpace(normalized) || IsShortCode(normalized))
+        {
+            return false;
+        }
+
+        if (ReignContact.IsPlaceholder(normalized) || AreSame(normalized, ReignContact.BusinessPhoneE164))
+        {
+            return false;
+        }
+
+        return string.IsNullOrWhiteSpace(businessNumber) || !AreSame(normalized, businessNumber);
     }
 }

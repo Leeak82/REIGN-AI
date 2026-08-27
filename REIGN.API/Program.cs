@@ -115,7 +115,11 @@ builder.Services.AddSingleton<SimulatedSmsSender>();
 builder.Services.AddSingleton<TextNowUnsupportedSmsSender>();
 builder.Services.AddHttpClient<TwilioSmsSender>();
 builder.Services.AddHttpClient<VonageSmsSender>();
-builder.Services.AddHttpClient<SmsGateSmsSender>();
+builder.Services.AddHttpClient<SmsGateSmsSender>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("REIGN-AI/1.0");
+});
 builder.Services.AddScoped<ConfigurableSmsSender>();
 builder.Services.AddScoped<ISmsSender>(sp => sp.GetRequiredService<ConfigurableSmsSender>());
 

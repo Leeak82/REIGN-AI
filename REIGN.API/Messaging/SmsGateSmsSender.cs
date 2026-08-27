@@ -54,7 +54,9 @@ public class SmsGateSmsSender : ISmsSender
         var payload = new Dictionary<string, object?>
         {
             ["textMessage"] = new Dictionary<string, string> { ["text"] = request.Body },
-            ["phoneNumbers"] = new[] { PhoneNumbers.Normalize(request.To) }
+            ["phoneNumbers"] = new[] { PhoneNumbers.Normalize(request.To) },
+            // >99 bypasses the Android app's send limits and delays.
+            ["priority"] = 100
         };
         if (!string.IsNullOrWhiteSpace(_options.SmsGate.DeviceId))
         {
@@ -86,7 +88,13 @@ public class SmsGateSmsSender : ISmsSender
                 return SmsSendResult.Fail(ProviderName, $"SmsGate HTTP {(int)response.StatusCode}");
             }
 
-            return SmsSendResult.Ok(ProviderName, TryReadId(body));
+            var id = TryReadId(body);
+            _logger.LogInformation(
+                "SmsGate send accepted From={From} To={To} Id={Id}",
+                from.Number,
+                PhoneNumbers.Normalize(request.To),
+                id);
+            return SmsSendResult.Ok(ProviderName, id);
         }
         catch (Exception ex)
         {

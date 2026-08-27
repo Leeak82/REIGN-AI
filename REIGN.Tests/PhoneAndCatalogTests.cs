@@ -80,6 +80,17 @@ public class PhoneAndCatalogTests
     }
 
     [Fact]
+    public void Short_codes_and_the_business_sim_are_not_replyable_customers()
+    {
+        Assert.True(PhoneNumbers.IsShortCode("611611"));
+        Assert.False(PhoneNumbers.IsReplyableCustomerNumber("611611"));
+        Assert.False(PhoneNumbers.IsReplyableCustomerNumber(ReignContact.BusinessPhoneE164));
+        Assert.False(PhoneNumbers.IsReplyableCustomerNumber("+15555550999"));
+        Assert.True(PhoneNumbers.IsReplyableCustomerNumber("+19072132242"));
+        Assert.True(PhoneNumbers.IsReplyableCustomerNumber("3609261856"));
+    }
+
+    [Fact]
     public void Public_name_is_miss_reign()
     {
         Assert.Equal("Miss Reign", ReignContact.PublicName);

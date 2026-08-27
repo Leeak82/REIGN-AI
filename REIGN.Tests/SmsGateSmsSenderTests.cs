@@ -39,6 +39,7 @@ public class SmsGateSmsSenderTests
         Assert.True(result.Succeeded);
         Assert.Contains("\"deviceId\":\"device-abc\"", handler.Body, StringComparison.Ordinal);
         Assert.Contains("\"simNumber\":1", handler.Body, StringComparison.Ordinal);
+        Assert.Contains("\"priority\":100", handler.Body, StringComparison.Ordinal);
         Assert.Contains("phoneNumbers", handler.Body, StringComparison.Ordinal);
         Assert.Contains("5555550123", handler.Body, StringComparison.Ordinal);
     }

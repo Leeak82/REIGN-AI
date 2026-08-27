@@ -96,6 +96,18 @@ public class IncomingSmsProcessor
                 };
             }
 
+            if (ShouldIgnoreNonCustomer(from))
+            {
+                _logger.LogInformation("Ignored inbound from non-customer number {Phone}", from);
+                return new IncomingSmsResult
+                {
+                    Phone = from,
+                    Received = incoming.Body,
+                    AutoReplied = false,
+                    Intent = "ignored_non_customer"
+                };
+            }
+
             if (!string.IsNullOrWhiteSpace(_smsOptions.OwnerPhoneNumber) &&
                 PhoneNumbers.AreSame(from, _smsOptions.OwnerPhoneNumber))
             {
@@ -183,6 +195,24 @@ public class IncomingSmsProcessor
                 Outbound = outbound
             };
         }
+    }
+
+    private bool ShouldIgnoreNonCustomer(string from)
+    {
+        if (!string.IsNullOrWhiteSpace(_smsOptions.OwnerPhoneNumber) &&
+            PhoneNumbers.AreSame(from, _smsOptions.OwnerPhoneNumber))
+        {
+            return false;
+        }
+
+        if (PhoneNumbers.IsShortCode(from) ||
+            PhoneNumbers.AreSame(from, ReignContact.BusinessPhoneE164) ||
+            PhoneNumbers.AreSame(from, _smsOptions.BusinessPhoneNumber))
+        {
+            return true;
+        }
+
+        return !_smsSender.IsSimulated && ReignContact.IsPlaceholder(from);
     }
 
     private async Task<SmsSendResult?> TrySendAsync(
