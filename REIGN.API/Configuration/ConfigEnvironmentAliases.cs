@@ -47,6 +47,7 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:SmsGate:FromNumber", "SMSGATE_FROM_NUMBER");
         TryAlias(configuration, extras, "Sms:SmsGate:DeviceId", "SMSGATE_DEVICE_ID");
         TryAlias(configuration, extras, "Sms:SmsGate:SimNumber", "SMSGATE_SIM_NUMBER");
+        TryAlias(configuration, extras, "Sms:SmsGate:IgnoreFromNumbers", "SMSGATE_IGNORE_FROM");
         TryAlias(configuration, extras, "Sms:Vonage:ApiKey", "VONAGE_API_KEY");
         TryAlias(configuration, extras, "Sms:Vonage:ApiSecret", "VONAGE_API_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:SignatureSecret", "VONAGE_SIGNATURE_SECRET");

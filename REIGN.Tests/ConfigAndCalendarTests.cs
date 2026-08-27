@@ -241,19 +241,23 @@ public class ConfigAndCalendarTests
     {
         var previousDevice = Environment.GetEnvironmentVariable("SMSGATE_DEVICE_ID");
         var previousSim = Environment.GetEnvironmentVariable("SMSGATE_SIM_NUMBER");
+        var previousIgnore = Environment.GetEnvironmentVariable("SMSGATE_IGNORE_FROM");
         try
         {
             Environment.SetEnvironmentVariable("SMSGATE_DEVICE_ID", "device-abc");
             Environment.SetEnvironmentVariable("SMSGATE_SIM_NUMBER", "1");
+            Environment.SetEnvironmentVariable("SMSGATE_IGNORE_FROM", "+19072132242");
             var manager = new ConfigurationManager();
             ConfigEnvironmentAliases.Apply(manager);
             Assert.Equal("device-abc", manager["Sms:SmsGate:DeviceId"]);
             Assert.Equal("1", manager["Sms:SmsGate:SimNumber"]);
+            Assert.Equal("+19072132242", manager["Sms:SmsGate:IgnoreFromNumbers"]);
         }
         finally
         {
             Environment.SetEnvironmentVariable("SMSGATE_DEVICE_ID", previousDevice);
             Environment.SetEnvironmentVariable("SMSGATE_SIM_NUMBER", previousSim);
+            Environment.SetEnvironmentVariable("SMSGATE_IGNORE_FROM", previousIgnore);
         }
     }
 

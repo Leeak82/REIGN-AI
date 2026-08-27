@@ -138,8 +138,30 @@ public static class SmsGateWebhookValidator
             To = to ?? "",
             Body = body,
             ProviderMessageId = ReadString(payload, "messageId") ?? ReadString(root, "id"),
-            Provider = "SmsGate"
+            Provider = "SmsGate",
+            SimNumber = ReadInt(payload, "simNumber")
         };
+    }
+
+    private static int? ReadInt(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        if (value.ValueKind == JsonValueKind.String &&
+            int.TryParse(value.GetString(), out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
     }
 
     private static string? ReadString(JsonElement element, string name)
