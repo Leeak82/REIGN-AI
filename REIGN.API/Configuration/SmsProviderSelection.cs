@@ -5,7 +5,7 @@ namespace REIGN.API.Configuration;
 
 /// <summary>
 /// Simulated SMS is a Development/test provider only. Production defaults to Twilio
-/// unless SMS_PROVIDER/Sms:Provider is Twilio, Vonage, or SmsGate.
+/// unless SMS_PROVIDER/Sms:Provider is Twilio, Vonage, SmsGate, or SkipCalls.
 /// While A2P is pending, the Straight Talk SIM is the customer-facing number and
 /// production uses SmsGate unless that same number has been ported onto Twilio.
 /// </summary>

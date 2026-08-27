@@ -14,6 +14,7 @@ public class ConfigurableSmsSender : ISmsSender
         TwilioSmsSender twilio,
         VonageSmsSender vonage,
         SmsGateSmsSender smsGate,
+        SkipCallsSmsSender skipCalls,
         TextNowUnsupportedSmsSender textNow,
         IHostEnvironment environment)
     {
@@ -26,7 +27,7 @@ public class ConfigurableSmsSender : ISmsSender
         if (!environment.IsDevelopment() && SmsProviderSelection.IsSimulated(provider))
         {
             throw new InvalidOperationException(
-                "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
+                "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, SkipCalls, Twilio, or Vonage.");
         }
 
         _inner = provider.Trim().ToLowerInvariant() switch
@@ -34,6 +35,7 @@ public class ConfigurableSmsSender : ISmsSender
             "twilio" => twilio,
             "vonage" => vonage,
             "smsgate" or "android" or "android-sms-gateway" => smsGate,
+            "skipcalls" or "skip-calls" or "cail" => skipCalls,
             "textnow" => textNow,
             _ => environment.IsDevelopment() ? simulated : twilio
         };

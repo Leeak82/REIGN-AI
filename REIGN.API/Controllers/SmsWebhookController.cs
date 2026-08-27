@@ -125,6 +125,59 @@ public class SmsWebhookController : ControllerBase
         return Ok(new { ok = true, queued = incoming.Count });
     }
 
+    [HttpPost("skipcalls")]
+    public async Task<IActionResult> SkipCalls()
+    {
+        Request.EnableBuffering();
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+        var rawBody = await reader.ReadToEndAsync();
+        Request.Body.Position = 0;
+
+        if (_options.SkipCalls.RequireSignedWebhooks)
+        {
+            var expected = FirstNonEmpty(_options.SkipCalls.WebhookSecret, _options.SkipCalls.AccessToken);
+            if (string.IsNullOrWhiteSpace(expected))
+            {
+                return StatusCode(503, new { error = "SkipCalls WebhookSecret is not configured. Set Sms__SkipCalls__WebhookSecret." });
+            }
+
+            var provided = new[]
+            {
+                Request.Query["secret"].ToString(),
+                Request.Query["key"].ToString(),
+                Request.Headers["X-Webhook-Secret"].ToString(),
+                Request.Headers["X-SkipCalls-Secret"].ToString(),
+                Request.Headers["X-Api-Key"].ToString(),
+                Request.Headers.Authorization.ToString()
+            };
+            if (!SkipCallsWebhookValidator.IsAuthorized(expected, provided))
+            {
+                _logger.LogWarning("Rejected SkipCalls webhook with invalid secret.");
+                return StatusCode(StatusCodes.Status403Forbidden);
+            }
+        }
+
+        var incoming = SkipCallsWebhookValidator.TryParseReceived(rawBody);
+        if (incoming == null || string.IsNullOrWhiteSpace(incoming.From) || string.IsNullOrWhiteSpace(incoming.Body))
+        {
+            _logger.LogInformation("Ignored SkipCalls webhook that was not an inbound SMS.");
+            return Ok(new { ok = true, ignored = true });
+        }
+
+        if (string.IsNullOrWhiteSpace(incoming.To))
+        {
+            incoming.To = FirstNonEmpty(_options.SkipCalls.FromNumber, _options.BusinessPhoneNumber);
+        }
+
+        _logger.LogInformation(
+            "SkipCalls inbound queued From={From} To={To} Id={Id}",
+            incoming.From,
+            incoming.To,
+            incoming.ProviderMessageId);
+        QueueSmsGate(incoming);
+        return Ok(new { ok = true, queued = 1 });
+    }
+
     [HttpPost("vonage")]
     public async Task<IActionResult> Vonage()
     {
@@ -166,7 +219,10 @@ public class SmsWebhookController : ControllerBase
             {
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 var processor = scope.ServiceProvider.GetRequiredService<IncomingSmsProcessor>();
-                await ProcessSafelyAsync(processor, "SmsGate", incoming);
+                await ProcessSafelyAsync(
+                    processor,
+                    string.IsNullOrWhiteSpace(incoming.Provider) ? "SmsGate" : incoming.Provider,
+                    incoming);
             }
             catch (Exception ex)
             {
@@ -267,4 +323,7 @@ public class SmsWebhookController : ControllerBase
 
         return current.ValueKind == System.Text.Json.JsonValueKind.String ? current.GetString() : null;
     }
+
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(static v => !string.IsNullOrWhiteSpace(v)) ?? "";
 }

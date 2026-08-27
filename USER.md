@@ -23,7 +23,11 @@ Use one directive per entry:
 
 <!-- observed: 2026-08-27 | status: active -->
 
-- Always use Miss Reign as the public name. Never put a legal name in customer SMS, public pages, calendar event text, or dashboard copy. Customers text +19073001244. Booked visits sync to the configured Google Calendar account.
+- Always use Miss Reign as the public name. Never put a legal name in customer SMS, public pages, calendar event text, or dashboard copy. Customers text +19073001244 unless they have switched that line to SkipCalls. Booked visits sync to the configured Google Calendar account.
+
+<!-- observed: 2026-08-27 | status: active -->
+
+- Prefer SkipCalls as the SMS transport when the user is using the SkipCalls app instead of the Motorola SMS Gateway. Never let SkipCalls' own AI auto-reply on the same customer texts Miss Reign handles.
 
 ## Related
 

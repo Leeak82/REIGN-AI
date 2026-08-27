@@ -7,8 +7,9 @@ public class SmsOptions
     public const string SectionName = "Sms";
 
     /// <summary>
-    /// Simulated (Development/tests only), Twilio, Vonage, SmsGate, or TextNow.
+    /// Simulated (Development/tests only), Twilio, Vonage, SmsGate, SkipCalls, or TextNow.
     /// Production uses SmsGate for the Straight Talk SIM while Twilio A2P is pending.
+    /// SkipCalls is the SkipCalls AI receptionist SMS API (https://skipcalls.com).
     /// TextNow has no supported application SMS API and will not send or receive.
     /// SmsGate is the open-source Android SMS gateway (a real SIM on a phone).
     /// </summary>
@@ -42,6 +43,8 @@ public class SmsOptions
     public VonageSmsOptions Vonage { get; set; } = new();
 
     public SmsGateOptions SmsGate { get; set; } = new();
+
+    public SkipCallsOptions SkipCalls { get; set; } = new();
 }
 
 public class TwilioSmsOptions
@@ -119,6 +122,39 @@ public class SmsGateOptions
     /// numbers is the phone talking to itself, not a customer.
     /// </summary>
     public string IgnoreFromNumbers { get; set; } = "";
+
+    public bool RequireSignedWebhooks { get; set; } = true;
+}
+
+/// <summary>
+/// SkipCalls public API (https://be.skipcalls.com). SMS is sent from a
+/// SkipCalls-owned number, not the Motorola Straight Talk SIM.
+/// </summary>
+public class SkipCallsOptions
+{
+    public const string DefaultBaseUrl = "https://be.skipcalls.com";
+
+    /// <summary>
+    /// Bearer JWT from the SkipCalls account. Required to send SMS.
+    /// </summary>
+    public string AccessToken { get; set; } = "";
+
+    public string BaseUrl { get; set; } = DefaultBaseUrl;
+
+    /// <summary>
+    /// SkipCalls-owned SMS number customers text. Used as To on inbound and From on outbound.
+    /// </summary>
+    public string FromNumber { get; set; } = "";
+
+    /// <summary>
+    /// Optional agent id passed on outbound SMS so SkipCalls keeps the thread on that receptionist.
+    /// </summary>
+    public string AgentId { get; set; } = "";
+
+    /// <summary>
+    /// Shared secret for POST /api/sms/webhooks/skipcalls (query secret, or X-Webhook-Secret).
+    /// </summary>
+    public string WebhookSecret { get; set; } = "";
 
     public bool RequireSignedWebhooks { get; set; } = true;
 }

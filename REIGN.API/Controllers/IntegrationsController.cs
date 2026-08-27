@@ -53,6 +53,7 @@ public class IntegrationsController : ControllerBase
                 businessPhoneDisplay = PhoneNumbers.FormatDisplay(_smsOptions.BusinessPhoneNumber),
                 businessPhoneConfigured = !ReignContact.IsPlaceholder(_smsOptions.BusinessPhoneNumber),
                 ownerPhoneConfigured = !string.IsNullOrWhiteSpace(_smsOptions.OwnerPhoneNumber),
+                skipCallsConfigured = !string.IsNullOrWhiteSpace(_smsOptions.SkipCalls.AccessToken),
                 textNowSupported = false,
                 textNowReason = TextNowUnsupportedSmsSender.Reason
             },

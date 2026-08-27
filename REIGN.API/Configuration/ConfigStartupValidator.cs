@@ -111,9 +111,30 @@ public static class ConfigStartupValidator
                     "SmsGate signed webhooks are required, but Sms__SmsGate__SigningKey is missing. POST /api/sms/webhooks/smsgate will reject inbound traffic.");
             }
         }
+        else if (smsProvider.Equals("SkipCalls", StringComparison.OrdinalIgnoreCase) ||
+                 smsProvider.Equals("Skip-Calls", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Missing(configuration, "Sms:SkipCalls:AccessToken"))
+            {
+                logger.LogError(
+                    "Sms:Provider is SkipCalls, but Sms__SkipCalls__AccessToken is missing. Outbound SMS will not work.");
+            }
+            else
+            {
+                logger.LogInformation("SkipCalls credentials are present.");
+            }
+
+            if (configuration.GetValue("Sms:SkipCalls:RequireSignedWebhooks", true) &&
+                Missing(configuration, "Sms:SkipCalls:WebhookSecret") &&
+                Missing(configuration, "Sms:SkipCalls:AccessToken"))
+            {
+                logger.LogError(
+                    "SkipCalls signed webhooks are required, but Sms__SkipCalls__WebhookSecret is missing. POST /api/sms/webhooks/skipcalls will reject inbound traffic.");
+            }
+        }
         else if (smsProvider.Equals("TextNow", StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogError("TextNow has no supported application SMS API. Set Sms__Provider to Twilio, Vonage, or SmsGate.");
+            logger.LogError("TextNow has no supported application SMS API. Set Sms__Provider to Twilio, Vonage, SmsGate, or SkipCalls.");
         }
 
         if (ReignContact.IsPlaceholder(configuration["Sms:BusinessPhoneNumber"]))
@@ -194,7 +215,7 @@ public static class ConfigStartupValidator
         if (SmsProviderSelection.IsSimulated(liveSms))
         {
             throw new InvalidOperationException(
-                "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, Twilio, or Vonage.");
+                "Production cannot use Simulated SMS. Set Sms__Provider to SmsGate, SkipCalls, Twilio, or Vonage.");
         }
 
         var liveCalendar = CalendarProviderSelection.Resolve(calendarProvider, isDevelopment: false);
