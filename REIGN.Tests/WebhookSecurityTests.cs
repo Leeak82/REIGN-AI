@@ -184,6 +184,13 @@ public class WebhookSecurityTests
             """{"event":"sms:received","payload":{"messageId":"m3","sender":"+15555550123","recipient":"+19073001244","message":"Hi","simNumber":1}}""");
         Assert.NotNull(withSim);
         Assert.Equal(1, withSim!.SimNumber);
+        Assert.Null(withSim.ReportedPhoneNumber);
+
+        var legacyFields = SmsGateWebhookValidator.TryParseReceived(
+            """{"event":"sms:received","payload":{"sender":"+19073001244","phoneNumber":"+13609261856","recipient":"+19073001244","message":"Hi"}}""");
+        Assert.NotNull(legacyFields);
+        Assert.Equal("+19073001244", legacyFields!.From);
+        Assert.Equal("+13609261856", legacyFields.ReportedPhoneNumber);
     }
 
     [Fact]
@@ -240,8 +247,21 @@ public class WebhookSecurityTests
         Assert.Equal("+13609261856", zapier!.From);
         Assert.Equal("Hi Miss Reign", zapier.Body);
 
+        var nested = SkipCallsWebhookValidator.TryParseReceived(
+            """{"event":"SMS_RECEIVED","data":{"direction":"INBOUND","from":{"phoneNumber":"+12538319100"},"to":{"phoneNumber":"+18136380375"},"content":"Book QV","contact":{"phoneNumber":"+12538319100"},"id":"sms-22"}}""");
+        Assert.NotNull(nested);
+        Assert.Equal("+12538319100", nested!.From);
+        Assert.Equal("+18136380375", nested.To);
+        Assert.Equal("Book QV", nested.Body);
+        Assert.Equal("sms-22", nested.ProviderMessageId);
+        Assert.Equal("+12538319100", nested.ReportedPhoneNumber);
+
         Assert.Null(SkipCallsWebhookValidator.TryParseReceived(
             """{"event":"sms_sent","from":"+15555550100","to":"+13609261856","body":"outbound"}"""));
+        Assert.NotNull(SkipCallsWebhookValidator.TryParseReceived(
+            """{"event":"SMS_RECEIVED","from":"+12538319100","to":"+18136380375","body":"still inbound"}"""));
+        Assert.Contains("data.from", SkipCallsWebhookValidator.DescribeKeys(
+            """{"event":"SMS_RECEIVED","data":{"from":"+1"}}"""), StringComparison.Ordinal);
         Assert.True(SkipCallsWebhookValidator.IsAuthorized("secret-key", "secret-key"));
         Assert.True(SkipCallsWebhookValidator.IsAuthorized("secret-key", "Bearer secret-key"));
         Assert.False(SkipCallsWebhookValidator.IsAuthorized("secret-key", "other"));

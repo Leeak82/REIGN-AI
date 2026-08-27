@@ -352,6 +352,50 @@ public class IncomingSmsProcessorTests
         Assert.Empty(harness.Db.Customers);
     }
 
+    [Fact]
+    public async Task Swapped_gateway_endpoints_reply_to_the_customer_handset()
+    {
+        await using var harness = await Harness.CreateAsync(ignoreFrom: "+19072132242", simNumber: 1);
+
+        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+19073001244",
+            To = "+13609261856",
+            Body = "Hi Miss Reign",
+            Provider = "SmsGate",
+            SimNumber = 1
+        }, sendReplyViaProvider: true);
+
+        Assert.True(result.AutoReplied);
+        Assert.Equal("+13609261856", result.Phone);
+        Assert.False(string.IsNullOrWhiteSpace(result.Reply));
+        var sent = Assert.Single(harness.Sms.Sent);
+        Assert.Equal("+13609261856", sent.To);
+        Assert.DoesNotContain("+19073001244", harness.Sms.Sent.Select(x => x.To));
+        Assert.DoesNotContain("+19072132242", harness.Sms.Sent.Select(x => x.To));
+        Assert.Equal("+13609261856", Assert.Single(harness.Db.Customers).PhoneNumber);
+    }
+
+    [Fact]
+    public async Task Legacy_phoneNumber_customer_is_used_when_sender_is_the_gateway()
+    {
+        await using var harness = await Harness.CreateAsync(ignoreFrom: "+19072132242", simNumber: 1);
+
+        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+19073001244",
+            To = "+19073001244",
+            ReportedPhoneNumber = "+13609261856",
+            Body = "Book QV",
+            Provider = "SmsGate",
+            SimNumber = 1
+        }, sendReplyViaProvider: true);
+
+        Assert.True(result.AutoReplied);
+        Assert.Equal("+13609261856", result.Phone);
+        Assert.Equal("+13609261856", Assert.Single(harness.Sms.Sent).To);
+    }
+
     internal sealed class Harness : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;

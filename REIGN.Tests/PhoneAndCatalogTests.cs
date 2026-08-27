@@ -91,6 +91,65 @@ public class PhoneAndCatalogTests
     }
 
     [Fact]
+    public void Inbound_endpoints_prefer_the_customer_handset()
+    {
+        var own = PhoneNumbers.GatewayOwnNumbers(
+            ReignContact.BusinessPhoneE164,
+            ReignContact.BusinessPhoneE164,
+            "+19072132242");
+
+        var swapped = PhoneNumbers.ResolveInboundEndpoints(
+            ReignContact.BusinessPhoneE164,
+            "+13609261856",
+            null,
+            own);
+        Assert.Equal("+13609261856", swapped.From);
+        Assert.Equal(ReignContact.BusinessPhoneE164, swapped.To);
+        Assert.True(swapped.Swapped);
+
+        var official = PhoneNumbers.ResolveInboundEndpoints(
+            "+13609261856",
+            ReignContact.BusinessPhoneE164,
+            null,
+            own);
+        Assert.Equal("+13609261856", official.From);
+        Assert.Equal(ReignContact.BusinessPhoneE164, official.To);
+        Assert.False(official.Swapped);
+
+        var phoneNumberOnly = PhoneNumbers.ResolveInboundEndpoints(
+            ReignContact.BusinessPhoneE164,
+            ReignContact.BusinessPhoneE164,
+            "+13609261856",
+            own);
+        Assert.Equal("+13609261856", phoneNumberOnly.From);
+        Assert.True(phoneNumberOnly.Swapped);
+
+        var skipCalls = PhoneNumbers.GatewayOwnNumbers(
+            ReignContact.BusinessPhoneE164,
+            ReignContact.BusinessPhoneE164,
+            "+19072132242",
+            "+18136380375");
+        var skipInbound = PhoneNumbers.ResolveInboundEndpoints(
+            "+18136380375",
+            "+12538319100",
+            "+12538319100",
+            skipCalls);
+        Assert.Equal("+12538319100", skipInbound.From);
+        Assert.Equal("+18136380375", skipInbound.To);
+        Assert.True(skipInbound.Swapped);
+
+        var bothOwn = PhoneNumbers.ResolveInboundEndpoints(
+            ReignContact.BusinessPhoneE164,
+            "+19072132242",
+            null,
+            own);
+        Assert.Equal(ReignContact.BusinessPhoneE164, bothOwn.From);
+        Assert.Equal("+19072132242", bothOwn.To);
+        Assert.False(bothOwn.Swapped);
+        Assert.True(PhoneNumbers.IsOwnDeviceNumber("+19072132242", own));
+    }
+
+    [Fact]
     public void Public_name_is_miss_reign()
     {
         Assert.Equal("Miss Reign", ReignContact.PublicName);

@@ -119,6 +119,12 @@ public class SmsWebhookController : ControllerBase
         // can exceed that on a Render free cold start, so ACK first.
         foreach (var message in incoming)
         {
+            _logger.LogInformation(
+                "SmsGate inbound queued From={From} To={To} Sim={Sim} Id={Id}",
+                message.From,
+                message.To,
+                message.SimNumber,
+                message.ProviderMessageId);
             QueueSmsGate(message);
         }
 
@@ -160,7 +166,9 @@ public class SmsWebhookController : ControllerBase
         var incoming = SkipCallsWebhookValidator.TryParseReceived(rawBody);
         if (incoming == null || string.IsNullOrWhiteSpace(incoming.From) || string.IsNullOrWhiteSpace(incoming.Body))
         {
-            _logger.LogInformation("Ignored SkipCalls webhook that was not an inbound SMS.");
+            _logger.LogInformation(
+                "Ignored SkipCalls webhook that was not an inbound SMS. Keys={Keys}",
+                SkipCallsWebhookValidator.DescribeKeys(rawBody));
             return Ok(new { ok = true, ignored = true });
         }
 

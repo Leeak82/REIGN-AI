@@ -109,4 +109,76 @@ public static class PhoneNumbers
 
         return false;
     }
+
+    public static IReadOnlyList<string> GatewayOwnNumbers(
+        string? businessNumber,
+        string? smsGateFromNumber,
+        string? ignoreFromNumbers,
+        string? skipCallsFromNumber = null)
+    {
+        var values = new List<string?>
+        {
+            ReignContact.BusinessPhoneE164,
+            businessNumber,
+            smsGateFromNumber,
+            skipCallsFromNumber
+        };
+        values.AddRange(SplitNumberList(ignoreFromNumbers));
+        return values
+            .Select(Normalize)
+            .Where(static n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// SmsGate inbound: sender is the customer and recipient is the device.
+    /// Some payloads swap those, or put the customer only in phoneNumber.
+    /// Pick the non-gateway number as From so the reply goes back to that handset.
+    /// </summary>
+    public static InboundEndpoints ResolveInboundEndpoints(
+        string? sender,
+        string? recipient,
+        string? reportedPhoneNumber,
+        IEnumerable<string?> ownNumbers)
+    {
+        var from = Normalize(sender);
+        var to = Normalize(recipient);
+        var reported = Normalize(reportedPhoneNumber);
+        var own = GatewayOwnNumbers(null, null, null)
+            .Concat((ownNumbers ?? []).Select(Normalize))
+            .Where(static n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var external = new List<string>();
+        foreach (var candidate in new[] { from, reported, to })
+        {
+            if (candidate.Length == 0 || !seen.Add(candidate))
+            {
+                continue;
+            }
+
+            if (!IsShortCode(candidate) && !IsOwnDeviceNumber(candidate, own))
+            {
+                external.Add(candidate);
+            }
+        }
+
+        if (external.Count != 1)
+        {
+            return new InboundEndpoints(from, to, Swapped: false);
+        }
+
+        var customer = external[0];
+        var device = IsOwnDeviceNumber(from, own)
+            ? from
+            : IsOwnDeviceNumber(to, own)
+                ? to
+                : to;
+        return new InboundEndpoints(customer, device, Swapped: !AreSame(from, customer));
+    }
+
+    public readonly record struct InboundEndpoints(string From, string To, bool Swapped);
 }

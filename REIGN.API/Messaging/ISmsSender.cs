@@ -16,6 +16,12 @@ public class IncomingSmsMessage
     /// 1-based SIM that received the SMS, when the gateway includes it.
     /// </summary>
     public int? SimNumber { get; set; }
+
+    /// <summary>
+    /// SmsGate's deprecated payload.phoneNumber. Sometimes duplicates sender,
+    /// sometimes holds the other party when sender/recipient are the device SIMs.
+    /// </summary>
+    public string? ReportedPhoneNumber { get; set; }
 }
 
 public class SmsSendRequest
