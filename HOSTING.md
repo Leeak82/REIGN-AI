@@ -90,7 +90,7 @@ Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (live token, not test), `TWILIO_FR
 
 ## SmsGate (open-source Android SMS)
 
-This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://sms-gate.app/) (Apache 2.0). Unknown customers text the **SIM number** on that phone. Replies go out through the same SIM. Cost is the phone’s SMS plan, not Twilio.
+This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://sms-gate.app/) (Apache 2.0). Unknown customers text the dedicated Straight Talk SIM **+19073001244**. Replies go out through the same SIM. Cost is the phone’s SMS plan, not Twilio.
 
 1. Put a dedicated SIM (not the owner personal cell) in an Android phone. Keep the phone charged and online.
 2. Install **SMS Gateway for Android**. Use **Cloud** mode so Render can reach it.
@@ -103,8 +103,8 @@ This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://s
 | `SMSGATE_USERNAME` | app username |
 | `SMSGATE_PASSWORD` | app password |
 | `SMSGATE_SIGNING_KEY` | webhook signing key |
-| `SMSGATE_FROM_NUMBER` | the SIM number in E.164 |
-| `Sms__BusinessPhoneNumber` | same SIM number |
+| `SMSGATE_FROM_NUMBER` | `+19073001244` (Straight Talk SIM) |
+| `Sms__BusinessPhoneNumber` | `+19073001244` |
 | `Sms__OwnerPhoneNumber` | owner personal cell |
 
 5. Register the inbound webhook (Cloud mode):

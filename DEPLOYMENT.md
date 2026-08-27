@@ -192,7 +192,7 @@ If inbound shows 403 in Twilio Debugger, the signed URL did not match. Confirm t
 
 ## SmsGate (Android, open source)
 
-Free path for unknown customers: a dedicated Android phone + SIM running [SMS Gateway for Android](https://sms-gate.app/). Set `Sms__Provider=SmsGate`, `SMSGATE_USERNAME`, `SMSGATE_PASSWORD`, `SMSGATE_SIGNING_KEY`, and `SMSGATE_FROM_NUMBER`. Register HTTP POST `https://YOUR_HOST/api/sms/webhooks/smsgate` as the `sms:received` webhook. Details are in `HOSTING.md`.
+Free path for unknown customers: a dedicated Android phone + SIM running [SMS Gateway for Android](https://sms-gate.app/). The dedicated REIGN business number is the Straight Talk SIM **+19073001244**. Set `Sms__Provider=SmsGate`, `SMSGATE_USERNAME`, `SMSGATE_PASSWORD`, `SMSGATE_SIGNING_KEY`, and `SMSGATE_FROM_NUMBER=+19073001244`. Register HTTP POST `https://YOUR_HOST/api/sms/webhooks/smsgate` as the `sms:received` webhook. Details are in `HOSTING.md`.
 
 ## Health
 

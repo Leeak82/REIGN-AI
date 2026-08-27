@@ -600,6 +600,10 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
 
         public bool BusinessPhoneConfigured { get; set; }
 
+        public string? BusinessPhoneNumber { get; set; }
+
+        public string? BusinessPhoneDisplay { get; set; }
+
         public bool OwnerPhoneConfigured { get; set; }
     }
 

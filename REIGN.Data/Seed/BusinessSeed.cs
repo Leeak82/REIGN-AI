@@ -1,3 +1,4 @@
+using REIGN.Core.Contact;
 using REIGN.Data.Models;
 
 namespace REIGN.Data.Seed;
@@ -17,7 +18,7 @@ public static class BusinessSeed
             Id = BusinessId,
             Name = "REIGN",
             OwnerName = "Miss Reign",
-            Phone = "+15555550100",
+            Phone = ReignContact.BusinessPhoneE164,
             Email = "hello@reign.ai",
             Address = "100 Main Street",
             Industry = "Appointment Services",

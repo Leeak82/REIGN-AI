@@ -41,6 +41,7 @@ else
             <div class="kv"><span class="k">Active provider</span><span class="v">@Status.Sms.ActiveProvider</span></div>
             <div class="kv"><span class="k">Configured provider</span><span class="v">@Status.Sms.ConfiguredProvider</span></div>
             <div class="kv"><span class="k">Credentials</span><span class="v">@(Status.Sms.CredentialsPresent ? "Present" : "Missing")</span></div>
+            <div class="kv"><span class="k">Business number</span><span class="v">@(Status.Sms.BusinessPhoneConfigured ? (Status.Sms.BusinessPhoneDisplay ?? Status.Sms.BusinessPhoneNumber) : "Not configured")</span></div>
             <p class="small faint mt-1" style="margin-bottom:0;">
                 Customer SMS runs through the configured provider on a dedicated REIGN business number.
                 Provider and credentials are set in API configuration.

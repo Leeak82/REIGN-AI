@@ -1,3 +1,5 @@
+using REIGN.Core.Contact;
+
 namespace REIGN.API.Options;
 
 public class SmsOptions
@@ -15,7 +17,7 @@ public class SmsOptions
     /// <summary>
     /// Dedicated REIGN business number. Must not be the owner's personal cell.
     /// </summary>
-    public string BusinessPhoneNumber { get; set; } = "+15555550100";
+    public string BusinessPhoneNumber { get; set; } = ReignContact.BusinessPhoneE164;
 
     /// <summary>
     /// Owner's personal number. Never used as the customer-facing From number.
@@ -98,7 +100,7 @@ public class SmsGateOptions
     /// </summary>
     public string SigningKey { get; set; } = "";
 
-    public string FromNumber { get; set; } = "";
+    public string FromNumber { get; set; } = ReignContact.BusinessPhoneE164;
 
     public bool RequireSignedWebhooks { get; set; } = true;
 }

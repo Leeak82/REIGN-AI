@@ -17,9 +17,9 @@ Use one directive per entry:
 
 ## Directives
 
-<!-- observed: YYYY-MM-DD | status: active -->
+<!-- observed: 2026-08-27 | status: active -->
 
-- Prefer ...
+- Always use +19073001244 as the dedicated REIGN / Miss Reign business SMS number. Never send customer texts from the owner personal cell.
 
 ## Related
 

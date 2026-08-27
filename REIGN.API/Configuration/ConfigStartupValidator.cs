@@ -1,3 +1,7 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using REIGN.Core.Contact;
+
 namespace REIGN.API.Configuration;
 
 public static class ConfigStartupValidator
@@ -112,7 +116,7 @@ public static class ConfigStartupValidator
             logger.LogError("TextNow has no supported application SMS API. Set Sms__Provider to Simulated, Twilio, Vonage, or SmsGate.");
         }
 
-        if (Missing(configuration, "Sms:BusinessPhoneNumber"))
+        if (ReignContact.IsPlaceholder(configuration["Sms:BusinessPhoneNumber"]))
         {
             logger.LogWarning("Sms__BusinessPhoneNumber is not set. Incoming routing and outbound From-number checks need a dedicated REIGN business number.");
         }

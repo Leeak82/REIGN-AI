@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Configuration;
+using REIGN.API.Messaging;
+using REIGN.Core.Contact;
 
 namespace REIGN.API.Configuration;
 
@@ -47,7 +49,7 @@ public static class ConfigEnvironmentAliases
         TryAlias(configuration, extras, "Sms:Vonage:ApiSecret", "VONAGE_API_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:SignatureSecret", "VONAGE_SIGNATURE_SECRET");
         TryAlias(configuration, extras, "Sms:Vonage:FromNumber", "VONAGE_FROM_NUMBER");
-        TryAlias(configuration, extras, "Sms:BusinessPhoneNumber", "REIGN_BUSINESS_PHONE");
+        TryAlias(configuration, extras, "Sms:BusinessPhoneNumber", allowOverride: true, "REIGN_BUSINESS_PHONE");
         TryAlias(configuration, extras, "Sms:OwnerPhoneNumber", "REIGN_OWNER_PHONE");
         TryAlias(configuration, extras, "Sms:InternalApiKey", "REIGN_INTERNAL_API_KEY");
         TryAlias(configuration, extras, "Sms:PublicBaseUrl", "REIGN_PUBLIC_BASE_URL", "RENDER_EXTERNAL_URL");
@@ -76,6 +78,8 @@ public static class ConfigEnvironmentAliases
         {
             extras["Sms:Provider"] = smsProvider.Trim();
         }
+
+        ApplyDedicatedBusinessNumber(configuration, extras);
 
         if (extras.Count > 0)
         {
@@ -181,6 +185,34 @@ public static class ConfigEnvironmentAliases
         {
             extras["GoogleCalendar:RedirectUri"] = publicCallback;
         }
+    }
+
+    private static void ApplyDedicatedBusinessNumber(
+        IConfiguration configuration,
+        IDictionary<string, string?> extras)
+    {
+        extras["Sms:BusinessPhoneNumber"] = ResolveDedicatedNumber(
+            extras,
+            configuration,
+            "Sms:BusinessPhoneNumber");
+        extras["Sms:SmsGate:FromNumber"] = ResolveDedicatedNumber(
+            extras,
+            configuration,
+            "Sms:SmsGate:FromNumber");
+    }
+
+    private static string ResolveDedicatedNumber(
+        IDictionary<string, string?> extras,
+        IConfiguration configuration,
+        string configurationKey)
+    {
+        extras.TryGetValue(configurationKey, out var aliased);
+        var current = NullIfWhiteSpace(aliased)
+            ?? NullIfWhiteSpace(configuration[configurationKey]);
+        var normalized = PhoneNumbers.Normalize(current);
+        return ReignContact.IsPlaceholder(normalized)
+            ? ReignContact.BusinessPhoneE164
+            : normalized;
     }
 
     private static string? NullIfWhiteSpace(string? value) =>

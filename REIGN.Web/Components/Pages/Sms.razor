@@ -43,7 +43,7 @@ else
             <div class="divider"></div>
 
             <div class="kv"><span class="k">Provider</span><span class="v">@sms.ActiveProvider</span></div>
-            <div class="kv"><span class="k">Business number</span><span class="v">@(sms.BusinessPhoneConfigured ? "•••••• configured" : "Not configured")</span></div>
+            <div class="kv"><span class="k">Business number</span><span class="v">@(sms.BusinessPhoneConfigured ? (sms.BusinessPhoneDisplay ?? sms.BusinessPhoneNumber) : "Not configured")</span></div>
             <div class="kv"><span class="k">Owner number</span><span class="v">@(sms.OwnerPhoneConfigured ? "•••••• configured" : "Not configured")</span></div>
             <div class="kv"><span class="k">Credentials</span><span class="v">@(sms.CredentialsPresent ? "Configured" : "Missing")</span></div>
             @if (sms.Simulated)

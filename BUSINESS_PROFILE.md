@@ -3,6 +3,9 @@
 Business Name:
 Miss Reign
 
+Business SMS:
++19073001244 (Straight Talk)
+
 Service Area:
 Pierce County and King County including Tacoma and Federal Way areas.
 

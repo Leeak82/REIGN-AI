@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using REIGN.API.Calendar;
 using REIGN.API.Configuration;
 using REIGN.API.Options;
+using REIGN.Core.Contact;
 using REIGN.Data;
 using REIGN.Data.Schema;
 using Xunit;
@@ -100,6 +101,62 @@ public class ConfigAndCalendarTests
         {
             Environment.SetEnvironmentVariable("RENDER_EXTERNAL_URL", previousUrl);
             Environment.SetEnvironmentVariable("REIGN_PUBLIC_BASE_URL", previousPublic);
+        }
+    }
+
+    [Fact]
+    public void Apply_replaces_placeholder_with_straight_talk_business_number()
+    {
+        var previous = Environment.GetEnvironmentVariable("REIGN_BUSINESS_PHONE");
+        var previousNested = Environment.GetEnvironmentVariable("Sms__BusinessPhoneNumber");
+        var previousGate = Environment.GetEnvironmentVariable("Sms__SmsGate__FromNumber");
+        var previousSmsgate = Environment.GetEnvironmentVariable("SMSGATE_FROM_NUMBER");
+        try
+        {
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", null);
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", null);
+            Environment.SetEnvironmentVariable("Sms__SmsGate__FromNumber", null);
+            Environment.SetEnvironmentVariable("SMSGATE_FROM_NUMBER", null);
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:BusinessPhoneNumber"] = "+15555550100",
+                ["Sms:SmsGate:FromNumber"] = ""
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:BusinessPhoneNumber"]);
+            Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:SmsGate:FromNumber"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", previous);
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", previousNested);
+            Environment.SetEnvironmentVariable("Sms__SmsGate__FromNumber", previousGate);
+            Environment.SetEnvironmentVariable("SMSGATE_FROM_NUMBER", previousSmsgate);
+        }
+    }
+
+    [Fact]
+    public void Apply_keeps_explicit_non_placeholder_business_number()
+    {
+        var previous = Environment.GetEnvironmentVariable("REIGN_BUSINESS_PHONE");
+        var previousNested = Environment.GetEnvironmentVariable("Sms__BusinessPhoneNumber");
+        try
+        {
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", null);
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", "+12065551234");
+            var manager = new ConfigurationManager();
+            manager.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Sms:BusinessPhoneNumber"] = "+15555550100"
+            });
+            ConfigEnvironmentAliases.Apply(manager);
+            Assert.Equal("+12065551234", manager["Sms:BusinessPhoneNumber"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", previous);
+            Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", previousNested);
         }
     }
 

@@ -27,6 +27,7 @@ else
             {
                 <div class="kv"><span class="k">Business</span><span class="v">@Business.Name</span></div>
                 <div class="kv"><span class="k">Assistant name</span><span class="v">@(Business.Assistant ?? "REIGN")</span></div>
+                <div class="kv"><span class="k">Phone</span><span class="v">@(Business.Phone ?? "—")</span></div>
                 <div class="kv"><span class="k">Time zone</span><span class="v">@(Business.TimeZone ?? "—")</span></div>
                 <div class="kv"><span class="k">Hours</span><span class="v">@(Business.Hours ?? "—")</span></div>
                 <a class="btn btn-ghost btn-sm mt-1" href="business">Edit via API configuration</a>
