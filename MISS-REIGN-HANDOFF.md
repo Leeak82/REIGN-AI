@@ -1,57 +1,88 @@
 # Miss Reign Operator Handoff
 
-## Current production status
+## Production operator dashboard
 
-The production REIGN API is live at:
+Dashboard:
+
+- https://reign-web.onrender.com
+- Login: https://reign-web.onrender.com/login
+
+Admin username:
+
+- `missreign`
+
+The admin password is intentionally **not stored in GitHub**. It is configured as a PBKDF2 hash in Render and should be handed to the operator privately.
+
+The dashboard is configured to use the live production API:
 
 - https://reign-ai-3.onrender.com
-- Health: https://reign-ai-3.onrender.com/health
-- Swagger/API reference: https://reign-ai-3.onrender.com/swagger/index.html
 
-Current verified integrations:
+## Current production status
 
+Verified production services:
+
+- REIGN API: live
+- REIGN operator dashboard: live
+- Database: connected
+- AI provider: configured
 - SMS provider: SkipCalls
 - Customer SMS number: +1 (813) 638-0375
 - Google Calendar: connected
 - Calendar account: j.collins2491@gmail.com
-- Database: connected
 
-## Important: operator dashboard is not ready for handoff yet
+The dashboard requires authentication. Unauthenticated operators should use `/login`; authenticated sessions use a secure HTTP-only cookie and expire after 12 hours.
 
-Do not use `reign-web.onrender.com` as the production dashboard. That Render service is currently misconfigured to build the API container and its latest deploys fail because the API database configuration is not present on that service.
+## Miss Reign daily workflow
 
-The REIGN.Web project contains the intended operator dashboard (Inbox, Calendar, Customers, Integrations, Services, AI, Business, Activity), but it must be deployed separately and pointed at the production API.
+Start at the dashboard home page, then use the operating sections as needed:
 
-## Important: there is no admin login yet
+1. **Inbox** — watch incoming customer conversations, review REIGN replies, intervene when human help is needed, and resume AI handling afterward.
+2. **Calendar** — review upcoming appointments and pending scheduling work; confirm, reschedule, or cancel when appropriate and verify calendar sync.
+3. **Customers** — review customer profiles and conversation history before making customer-service decisions.
+4. **Services** — verify the current service catalog and pricing/business information used by REIGN.
+5. **Integrations** — check SMS and Google Calendar integration status when messages or scheduling are not behaving normally.
+6. **AI / Reign** — review REIGN behavior and operational AI information.
+7. **Business / Activity** — review business profile and operational activity.
 
-REIGN.Web currently has no authentication/authorization middleware or login page. There is no valid admin username/password to share yet.
+## What Miss Reign owns operationally
 
-Before giving the dashboard to an operator, add authentication and role-based access, then deploy the web app behind it.
+- Monitor the customer inbox and make sure conversations do not die in an unattended queue.
+- Take over conversations that need a human decision or customer-service judgment.
+- Resume AI handling after the human issue is resolved.
+- Review pending appointments and scheduling conflicts.
+- Keep customer-facing service information accurate.
+- Check integration status if SMS or calendar behavior looks wrong.
+- Report reproducible bugs with the customer/conversation/appointment involved and what action failed.
 
-## Intended Miss Reign responsibilities
+## Important phone/SMS note
 
-Once dashboard auth/deployment is complete, Miss Reign should be able to:
+The current customer-facing SMS provider is **SkipCalls** and the current live customer SMS number is:
 
-- Watch incoming customer conversations and REIGN replies
-- Take over a conversation when human help is needed
-- Resume AI handling after owner intervention
-- Review customers and conversation history
-- Review, confirm, reschedule, and cancel appointments
-- Verify Google Calendar synchronization
-- Review service catalog and business profile information
-- Monitor integration health and provider failures
+- +1 (813) 638-0375
+
+The Alaska number +1 (907) 300-1244 is not the current customer SkipCalls inbox. It remains associated with the voice/SmsGate fallback path.
 
 ## Security rules
 
-- Never put API keys, SMS tokens, database passwords, or Google client secrets in GitHub.
-- Do not share Render environment values in screenshots or messages.
-- Do not give operators direct Render access unless they are expected to manage deployments/secrets.
-- The public API URL is not a substitute for an authenticated operator dashboard.
+- Do not share the admin password publicly or put it in GitHub, screenshots, issue comments, or support tickets.
+- Do not put API keys, SMS tokens, database passwords, Google client secrets, or Render environment values in messages or GitHub.
+- Do not give ordinary operators direct Render access unless they are expected to manage deployments and secrets.
+- Log out when using a shared device: https://reign-web.onrender.com/logout
+
+## If something appears down
+
+Check these first:
+
+- API health: https://reign-ai-3.onrender.com/health
+- Dashboard login: https://reign-web.onrender.com/login
+- Integrations page inside the authenticated dashboard
+
+If the API health endpoint is healthy but the dashboard cannot load data, treat it as a dashboard/API connectivity issue rather than an SMS-provider outage.
 
 ## Developer references
 
-- README.md — system overview
-- DEPLOYMENT.md — production configuration
-- HOSTING.md — hosting notes
-- PRODUCTION-LAUNCH-CHECKLIST.md — production checklist
-- PRODUCTION-POLISH-CHECKPOINT.md — latest polish/verification notes
+- `README.md` — system overview
+- `DEPLOYMENT.md` — production configuration
+- `HOSTING.md` — hosting notes
+- `PRODUCTION-LAUNCH-CHECKLIST.md` — production checklist
+- `PRODUCTION-POLISH-CHECKPOINT.md` — latest polish/verification notes
