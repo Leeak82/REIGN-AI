@@ -17,6 +17,42 @@ public class CalendarEventRequest
     public string? ExistingEventId { get; set; }
 }
 
+public sealed class CalendarBusyPeriod
+{
+    public DateTime Start { get; set; }
+
+    public DateTime End { get; set; }
+
+    public string? EventId { get; set; }
+}
+
+public sealed class CalendarAvailabilityResult
+{
+    public bool Succeeded { get; set; }
+
+    public string Provider { get; set; } = "";
+
+    public string? Error { get; set; }
+
+    public List<CalendarBusyPeriod> Busy { get; set; } = [];
+
+    public static CalendarAvailabilityResult Ok(string provider, IEnumerable<CalendarBusyPeriod>? busy = null) =>
+        new()
+        {
+            Succeeded = true,
+            Provider = provider,
+            Busy = busy?.ToList() ?? []
+        };
+
+    public static CalendarAvailabilityResult Fail(string provider, string error) =>
+        new()
+        {
+            Succeeded = false,
+            Provider = provider,
+            Error = error
+        };
+}
+
 public class CalendarSyncResult
 {
     public bool Succeeded { get; set; }
@@ -87,4 +123,9 @@ public interface ICalendarService
     Task<CalendarSyncResult> UpsertAppointmentAsync(CalendarEventRequest request, CancellationToken cancellationToken = default);
 
     Task<CalendarSyncResult> CancelAppointmentAsync(string? eventId, CancellationToken cancellationToken = default);
+
+    Task<CalendarAvailabilityResult> GetBusyPeriodsAsync(
+        DateTime start,
+        DateTime end,
+        CancellationToken cancellationToken = default);
 }
