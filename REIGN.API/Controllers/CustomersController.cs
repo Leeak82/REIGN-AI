@@ -14,18 +14,18 @@ namespace REIGN.API.Controllers;
 public class CustomersController : ControllerBase
 {
     private readonly ReignDbContext _db;
-    private readonly AppointmentService _appointments;
+    private readonly AppointmentCalendarSync _calendarSync;
     private readonly IConfiguration _configuration;
     private readonly ILogger<CustomersController> _logger;
 
     public CustomersController(
         ReignDbContext db,
-        AppointmentService appointments,
+        AppointmentCalendarSync calendarSync,
         IConfiguration configuration,
         ILogger<CustomersController> logger)
     {
         _db = db;
-        _appointments = appointments;
+        _calendarSync = calendarSync;
         _configuration = configuration;
         _logger = logger;
     }
@@ -174,7 +174,10 @@ public class CustomersController : ControllerBase
             return BadRequest(new { error = validation });
         }
 
-        var customer = await _db.Customers.FirstOrDefaultAsync(x => x.Id == id);
+        var customer = await _db.Customers
+            .Include(x => x.Appointments)
+                .ThenInclude(x => x.Service)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (customer == null)
         {
             return NotFound(new { error = "Customer not found." });
@@ -190,7 +193,28 @@ public class CustomersController : ControllerBase
         customer.Notes = Clean(request.Notes);
         await _db.SaveChangesAsync();
 
-        return Ok(ToAdminDto(customer));
+        var calendarFailures = new List<string>();
+        foreach (var appointment in customer.Appointments.Where(x =>
+                     x.Status.Equals("Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                     !string.IsNullOrWhiteSpace(x.ExternalCalendarEventId)))
+        {
+            var sync = await _calendarSync.SyncAsync(appointment);
+            if (!sync.Succeeded)
+            {
+                calendarFailures.Add(appointment.Id.ToString());
+            }
+        }
+
+        return Ok(new
+        {
+            customer.Id,
+            customer.PhoneNumber,
+            customer.Name,
+            customer.Notes,
+            Warning = calendarFailures.Count == 0
+                ? null
+                : "Contact information was saved, but one or more linked calendar events could not be refreshed."
+        });
     }
 
     [HttpPost("{id:guid}/delete")]
@@ -205,6 +229,7 @@ public class CustomersController : ControllerBase
         var customer = await _db.Customers
             .Include(x => x.Messages)
             .Include(x => x.Appointments)
+                .ThenInclude(x => x.Service)
             .Include(x => x.ConversationState)
             .Include(x => x.IntentMemory)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -233,10 +258,16 @@ public class CustomersController : ControllerBase
         {
             foreach (var appointment in customer.Appointments.ToList())
             {
-                if (!appointment.Status.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) ||
-                    !string.IsNullOrWhiteSpace(appointment.ExternalCalendarEventId))
+                if (!string.IsNullOrWhiteSpace(appointment.ExternalCalendarEventId))
                 {
-                    await _appointments.CancelAppointment(appointment.Id);
+                    var cancelled = await _calendarSync.CancelWithResultAsync(appointment);
+                    if (!cancelled.Succeeded)
+                    {
+                        return Conflict(new
+                        {
+                            error = "REIGN could not verify cancellation of a linked calendar event, so the customer was not deleted. Try again after checking Calendar/Integrations."
+                        });
+                    }
                 }
             }
 
