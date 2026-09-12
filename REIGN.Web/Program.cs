@@ -40,18 +40,20 @@ builder.Services.AddRazorComponents()
 
 var apiBase = ApiEndpoint.Resolve(builder.Configuration);
 var adminUsername = builder.Configuration["REIGN_ADMIN_USERNAME"];
-var adminPassword = builder.Configuration["REIGN_ADMIN_PASSWORD"];
+var adminPasswordHash = builder.Configuration["REIGN_ADMIN_PASSWORD_HASH"];
 
 if (builder.Environment.IsDevelopment())
 {
     adminUsername = string.IsNullOrWhiteSpace(adminUsername) ? "admin" : adminUsername;
-    adminPassword = string.IsNullOrWhiteSpace(adminPassword) ? "reign-local-dev" : adminPassword;
+    adminPasswordHash = string.IsNullOrWhiteSpace(adminPasswordHash)
+        ? "pbkdf2-sha256$100000$cmVpZ24tbG9jYWwtZGV2IQ==$nFm3hBc4P7E2we3ZecEbjGhac7r1PoOV259VCwGETvk="
+        : adminPasswordHash;
 }
 
-if (string.IsNullOrWhiteSpace(adminUsername) || string.IsNullOrWhiteSpace(adminPassword))
+if (string.IsNullOrWhiteSpace(adminUsername) || string.IsNullOrWhiteSpace(adminPasswordHash))
 {
     throw new InvalidOperationException(
-        "Dashboard admin credentials are not configured. Set REIGN_ADMIN_USERNAME and REIGN_ADMIN_PASSWORD.");
+        "Dashboard admin credentials are not configured. Set REIGN_ADMIN_USERNAME and REIGN_ADMIN_PASSWORD_HASH.");
 }
 
 builder.Services.AddHttpClient<ReignApiClient>(client =>
@@ -91,7 +93,7 @@ app.MapPost("/auth/login", async (HttpContext context) =>
     var suppliedUsername = form["username"].ToString();
     var suppliedPassword = form["password"].ToString();
 
-    if (!AdminLogin.IsValid(suppliedUsername, suppliedPassword, adminUsername!, adminPassword!))
+    if (!AdminLogin.IsValid(suppliedUsername, suppliedPassword, adminUsername!, adminPasswordHash!))
     {
         return Results.Content(LoginHtml("Invalid username or password."), "text/html", Encoding.UTF8, StatusCodes.Status401Unauthorized);
     }
