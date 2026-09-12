@@ -33,7 +33,7 @@ public class BookingService
 
     public async Task<AppointmentRequest> ParseRequest(string message, DateTime? preferredDay = null)
     {
-        var text = message.ToLowerInvariant();
+        var text = message.ToLowerInvariant().Trim();
         var request = new AppointmentRequest();
 
         request.ServiceName = MatchCatalogService(text) ?? "";
@@ -41,14 +41,10 @@ public class BookingService
         if (string.IsNullOrWhiteSpace(request.ServiceName))
         {
             var services = await _db.Services.Where(x => x.Active).ToListAsync();
-            foreach (var service in services)
-            {
-                if (text.Contains(service.Name.ToLowerInvariant()))
-                {
-                    request.ServiceName = service.Name;
-                    break;
-                }
-            }
+            request.ServiceName = services
+                .OrderByDescending(x => x.Name.Length)
+                .FirstOrDefault(x => text.Contains(x.Name.ToLowerInvariant(), StringComparison.Ordinal))
+                ?.Name ?? "";
         }
 
         var today = _clock.Today;
@@ -59,7 +55,8 @@ public class BookingService
             baseDate = parsedDay.Value;
         }
 
-        if (TryParseTime(text, out var hour, out var minute))
+        var canInferBareHour = preferredDay != null || parsedDay != null;
+        if (TryParseTime(text, canInferBareHour, out var hour, out var minute))
         {
             request.RequestedDate = baseDate.AddHours(hour).AddMinutes(minute);
             request.HasTime = true;
@@ -105,7 +102,7 @@ public class BookingService
     {
         if (string.IsNullOrWhiteSpace(request.ServiceName))
         {
-            return $"What service would you like to schedule? {ServiceCatalog.CatalogSummary}.";
+            return "What service would you like to schedule?";
         }
 
         if (request.RequestedDate == default || !request.HasTime)
@@ -163,8 +160,7 @@ public class BookingService
         if (named.Success)
         {
             var monthNumber = MonthNumber(named.Groups[1].Value);
-            if (monthNumber != 0 &&
-                int.TryParse(named.Groups[2].Value, out var namedDay))
+            if (monthNumber != 0 && int.TryParse(named.Groups[2].Value, out var namedDay))
             {
                 var year = today.Year;
                 if (named.Groups[3].Success && int.TryParse(named.Groups[3].Value, out var namedYear))
@@ -182,15 +178,12 @@ public class BookingService
         return null;
     }
 
-    private static bool TryParseTime(string text, out int hour, out int minute)
+    private static bool TryParseTime(string text, bool canInferBareHour, out int hour, out int minute)
     {
         hour = 0;
         minute = 0;
 
-        var timeMatch = Regex.Match(
-            text,
-            @"(\d{1,2})(:(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)");
-
+        var timeMatch = Regex.Match(text, @"(\d{1,2})(:(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)");
         if (timeMatch.Success)
         {
             hour = int.Parse(timeMatch.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -212,15 +205,54 @@ public class BookingService
             return hour is >= 0 and <= 23 && minute is >= 0 and <= 59;
         }
 
-        var twentyFour = Regex.Match(text, @"\b([01]?\d|2[0-3]):([0-5]\d)\b");
-        if (twentyFour.Success)
+        var colonTime = Regex.Match(text, @"\b([01]?\d|2[0-3]):([0-5]\d)\b");
+        if (colonTime.Success)
         {
-            hour = int.Parse(twentyFour.Groups[1].Value, CultureInfo.InvariantCulture);
-            minute = int.Parse(twentyFour.Groups[2].Value, CultureInfo.InvariantCulture);
+            hour = int.Parse(colonTime.Groups[1].Value, CultureInfo.InvariantCulture);
+            minute = int.Parse(colonTime.Groups[2].Value, CultureInfo.InvariantCulture);
+            if (canInferBareHour && hour is >= 1 and <= 12)
+            {
+                hour = InferBusinessHour(hour);
+            }
             return true;
         }
 
-        return false;
+        if (!canInferBareHour)
+        {
+            return false;
+        }
+
+        var bare = Regex.Match(
+            text,
+            @"^(?:i\s+(?:said|meant)\s+)?(?:at\s+|around\s+|about\s+)?(1[0-2]|[1-9])(?:\s*(?:ish|o'?clock))?[?.!]*$",
+            RegexOptions.IgnoreCase);
+
+        if (!bare.Success)
+        {
+            bare = Regex.Match(
+                text,
+                @"\b(?:at|around|about)\s+(1[0-2]|[1-9])(?:\s*(?:ish|o'?clock))?\b",
+                RegexOptions.IgnoreCase);
+        }
+
+        if (!bare.Success)
+        {
+            return false;
+        }
+
+        hour = InferBusinessHour(int.Parse(bare.Groups[1].Value, CultureInfo.InvariantCulture));
+        minute = 0;
+        return true;
+    }
+
+    private static int InferBusinessHour(int hour)
+    {
+        if (hour is >= 1 and <= 7)
+        {
+            return hour + 12;
+        }
+
+        return hour;
     }
 
     private static DateTime NextWeekday(DateTime today, string weekday, bool requireFutureWeek)
