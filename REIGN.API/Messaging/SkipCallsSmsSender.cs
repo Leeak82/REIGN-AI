@@ -48,10 +48,13 @@ public class SkipCallsSmsSender : ISmsSender
         }
 
         var dest = PhoneNumbers.Normalize(request.To);
+        // SkipCalls must only block SkipCalls/business numbers. SmsGate's device
+        // numbers and IgnoreFromNumbers belong to a different provider and may be
+        // legitimate SkipCalls customers.
         var ownNumbers = PhoneNumbers.GatewayOwnNumbers(
             _options.BusinessPhoneNumber,
-            _options.SmsGate.FromNumber,
-            _options.SmsGate.IgnoreFromNumbers,
+            null,
+            null,
             _options.SkipCalls.FromNumber);
         if (PhoneNumbers.IsOwnDeviceNumber(dest, ownNumbers))
         {
