@@ -1,0 +1,73 @@
+name: One-time SkipCalls provider filter hotfix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/hotfix-skipcalls-provider-filter.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Apply provider-aware inbound filtering fix
+        shell: python
+        run: |
+          from pathlib import Path
+
+          src = Path('REIGN.API/Services/IncomingSmsProcessor.cs')
+          text = src.read_text()
+          old = '            var ownNumbers = OwnDeviceNumbers();'
+          new = '            var ownNumbers = OwnDeviceNumbers(incoming.Provider);'
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '''        if (incoming.SimNumber is >= 1 and <= 3 &&\n            _smsOptions.SmsGate.SimNumber is >= 1 and <= 3 &&\n            incoming.SimNumber != _smsOptions.SmsGate.SimNumber)'''
+          new = '''        if (string.Equals(incoming.Provider, "SmsGate", StringComparison.OrdinalIgnoreCase) &&\n            incoming.SimNumber is >= 1 and <= 3 &&\n            _smsOptions.SmsGate.SimNumber is >= 1 and <= 3 &&\n            incoming.SimNumber != _smsOptions.SmsGate.SimNumber)'''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '''    private IReadOnlyList<string> OwnDeviceNumbers() =>\n        PhoneNumbers.GatewayOwnNumbers(\n            _smsOptions.BusinessPhoneNumber,\n            _smsOptions.SmsGate.FromNumber,\n            _smsOptions.SmsGate.IgnoreFromNumbers,\n            _smsOptions.SkipCalls.FromNumber);'''
+          new = '''    private IReadOnlyList<string> OwnDeviceNumbers(string? provider)\n    {\n        if (string.Equals(provider, "SmsGate", StringComparison.OrdinalIgnoreCase))\n        {\n            return PhoneNumbers.GatewayOwnNumbers(\n                _smsOptions.BusinessPhoneNumber,\n                _smsOptions.SmsGate.FromNumber,\n                _smsOptions.SmsGate.IgnoreFromNumbers);\n        }\n\n        if (string.Equals(provider, "SkipCalls", StringComparison.OrdinalIgnoreCase))\n        {\n            return PhoneNumbers.GatewayOwnNumbers(\n                _smsOptions.BusinessPhoneNumber,\n                null,\n                null,\n                _smsOptions.SkipCalls.FromNumber);\n        }\n\n        return PhoneNumbers.GatewayOwnNumbers(\n            _smsOptions.BusinessPhoneNumber,\n            null,\n            null);\n    }'''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '        if (PhoneNumbers.IsOwnDeviceNumber(dest, OwnDeviceNumbers()))'
+          new = '        if (PhoneNumbers.IsOwnDeviceNumber(dest, OwnDeviceNumbers(_smsSender.ProviderName)))'
+          assert old in text
+          text = text.replace(old, new, 1)
+          src.write_text(text)
+
+          tests = Path('REIGN.Tests/IncomingSmsProcessorTests.cs')
+          t = tests.read_text()
+          marker = '''    [Fact]\n    public async Task Swapped_gateway_endpoints_reply_to_the_customer_handset()'''
+          assert marker in t
+          addition = '''    [Fact]\n    public async Task SkipCalls_sender_listed_only_in_SmsGate_ignore_is_processed()\n    {\n        await using var harness = await Harness.CreateAsync(\n            ignoreFrom: "+15555550123",\n            skipCallsFrom: "+15555550101");\n\n        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage\n        {\n            From = "+15555550123",\n            To = "+15555550101",\n            Body = "Hello",\n            Provider = "SkipCalls"\n        }, sendReplyViaProvider: true);\n\n        Assert.True(result.AutoReplied);\n        Assert.NotEqual("ignored_non_customer", result.Intent);\n        Assert.Equal("+15555550123", result.Phone);\n        Assert.Equal("+15555550123", Assert.Single(harness.Sms.Sent).To);\n    }\n\n    [Fact]\n    public async Task SkipCalls_own_number_is_still_ignored()\n    {\n        await using var harness = await Harness.CreateAsync(skipCallsFrom: "+15555550101");\n\n        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage\n        {\n            From = "+15555550101",\n            To = "+15555550101",\n            Body = "Loop",\n            Provider = "SkipCalls"\n        }, sendReplyViaProvider: true);\n\n        Assert.Equal("ignored_non_customer", result.Intent);\n        Assert.False(result.AutoReplied);\n        Assert.Empty(harness.Sms.Sent);\n    }\n\n'''
+          t = t.replace(marker, addition + marker, 1)
+          tests.write_text(t)
+      - name: Restore
+        run: dotnet restore REIGN.slnx
+      - name: Build Release
+        run: dotnet build REIGN.slnx -c Release --no-restore --nologo
+      - name: Test Release
+        run: dotnet test REIGN.slnx -c Release --no-build --nologo
+      - name: Commit tested hotfix and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/hotfix-skipcalls-provider-filter.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add REIGN.API/Services/IncomingSmsProcessor.cs REIGN.Tests/IncomingSmsProcessorTests.cs .github/workflows/hotfix-skipcalls-provider-filter.yml
+          git commit -m 'fix: isolate SmsGate ignore rules from SkipCalls inbound'
+          git push origin HEAD:main
