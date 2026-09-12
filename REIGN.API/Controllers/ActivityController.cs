@@ -36,6 +36,7 @@ public class ActivityController : ControllerBase
         var activity =
             await _db.ConversationMessages
                 .Include(x => x.Customer)
+                .Where(x => x.Source == null || !x.Source.StartsWith("Simulation"))
                 .OrderByDescending(x => x.CreatedAt)
                 .Take(25)
                 .Select(x => new
@@ -43,8 +44,7 @@ public class ActivityController : ControllerBase
                     Time = x.CreatedAt,
                     Customer = x.Customer.Name ?? x.Customer.PhoneNumber,
                     Direction = x.Direction,
-                    Message = x.Body,
-                    Source = x.Source
+                    Message = x.Body
                 })
                 .ToListAsync();
 
