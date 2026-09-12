@@ -1,8 +1,17 @@
 @page "/customers/{Phone}"
 
 @inject ReignApiClient Api
+@inject CustomerAdminClient Admin
+@inject NavigationManager Nav
 
 <PageTitle>@(Profile == null ? "Customer" : Fmt.DisplayName(Profile.Name, Profile.PhoneNumber)) — REIGN AI</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Notice))
+{
+    <div class="card mb-2">
+        <strong>@Notice</strong>
+    </div>
+}
 
 @if (Loading)
 {
@@ -47,9 +56,39 @@ else
         <div>
             <div class="card" style="padding:0;">
                 <div class="panel-section">
-                    <h4>Contact</h4>
-                    <div class="kv"><span class="k">Name</span><span class="v">@(Profile.Name ?? "—")</span></div>
-                    <div class="kv"><span class="k">Phone</span><span class="v">@Profile.PhoneNumber</span></div>
+                    <div class="row-flex" style="justify-content:space-between; align-items:center;">
+                        <h4 style="margin:0;">Contact</h4>
+                        @if (!Editing)
+                        {
+                            <button class="btn btn-ghost btn-sm" @onclick="BeginEdit">Edit contact</button>
+                        }
+                    </div>
+
+                    @if (!Editing)
+                    {
+                        <div class="kv"><span class="k">Name</span><span class="v">@(Profile.Name ?? "—")</span></div>
+                        <div class="kv"><span class="k">Phone</span><span class="v">@Profile.PhoneNumber</span></div>
+                        <div class="kv"><span class="k">Notes</span><span class="v">@(string.IsNullOrWhiteSpace(Profile.Notes) ? "—" : Profile.Notes)</span></div>
+                    }
+                    else
+                    {
+                        <label style="display:block; margin-top:12px;">
+                            <span class="dim">Name</span>
+                            <input class="input" @bind="EditName" />
+                        </label>
+                        <label style="display:block; margin-top:10px;">
+                            <span class="dim">Phone</span>
+                            <input class="input" @bind="EditPhone" />
+                        </label>
+                        <label style="display:block; margin-top:10px;">
+                            <span class="dim">Notes</span>
+                            <textarea class="input" style="min-height:90px; resize:vertical;" @bind="EditNotes"></textarea>
+                        </label>
+                        <div class="row-flex" style="gap:8px; margin-top:12px; justify-content:flex-end;">
+                            <button class="btn btn-ghost" @onclick="CancelEdit" disabled="@Saving">Cancel</button>
+                            <button class="btn btn-primary" @onclick="SaveContact" disabled="@Saving">@(Saving ? "Saving…" : "Save changes")</button>
+                        </div>
+                    }
                 </div>
                 <div class="panel-section">
                     <h4>REIGN</h4>
@@ -69,13 +108,6 @@ else
                         <p class="small dim" style="margin:0;white-space:pre-wrap;">@Profile.MemorySummary</p>
                     </div>
                 }
-                @if (!string.IsNullOrWhiteSpace(Profile.Notes))
-                {
-                    <div class="panel-section">
-                        <h4>Notes</h4>
-                        <p class="small dim" style="margin:0;white-space:pre-wrap;">@Profile.Notes</p>
-                    </div>
-                }
             </div>
 
             <div class="card mt-2" style="padding:0;">
@@ -93,6 +125,35 @@ else
                         </div>
                     }
                 </div>
+            </div>
+
+            <div class="card mt-2">
+                <div class="card-title">Customer record</div>
+                <p class="small dim" style="margin:4px 0 12px;">
+                    Use this for test/fake customers or records that should no longer exist. This action does not send a text.
+                </p>
+                @if (!ConfirmDelete)
+                {
+                    <button class="btn btn-ghost" @onclick="StartDelete">Delete customer…</button>
+                }
+                else
+                {
+                    <div class="small" style="margin-bottom:10px;">
+                        Type the customer's current phone number to confirm. Conversation history will be deleted.
+                    </div>
+                    <input class="input" @bind="DeleteConfirmPhone" placeholder="Confirm current phone number" />
+                    @if (Profile.Appointments.Count > 0)
+                    {
+                        <label class="row-flex" style="gap:8px; margin-top:10px; align-items:flex-start;">
+                            <input type="checkbox" @bind="DeleteAppointments" />
+                            <span class="small">Cancel and remove this customer's appointments too. REIGN will cancel any linked Google Calendar event before deleting the appointment record.</span>
+                        </label>
+                    }
+                    <div class="row-flex" style="gap:8px; margin-top:12px; flex-wrap:wrap;">
+                        <button class="btn btn-ghost" @onclick="CancelDelete" disabled="@Deleting">Keep customer</button>
+                        <button class="btn" @onclick="DeleteCustomer" disabled="@Deleting">@(Deleting ? "Deleting…" : "Delete permanently")</button>
+                    </div>
+                }
             </div>
         </div>
 
@@ -125,12 +186,140 @@ else
     [Parameter] public string Phone { get; set; } = "";
 
     private bool Loading = true;
+    private bool Editing;
+    private bool Saving;
+    private bool ConfirmDelete;
+    private bool Deleting;
+    private bool DeleteAppointments;
+    private string DeleteConfirmPhone = "";
+    private string EditPhone = "";
+    private string? EditName;
+    private string? EditNotes;
+    private string? Notice;
     private ReignApiClient.CustomerProfileDto? Profile;
 
     protected override async Task OnParametersSetAsync()
     {
+        await LoadProfile(Phone);
+    }
+
+    private async Task LoadProfile(string phone)
+    {
         Loading = true;
-        Profile = await Api.GetCustomerProfile(Phone);
+        Profile = await Api.GetCustomerProfile(phone);
         Loading = false;
+    }
+
+    private void BeginEdit()
+    {
+        if (Profile == null)
+        {
+            return;
+        }
+
+        EditName = Profile.Name;
+        EditPhone = Profile.PhoneNumber;
+        EditNotes = Profile.Notes;
+        Editing = true;
+        Notice = null;
+    }
+
+    private void CancelEdit()
+    {
+        Editing = false;
+        Notice = null;
+    }
+
+    private async Task SaveContact()
+    {
+        if (Profile == null)
+        {
+            return;
+        }
+
+        Saving = true;
+        Notice = null;
+        try
+        {
+            var oldPhone = Profile.PhoneNumber;
+            var result = await Admin.UpdateAsync(new CustomerAdminDto
+            {
+                Id = Profile.Id,
+                PhoneNumber = EditPhone,
+                Name = EditName,
+                Notes = EditNotes
+            });
+
+            if (!string.IsNullOrWhiteSpace(result.Error) || result.Customer == null)
+            {
+                Notice = result.Error ?? "REIGN could not save that customer.";
+                return;
+            }
+
+            Editing = false;
+            Notice = "Customer contact information saved.";
+            var newPhone = result.Customer.PhoneNumber;
+            if (!string.Equals(oldPhone, newPhone, StringComparison.Ordinal))
+            {
+                Nav.NavigateTo($"customers/{Uri.EscapeDataString(newPhone)}", replace: true);
+                return;
+            }
+
+            await LoadProfile(newPhone);
+        }
+        catch (Exception ex)
+        {
+            Notice = ex.Message;
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private void StartDelete()
+    {
+        ConfirmDelete = true;
+        DeleteConfirmPhone = "";
+        DeleteAppointments = false;
+        Notice = null;
+    }
+
+    private void CancelDelete()
+    {
+        ConfirmDelete = false;
+        DeleteConfirmPhone = "";
+        DeleteAppointments = false;
+        Notice = null;
+    }
+
+    private async Task DeleteCustomer()
+    {
+        if (Profile == null)
+        {
+            return;
+        }
+
+        Deleting = true;
+        Notice = null;
+        try
+        {
+            var result = await Admin.DeleteAsync(Profile.Id, DeleteConfirmPhone, DeleteAppointments);
+            if (!result.Deleted)
+            {
+                Notice = result.Error ?? "REIGN did not delete the customer.";
+                return;
+            }
+
+            Nav.NavigateTo("customers", replace: true);
+        }
+        catch (Exception ex)
+        {
+            Notice = ex.Message;
+        }
+        finally
+        {
+            Deleting = false;
+        }
     }
 }
