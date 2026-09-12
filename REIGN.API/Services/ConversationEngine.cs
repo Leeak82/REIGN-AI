@@ -72,6 +72,9 @@ public class ConversationEngine
 
         if (intent.Kind == ReignIntentKind.NameCapture && !string.IsNullOrWhiteSpace(customer.Name))
         {
+            var choosing = await _state.GetOrCreate(customer.Id);
+            choosing.CurrentStep = "AwaitingService";
+            await _db.SaveChangesAsync();
             return new ConversationReply
             {
                 Text = $"Thanks {customer.Name}. I saved your information. {await _catalog.GetSummaryAsync()}. Which would you like?",
