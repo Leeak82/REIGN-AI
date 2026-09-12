@@ -372,6 +372,45 @@ public class IncomingSmsProcessorTests
     }
 
     [Fact]
+    public async Task SkipCalls_sender_listed_only_in_SmsGate_ignore_is_processed()
+    {
+        await using var harness = await Harness.CreateAsync(
+            ignoreFrom: "+15555550123",
+            skipCallsFrom: "+15555550101");
+
+        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+15555550123",
+            To = "+15555550101",
+            Body = "Hello",
+            Provider = "SkipCalls"
+        }, sendReplyViaProvider: true);
+
+        Assert.True(result.AutoReplied);
+        Assert.NotEqual("ignored_non_customer", result.Intent);
+        Assert.Equal("+15555550123", result.Phone);
+        Assert.Equal("+15555550123", Assert.Single(harness.Sms.Sent).To);
+    }
+
+    [Fact]
+    public async Task SkipCalls_own_number_is_still_ignored()
+    {
+        await using var harness = await Harness.CreateAsync(skipCallsFrom: "+15555550101");
+
+        var result = await harness.Processor.ProcessAsync(new IncomingSmsMessage
+        {
+            From = "+15555550101",
+            To = "+15555550101",
+            Body = "Loop",
+            Provider = "SkipCalls"
+        }, sendReplyViaProvider: true);
+
+        Assert.Equal("ignored_non_customer", result.Intent);
+        Assert.False(result.AutoReplied);
+        Assert.Empty(harness.Sms.Sent);
+    }
+
+    [Fact]
     public async Task Swapped_gateway_endpoints_reply_to_the_customer_handset()
     {
         await using var harness = await Harness.CreateAsync(ignoreFrom: "+19072132242", simNumber: 1);

@@ -84,7 +84,7 @@ public class IncomingSmsProcessor
     {
         try
         {
-            var ownNumbers = OwnDeviceNumbers();
+            var ownNumbers = OwnDeviceNumbers(incoming.Provider);
             var resolved = PhoneNumbers.ResolveInboundEndpoints(
                 incoming.From,
                 incoming.To,
@@ -240,7 +240,8 @@ public class IncomingSmsProcessor
             return false;
         }
 
-        if (incoming.SimNumber is >= 1 and <= 3 &&
+        if (string.Equals(incoming.Provider, "SmsGate", StringComparison.OrdinalIgnoreCase) &&
+            incoming.SimNumber is >= 1 and <= 3 &&
             _smsOptions.SmsGate.SimNumber is >= 1 and <= 3 &&
             incoming.SimNumber != _smsOptions.SmsGate.SimNumber)
         {
@@ -268,12 +269,30 @@ public class IncomingSmsProcessor
         || PhoneNumbers.AreSame(to, _smsOptions.SmsGate.FromNumber)
         || PhoneNumbers.AreSame(to, _smsOptions.SkipCalls.FromNumber);
 
-    private IReadOnlyList<string> OwnDeviceNumbers() =>
-        PhoneNumbers.GatewayOwnNumbers(
+    private IReadOnlyList<string> OwnDeviceNumbers(string? provider)
+    {
+        if (string.Equals(provider, "SmsGate", StringComparison.OrdinalIgnoreCase))
+        {
+            return PhoneNumbers.GatewayOwnNumbers(
+                _smsOptions.BusinessPhoneNumber,
+                _smsOptions.SmsGate.FromNumber,
+                _smsOptions.SmsGate.IgnoreFromNumbers);
+        }
+
+        if (string.Equals(provider, "SkipCalls", StringComparison.OrdinalIgnoreCase))
+        {
+            return PhoneNumbers.GatewayOwnNumbers(
+                _smsOptions.BusinessPhoneNumber,
+                null,
+                null,
+                _smsOptions.SkipCalls.FromNumber);
+        }
+
+        return PhoneNumbers.GatewayOwnNumbers(
             _smsOptions.BusinessPhoneNumber,
-            _smsOptions.SmsGate.FromNumber,
-            _smsOptions.SmsGate.IgnoreFromNumbers,
-            _smsOptions.SkipCalls.FromNumber);
+            null,
+            null);
+    }
 
     private async Task<SmsSendResult?> TrySendAsync(
         string to,
@@ -287,7 +306,7 @@ public class IncomingSmsProcessor
         }
 
         var dest = PhoneNumbers.Normalize(to);
-        if (PhoneNumbers.IsOwnDeviceNumber(dest, OwnDeviceNumbers()))
+        if (PhoneNumbers.IsOwnDeviceNumber(dest, OwnDeviceNumbers(_smsSender.ProviderName)))
         {
             _logger.LogWarning("Refusing to send SMS to gateway number {Phone}", dest);
             return SmsSendResult.Fail(_smsSender.ProviderName, "Refusing to text the gateway phone.");
