@@ -64,6 +64,12 @@
                     {
                         <div class="dropdown-menu">
                             <div class="dropdown-head">Notifications</div>
+                            <button class="dropdown-item" style="width:100%;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;" @onclick="ToggleAlerts">
+                                <div>
+                                    <div>@(AlertsEnabled ? "REIGN sound alerts: On" : "Enable REIGN sound alerts")</div>
+                                    <div class="when">@(AlertsEnabled ? "Chime + browser notification for real customer activity." : "Tap once to allow the special REIGN tone and browser notifications.")</div>
+                                </div>
+                            </button>
                             @if (Notifications.Count == 0)
                             {
                                 <div class="dropdown-item">
@@ -128,7 +134,9 @@
     private bool NotificationsOpen;
     private bool ProfileOpen;
     private bool SearchOpen;
+    private bool AlertsEnabled;
     private string Query = "";
+    private DateTime? LastActivityAt;
     private List<ReignApiClient.CustomerDto> Customers = new();
     private List<NotificationItem> Notifications = new();
     private Timer? _timer;
@@ -144,15 +152,31 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await RefreshStatus();
-        _timer = new Timer(async _ =>
+        await RefreshStatus(initial: true);
+        _timer = new Timer(_ =>
         {
-            await RefreshStatus();
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(45));
+            _ = InvokeAsync(async () =>
+            {
+                await RefreshStatus();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
-    private async Task RefreshStatus()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            AlertsEnabled = await Js.InvokeAsync<bool>("reignUi.alertsEnabled");
+            StateHasChanged();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task RefreshStatus(bool initial = false)
     {
         try
         {
@@ -161,11 +185,63 @@
             Online = health != null && health.Status == "healthy";
             Customers = await Api.GetCustomers();
             BuildNotifications(health);
+
+            var activity = await Api.GetRecentActivity();
+            await ProcessActivityAlerts(activity, initial);
         }
         catch
         {
             Online = false;
         }
+    }
+
+    private async Task ProcessActivityAlerts(List<ReignApiClient.RecentActivityDto> activity, bool initial)
+    {
+        if (activity.Count == 0) return;
+
+        var latest = activity.Max(x => x.Time);
+        if (initial || LastActivityAt == null)
+        {
+            LastActivityAt = latest;
+            return;
+        }
+
+        var fresh = activity
+            .Where(x => x.Time > LastActivityAt.Value)
+            .OrderBy(x => x.Time)
+            .ToList();
+        LastActivityAt = latest;
+
+        if (!AlertsEnabled || fresh.Count == 0) return;
+
+        var item = fresh.LastOrDefault(x =>
+                       x.Direction.Equals("Outbound", StringComparison.OrdinalIgnoreCase) &&
+                       (x.Message.Contains("Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                        x.Message.Contains("booked for", StringComparison.OrdinalIgnoreCase)))
+                   ?? fresh.LastOrDefault(x => x.Direction.Equals("Inbound", StringComparison.OrdinalIgnoreCase))
+                   ?? fresh[^1];
+
+        var booking = item.Direction.Equals("Outbound", StringComparison.OrdinalIgnoreCase) &&
+                      (item.Message.Contains("Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                       item.Message.Contains("booked for", StringComparison.OrdinalIgnoreCase));
+        var inbound = item.Direction.Equals("Inbound", StringComparison.OrdinalIgnoreCase);
+        var kind = booking ? "booking" : inbound ? "customer" : "reign";
+        var title = booking ? "REIGN booked an appointment" : inbound ? "New REIGN customer activity" : "REIGN replied";
+        var body = $"{item.Customer}: {TrimAlert(item.Message)}";
+
+        try
+        {
+            await Js.InvokeVoidAsync("reignUi.alertActivity", kind, title, body);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private static string TrimAlert(string value)
+    {
+        var clean = (value ?? "").Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return clean.Length <= 120 ? clean : clean[..117] + "...";
     }
 
     private void BuildNotifications(ReignApiClient.HealthDto? health)
@@ -223,6 +299,19 @@
         try
         {
             await Js.InvokeVoidAsync("reignUi.setValue", "global-search", "");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task ToggleAlerts()
+    {
+        try
+        {
+            var desired = !AlertsEnabled;
+            await Js.InvokeAsync<string>("reignUi.setAlertsEnabled", desired);
+            AlertsEnabled = desired;
         }
         catch (JSDisconnectedException)
         {
