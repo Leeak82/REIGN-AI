@@ -138,7 +138,7 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
-    public void Runtime_defaults_route_straight_talk_to_smsgate_while_a2p_is_pending()
+    public void Runtime_defaults_route_voice_fallback_to_smsgate_when_twilio_is_not_configured()
     {
         var previousProvider = Environment.GetEnvironmentVariable("SMS_PROVIDER");
         var previousNested = Environment.GetEnvironmentVariable("Sms__Provider");
@@ -150,7 +150,7 @@ public class ConfigAndCalendarTests
             manager.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Sms:Provider"] = "Twilio",
-                ["Sms:BusinessPhoneNumber"] = ReignContact.BusinessPhoneE164,
+                ["Sms:BusinessPhoneNumber"] = ReignContact.VoicePhoneE164,
                 ["Sms:Twilio:FromNumber"] = ""
             });
             ConfigEnvironmentAliases.Apply(manager);
@@ -1086,11 +1086,11 @@ public class ConfigAndCalendarTests
     }
 
     [Fact]
-    public void Production_appsettings_targets_google_calendar_id()
+    public void Production_appsettings_targets_current_sms_and_google_calendar()
     {
         var json = File.ReadAllText(Path.Combine(FindRepoRoot(), "REIGN.API", "appsettings.Production.json"));
         Assert.Contains("\"CalendarId\": \"j.collins2491@gmail.com\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"Provider\": \"SmsGate\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Provider\": \"SkipCalls\"", json, StringComparison.Ordinal);
         Assert.Contains("\"Provider\": \"Google\"", json, StringComparison.Ordinal);
         Assert.Contains(ReignContact.BusinessPhoneE164, json, StringComparison.Ordinal);
     }
