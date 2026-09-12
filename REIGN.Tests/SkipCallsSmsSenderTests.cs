@@ -118,17 +118,48 @@ public class SkipCallsSmsSenderTests
     }
 
     [Fact]
+    public async Task Send_allows_number_that_is_only_on_SmsGate_ignore_list()
+    {
+        const string destination = "+12065550123";
+        var handler = new SequenceHandler(
+            $"{{\"contacts\":[{{\"id\":\"ct-iso\",\"phoneNumber\":\"{destination}\"}}]}}",
+            """{"id":"sms-iso"}""");
+        using var http = new HttpClient(handler);
+        var sender = CreateSender(
+            http,
+            fromNumber: "+12065550199",
+            smsGateIgnoreFrom: destination);
+
+        var result = await sender.SendAsync(new SmsSendRequest
+        {
+            To = destination,
+            Body = "provider isolation test"
+        });
+
+        Assert.True(result.Succeeded, result.Error);
+        Assert.Equal("sms-iso", result.ProviderMessageId);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
     public void SearchQueries_uses_digits_not_plus_e164()
     {
         Assert.Equal(["12538319100", "2538319100"], SkipCallsSmsSender.SearchQueries("+12538319100"));
     }
 
-    private static SkipCallsSmsSender CreateSender(HttpClient http, string fromNumber = "+15555550100") =>
+    private static SkipCallsSmsSender CreateSender(
+        HttpClient http,
+        string fromNumber = "+15555550100",
+        string? smsGateIgnoreFrom = null) =>
         new(
             http,
             Options.Create(new SmsOptions
             {
                 BusinessPhoneNumber = fromNumber,
+                SmsGate = new SmsGateOptions
+                {
+                    IgnoreFromNumbers = smsGateIgnoreFrom ?? ""
+                },
                 SkipCalls = new SkipCallsOptions
                 {
                     AccessToken = "token-abc",
