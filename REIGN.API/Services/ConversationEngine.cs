@@ -1,5 +1,4 @@
 using REIGN.Core.AI;
-using REIGN.Core.Catalog;
 using REIGN.Data;
 using REIGN.Data.Models;
 
@@ -21,6 +20,7 @@ public class ConversationEngine
     private readonly ConversationStateService _state;
     private readonly CustomerMemoryService _memory;
     private readonly IntentMemoryService _intentMemory;
+    private readonly CatalogIntelligence _catalog;
     private readonly IAiProvider _ai;
     private readonly IBusinessProfileAccessor _business;
     private readonly ILogger<ConversationEngine> _logger;
@@ -31,6 +31,7 @@ public class ConversationEngine
         ConversationStateService state,
         CustomerMemoryService memory,
         IntentMemoryService intentMemory,
+        CatalogIntelligence catalog,
         IAiProvider ai,
         IBusinessProfileAccessor business,
         ILogger<ConversationEngine> logger)
@@ -40,6 +41,7 @@ public class ConversationEngine
         _state = state;
         _memory = memory;
         _intentMemory = intentMemory;
+        _catalog = catalog;
         _ai = ai;
         _business = business;
         _logger = logger;
@@ -72,7 +74,7 @@ public class ConversationEngine
         {
             return new ConversationReply
             {
-                Text = $"Thanks {customer.Name}. I saved your information. {ServiceCatalog.CatalogSummary}. Which would you like?",
+                Text = $"Thanks {customer.Name}. I saved your information. {await _catalog.GetSummaryAsync()}. Which would you like?",
                 Provider = "Rules"
             };
         }
@@ -95,6 +97,7 @@ public class ConversationEngine
         var recent = await _memory.GetRecentTurns(customer.Id);
         var conversationState = await _state.GetOrCreate(customer.Id);
         var profile = await _business.GetActiveAsync();
+        var catalogSummary = await _catalog.GetSummaryAsync();
 
         try
         {
@@ -104,7 +107,7 @@ public class ConversationEngine
                 Intent = intent.Label,
                 MemoryContext = string.Join(" ", new[] { memory, intentMemory }.Where(x => !string.IsNullOrWhiteSpace(x))),
                 ConversationState = _state.Describe(conversationState),
-                BusinessProfile = profile.ToPrompt(),
+                BusinessProfile = $"{profile.ToPrompt()} Active services: {catalogSummary}.",
                 RecentMessages = recent.Select(x => new AiMessage { Role = x.Role, Content = x.Content }).ToList()
             });
 
@@ -132,7 +135,7 @@ public class ConversationEngine
         {
             return new ConversationReply
             {
-                Text = $"{profile.AssistantName} here. {ServiceCatalog.CatalogSummary}. {profile.Hours}",
+                Text = $"{profile.AssistantName} here. {catalogSummary}. {profile.Hours}",
                 FellBack = true,
                 Provider = "Rules"
             };
@@ -141,7 +144,7 @@ public class ConversationEngine
         var greetingName = string.IsNullOrWhiteSpace(customer.Name) ? "" : $" {customer.Name}";
         return new ConversationReply
         {
-            Text = $"Hi{greetingName}, how can I help you today? I can book {ServiceCatalog.CatalogSummary}.",
+            Text = $"Hi{greetingName}, how can I help you today? I can book {catalogSummary}.",
             FellBack = true,
             Provider = "Rules"
         };
