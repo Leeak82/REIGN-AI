@@ -23,13 +23,12 @@
 {
     <div class="error-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
-        <span class="msg">Something went wrong. REIGN couldn't load the inbox.</span>
-        <button class="btn btn-ghost btn-sm" @onclick="() => Refresh()">Try again</button>
+        <span class="msg">@Error</span>
+        <button class="btn btn-ghost btn-sm" @onclick="() => Refresh()" disabled="@Busy">Try again</button>
     </div>
 }
 
 <div class="ws">
-    <!-- Conversation list -->
     <div class="ws-col">
         <div class="ws-col-head">
             <h3>Conversations</h3>
@@ -79,7 +78,6 @@
         </div>
     </div>
 
-    <!-- Conversation -->
     <div class="ws-col">
         @if (Selected == null)
         {
@@ -110,7 +108,7 @@
                 <div class="override-banner">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
                     <span class="grow">REIGN auto-replies are paused. You are speaking as the owner.</span>
-                    <button class="btn btn-ghost btn-sm" @onclick="ResumeAi">Resume AI</button>
+                    <button class="btn btn-ghost btn-sm" @onclick="ResumeAi" disabled="@Busy">Resume AI</button>
                 </div>
             }
 
@@ -152,7 +150,6 @@
         }
     </div>
 
-    <!-- Customer intelligence -->
     <div class="ws-col ws-right">
         @if (Selected == null)
         {
@@ -218,9 +215,9 @@
                                 <div class="row-flex mt-1">
                                     @if (a.Status == "Pending")
                                     {
-                                        <button class="btn btn-success btn-sm" @onclick="() => Confirm(a.Id)">Confirm</button>
+                                        <button class="btn btn-success btn-sm" disabled="@Busy" @onclick="() => Confirm(a.Id)">Confirm</button>
                                     }
-                                    <button class="btn btn-danger btn-sm" @onclick="() => Cancel(a.Id)">Cancel</button>
+                                    <button class="btn btn-danger btn-sm" disabled="@Busy" @onclick="() => Cancel(a.Id)">Cancel</button>
                                 </div>
                             }
                         </div>
@@ -311,18 +308,18 @@
             }
         }
 
-        _timer = new Timer(async _ =>
+        _timer = new Timer(_ => _ = InvokeAsync(async () =>
         {
             await Refresh(quiet: true);
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20));
+            StateHasChanged();
+        }), null, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20));
     }
 
     private async Task Refresh(bool quiet = false)
     {
         try
         {
-            Error = "";
+            if (!quiet) Error = "";
             Customers = await Api.GetCustomers();
             Recent = await Api.GetRecentActivity();
 
@@ -335,7 +332,7 @@
         }
         catch
         {
-            if (!quiet) Error = "load";
+            if (!quiet) Error = "REIGN couldn't load the inbox. Try refreshing.";
         }
     }
 
@@ -351,21 +348,27 @@
         }
         catch
         {
-            Error = "load";
+            Error = "REIGN couldn't load the inbox. Try refreshing.";
         }
     }
 
     private async Task Send()
     {
-        if (Selected == null || string.IsNullOrWhiteSpace(Draft)) return;
+        if (Busy || Selected == null || string.IsNullOrWhiteSpace(Draft)) return;
 
         Busy = true;
+        Error = "";
+        Notice = "";
         try
         {
             Notice = await Api.SendOwnerSms(Selected.PhoneNumber, Draft.Trim());
             Draft = "";
             await ClearComposer();
             await Refresh(quiet: true);
+        }
+        catch
+        {
+            Error = "The message could not be verified as sent. Your draft has been kept; refresh the conversation before retrying.";
         }
         finally
         {
@@ -375,7 +378,7 @@
 
     private async Task AiAssist()
     {
-        if (Selected == null) return;
+        if (Busy || Selected == null) return;
 
         var lastInbound = Messages.LastOrDefault(m => m.Direction == "Inbound");
         if (lastInbound == null)
@@ -385,6 +388,7 @@
         }
 
         Busy = true;
+        Error = "";
         try
         {
             var result = await Api.AskOwnerAsync(
@@ -399,6 +403,10 @@
                 Notice = "REIGN drafted a suggestion — review before sending.";
                 await SetComposer(Draft);
             }
+        }
+        catch
+        {
+            Error = "REIGN couldn't draft a suggestion right now.";
         }
         finally
         {
@@ -419,28 +427,53 @@
 
     private Task ClearComposer() => SetComposer("");
 
-    private async Task ResumeAi()
+    private Task ResumeAi() => RunAction(async () =>
     {
         if (Selected == null) return;
         await Api.ResumeAssistant(Selected.PhoneNumber);
-        await Refresh(quiet: true);
-    }
+        Notice = "REIGN is handling this conversation again.";
+    });
 
-    private async Task Confirm(Guid id)
+    private Task Confirm(Guid id) => RunAction(async () =>
+        ShowAppointmentResult(await Api.ConfirmAppointment(id)));
+
+    private Task Cancel(Guid id) => RunAction(async () =>
+        ShowAppointmentResult(await Api.CancelAppointment(id)));
+
+    private void ShowAppointmentResult(ReignApiClient.AppointmentWriteDto? result)
     {
-        await Api.ConfirmAppointment(id);
-        if (Selected != null)
+        if (!string.IsNullOrWhiteSpace(result?.Error))
         {
-            Appointments = await Api.GetCustomerAppointments(Selected.PhoneNumber);
+            Error = result.Error;
+        }
+        else
+        {
+            Notice = result?.Message ?? "Appointment updated.";
+            if (!string.IsNullOrWhiteSpace(result?.CalendarSyncError))
+            {
+                Error = "Appointment updated, but Google Calendar did not sync. Check Integrations before retrying.";
+            }
         }
     }
 
-    private async Task Cancel(Guid id)
+    private async Task RunAction(Func<Task> action)
     {
-        await Api.CancelAppointment(id);
-        if (Selected != null)
+        if (Busy) return;
+        Busy = true;
+        Error = "";
+        Notice = "";
+        try
         {
-            Appointments = await Api.GetCustomerAppointments(Selected.PhoneNumber);
+            await action();
+            await Refresh(quiet: true);
+        }
+        catch
+        {
+            Error = "The action could not be verified. Refresh the conversation before retrying.";
+        }
+        finally
+        {
+            Busy = false;
         }
     }
 
