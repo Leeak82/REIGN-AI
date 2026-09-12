@@ -49,12 +49,12 @@ public static class SmsProviderSelection
 
     private static bool UsesStraightTalkSim(string? businessNumber, string? twilioFromNumber, string provider)
     {
-        if (!PhoneNumbers.AreSame(businessNumber, ReignContact.BusinessPhoneE164))
+        if (!PhoneNumbers.AreSame(businessNumber, ReignContact.VoicePhoneE164))
         {
             return false;
         }
 
-        if (PhoneNumbers.AreSame(twilioFromNumber, ReignContact.BusinessPhoneE164))
+        if (PhoneNumbers.AreSame(twilioFromNumber, ReignContact.VoicePhoneE164))
         {
             return false;
         }

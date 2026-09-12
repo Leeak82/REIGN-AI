@@ -58,9 +58,9 @@ public class PhoneAndCatalogTests
     }
 
     [Theory]
-    [InlineData("9073001244", "+19073001244")]
-    [InlineData("+1 (907) 300-1244", "+19073001244")]
-    [InlineData("19073001244", "+19073001244")]
+    [InlineData("8136380375", "+18136380375")]
+    [InlineData("+1 (813) 638-0375", "+18136380375")]
+    [InlineData("18136380375", "+18136380375")]
     public void Straight_talk_business_number_normalizes_to_e164(string input, string expected)
     {
         Assert.Equal(expected, PhoneNumbers.Normalize(input));

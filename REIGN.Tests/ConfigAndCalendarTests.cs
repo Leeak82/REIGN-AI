@@ -68,7 +68,7 @@ public class ConfigAndCalendarTests
             SmsProviderSelection.Resolve(
                 "Twilio",
                 isDevelopment: false,
-                businessNumber: ReignContact.BusinessPhoneE164,
+                businessNumber: ReignContact.VoicePhoneE164,
                 twilioFromNumber: ""));
         Assert.Equal(
             "SmsGate",
@@ -82,8 +82,8 @@ public class ConfigAndCalendarTests
             SmsProviderSelection.Resolve(
                 "Twilio",
                 isDevelopment: false,
-                businessNumber: ReignContact.BusinessPhoneE164,
-                twilioFromNumber: ReignContact.BusinessPhoneE164));
+                businessNumber: ReignContact.VoicePhoneE164,
+                twilioFromNumber: ReignContact.VoicePhoneE164));
         Assert.Equal(
             "Vonage",
             SmsProviderSelection.Resolve(
@@ -231,7 +231,7 @@ public class ConfigAndCalendarTests
             });
             ConfigEnvironmentAliases.Apply(manager);
             Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:BusinessPhoneNumber"]);
-            Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:SmsGate:FromNumber"]);
+            Assert.Equal(ReignContact.VoicePhoneE164, manager["Sms:SmsGate:FromNumber"]);
         }
         finally
         {
@@ -239,6 +239,33 @@ public class ConfigAndCalendarTests
             Environment.SetEnvironmentVariable("Sms__BusinessPhoneNumber", previousNested);
             Environment.SetEnvironmentVariable("Sms__SmsGate__FromNumber", previousGate);
             Environment.SetEnvironmentVariable("SMSGATE_FROM_NUMBER", previousSmsgate);
+        }
+    }
+
+    [Fact]
+    public void Apply_uses_skipcalls_number_as_customer_facing_business_number()
+    {
+        var previousProvider = Environment.GetEnvironmentVariable("SMS_PROVIDER");
+        var previousBusiness = Environment.GetEnvironmentVariable("REIGN_BUSINESS_PHONE");
+        var previousSkipCalls = Environment.GetEnvironmentVariable("SKIPCALLS_FROM_NUMBER");
+        try
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", "SkipCalls");
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", ReignContact.VoicePhoneE164);
+            Environment.SetEnvironmentVariable("SKIPCALLS_FROM_NUMBER", "+18136380375");
+
+            var manager = new ConfigurationManager();
+            ConfigEnvironmentAliases.Apply(manager);
+
+            Assert.Equal("SkipCalls", manager["Sms:Provider"]);
+            Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:BusinessPhoneNumber"]);
+            Assert.Equal(ReignContact.BusinessPhoneE164, manager["Sms:SkipCalls:FromNumber"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SMS_PROVIDER", previousProvider);
+            Environment.SetEnvironmentVariable("REIGN_BUSINESS_PHONE", previousBusiness);
+            Environment.SetEnvironmentVariable("SKIPCALLS_FROM_NUMBER", previousSkipCalls);
         }
     }
 

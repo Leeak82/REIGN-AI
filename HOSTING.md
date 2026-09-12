@@ -80,7 +80,18 @@ Fix: save `ConnectionStrings__Reign`, then redeploy. External `*.render.com` URL
 
 You do not need a `/data` disk for PostgreSQL.
 
-## Twilio (live inbound)
+## SkipCalls (current live SMS)
+
+Customers text **+18136380375**. REIGN receives inbound messages at:
+
+`https://reign-ai-3.onrender.com/api/sms/webhooks/skipcalls`
+
+Set `Sms__Provider=SkipCalls`, `SKIPCALLS_TOKEN`,
+`SKIPCALLS_FROM_NUMBER=+18136380375`, and `Sms__BusinessPhoneNumber=+18136380375`.
+Keep SkipCalls `autoRespondToSms` disabled so Miss Reign is the only assistant replying.
+The **+19073001244** number is voice-forwarding/optional SmsGate fallback only.
+
+## Twilio (optional live inbound)
 
 Sending a message from the Twilio Console uses Twilio's own API. It does **not** call REIGN. Live customer texts only work when the **phone number** webhook is HTTP POST:
 
@@ -90,7 +101,7 @@ Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (live token, not test), `TWILIO_FR
 
 ## SmsGate (open-source Android SMS)
 
-This is not a custom carrier. REIGN talks to [SMS Gateway for Android](https://sms-gate.app/) (Apache 2.0). This is the **live customer number while Twilio A2P is in review**. Unknown customers text the dedicated Straight Talk SIM **+19073001244**. Replies go out through the same SIM. Cost is the phone’s SMS plan, not Twilio.
+This is the optional Android fallback, not the current customer inbox. REIGN talks to [SMS Gateway for Android](https://sms-gate.app/) (Apache 2.0). The dedicated Straight Talk SIM is **+19073001244**. Replies go out through the same SIM. Cost is the phone’s SMS plan, not Twilio.
 
 1. Put a dedicated SIM (not the owner personal cell) in an Android phone. Keep the phone charged and online.
 2. Install **SMS Gateway for Android**. Use **Cloud** mode so Render can reach it.

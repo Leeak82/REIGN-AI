@@ -4,7 +4,10 @@ Business Name:
 Miss Reign
 
 Business SMS:
-+19073001244 (Straight Talk)
++18136380375 (SkipCalls)
+
+Voice forwarding:
++19073001244
 
 Schedule:
 Google Calendar, America/Los_Angeles.

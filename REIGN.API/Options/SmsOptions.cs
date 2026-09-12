@@ -8,7 +8,7 @@ public class SmsOptions
 
     /// <summary>
     /// Simulated (Development/tests only), Twilio, Vonage, SmsGate, SkipCalls, or TextNow.
-    /// Production uses SmsGate for the Straight Talk SIM while Twilio A2P is pending.
+    /// Production currently uses SkipCalls.
     /// SkipCalls is the SkipCalls AI receptionist SMS API (https://skipcalls.com).
     /// TextNow has no supported application SMS API and will not send or receive.
     /// SmsGate is the open-source Android SMS gateway (a real SIM on a phone).
@@ -115,7 +115,7 @@ public class SmsGateOptions
     /// </summary>
     public int SimNumber { get; set; }
 
-    public string FromNumber { get; set; } = ReignContact.BusinessPhoneE164;
+    public string FromNumber { get; set; } = ReignContact.VoicePhoneE164;
 
     /// <summary>
     /// Other SIMs in the gateway phone. Comma-separated E.164. Inbound from these
@@ -144,7 +144,7 @@ public class SkipCallsOptions
     /// <summary>
     /// SkipCalls-owned SMS number customers text. Used as To on inbound and From on outbound.
     /// </summary>
-    public string FromNumber { get; set; } = "";
+    public string FromNumber { get; set; } = ReignContact.BusinessPhoneE164;
 
     /// <summary>
     /// Optional agent id passed on outbound SMS so SkipCalls keeps the thread on that receptionist.

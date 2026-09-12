@@ -215,27 +215,50 @@ public static class ConfigEnvironmentAliases
         IConfiguration configuration,
         IDictionary<string, string?> extras)
     {
-        extras["Sms:BusinessPhoneNumber"] = ResolveDedicatedNumber(
-            extras,
-            configuration,
-            "Sms:BusinessPhoneNumber");
+        extras.TryGetValue("Sms:Provider", out var aliasedProvider);
+        var provider = NullIfWhiteSpace(aliasedProvider)
+            ?? NullIfWhiteSpace(configuration["Sms:Provider"]);
+        extras.TryGetValue("Sms:SkipCalls:FromNumber", out var aliasedSkipCallsNumber);
+        var skipCallsNumber = PhoneNumbers.Normalize(
+            NullIfWhiteSpace(aliasedSkipCallsNumber)
+            ?? NullIfWhiteSpace(configuration["Sms:SkipCalls:FromNumber"]));
+
+        if ((provider?.Equals("SkipCalls", StringComparison.OrdinalIgnoreCase) == true
+             || provider?.Equals("Skip-Calls", StringComparison.OrdinalIgnoreCase) == true)
+            && !ReignContact.IsPlaceholder(skipCallsNumber))
+        {
+            // Provider-specific FromNumber is authoritative. This prevents an old
+            // REIGN_BUSINESS_PHONE value from advertising the voice-only 907 line.
+            extras["Sms:BusinessPhoneNumber"] = skipCallsNumber;
+        }
+        else
+        {
+            extras["Sms:BusinessPhoneNumber"] = ResolveDedicatedNumber(
+                extras,
+                configuration,
+                "Sms:BusinessPhoneNumber",
+                ReignContact.BusinessPhoneE164);
+        }
+
         extras["Sms:SmsGate:FromNumber"] = ResolveDedicatedNumber(
             extras,
             configuration,
-            "Sms:SmsGate:FromNumber");
+            "Sms:SmsGate:FromNumber",
+            ReignContact.VoicePhoneE164);
     }
 
     private static string ResolveDedicatedNumber(
         IDictionary<string, string?> extras,
         IConfiguration configuration,
-        string configurationKey)
+        string configurationKey,
+        string fallback)
     {
         extras.TryGetValue(configurationKey, out var aliased);
         var current = NullIfWhiteSpace(aliased)
             ?? NullIfWhiteSpace(configuration[configurationKey]);
         var normalized = PhoneNumbers.Normalize(current);
         return ReignContact.IsPlaceholder(normalized)
-            ? ReignContact.BusinessPhoneE164
+            ? fallback
             : normalized;
     }
 

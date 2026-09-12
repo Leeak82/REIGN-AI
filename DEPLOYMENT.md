@@ -13,17 +13,17 @@ Runtime configuration is bound from ASP.NET Core keys, with aliases applied at s
 | `GROQ_API_KEY` | Live Groq assistant. If unset, REIGN uses the built-in fallback. |
 | `GOOGLE_CLIENT_ID` | Google Calendar OAuth client id |
 | `GOOGLE_CLIENT_SECRET` | Google Calendar OAuth client secret |
-| `TWILIO_ACCOUNT_SID` | Twilio account |
-| `TWILIO_AUTH_TOKEN` | Twilio auth token |
-| `TWILIO_PHONE_NUMBER` | Dedicated REIGN business number (also `TWILIO_FROM_NUMBER`) |
+| `SKIPCALLS_TOKEN` | SkipCalls API bearer token |
+| `SKIPCALLS_FROM_NUMBER` | Live REIGN SMS number (`+18136380375`) |
 | `ConnectionStrings__Reign` | SQLite path, e.g. `Data Source=/data/REIGN.db` |
 
 Also set for live SMS/calendar (not secrets, but required):
 
 ```
-SMS_PROVIDER=SmsGate
-Sms__Provider=SmsGate
-Sms__BusinessPhoneNumber=+19073001244
+SMS_PROVIDER=SkipCalls
+Sms__Provider=SkipCalls
+SKIPCALLS_FROM_NUMBER=+18136380375
+Sms__BusinessPhoneNumber=+18136380375
 GoogleCalendar__Provider=Google
 GOOGLE_REDIRECT_URI=https://YOUR_DOMAIN/api/integrations/google/callback
 REIGN_API_BASE_URL=https://YOUR_API_ORIGIN/
@@ -191,9 +191,9 @@ Set on the API service:
 
 If inbound shows 403 in Twilio Debugger, the signed URL did not match. Confirm the webhook URL above, then check API logs for `Tried N public URL candidates`. If inbound is 200 but there is no reply, the From number is not a Twilio number or Twilio rejected the outbound send — logs include `outbound send failed`.
 
-## SmsGate (Android, open source)
+## SmsGate (Android, optional fallback)
 
-Live customer SMS while Twilio A2P is in review: a dedicated Android phone + Straight Talk SIM **+19073001244** running [SMS Gateway for Android](https://sms-gate.app/). Set `Sms__Provider=SmsGate`, `SMSGATE_USERNAME`, `SMSGATE_PASSWORD`, `SMSGATE_SIGNING_KEY`, and `SMSGATE_FROM_NUMBER=+19073001244`. Register HTTP POST `https://reign-ai-3.onrender.com/api/sms/webhooks/smsgate` as the `sms:received` webhook. Details are in `HOSTING.md`.
+Optional fallback: a dedicated Android phone + Straight Talk SIM **+19073001244** running [SMS Gateway for Android](https://sms-gate.app/). The current customer SMS inbox is SkipCalls **+18136380375**. Details are in `HOSTING.md`.
 
 ## Health
 

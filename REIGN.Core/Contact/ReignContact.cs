@@ -2,16 +2,23 @@ namespace REIGN.Core.Contact;
 
 /// <summary>
 /// Canonical customer-facing contact for REIGN / Miss Reign.
-/// The business SMS number is a dedicated Straight Talk SIM, never the owner cell.
+/// The business SMS number is the live SkipCalls inbox, never the owner cell.
 /// Public copy uses Miss Reign only. Never put a legal name in SMS, pages, or UI.
 /// </summary>
 public static class ReignContact
 {
-    public const string BusinessPhoneE164 = "+19073001244";
+    public const string BusinessPhoneE164 = "+18136380375";
 
-    public const string BusinessPhoneNational = "9073001244";
+    public const string BusinessPhoneNational = "8136380375";
 
-    public const string BusinessPhoneDisplay = "(907) 300-1244";
+    public const string BusinessPhoneDisplay = "(813) 638-0375";
+
+    // The former customer SMS number remains the voice-forwarding number and
+    // the optional Android/SmsGate SIM. It must never replace the SkipCalls
+    // number in customer-facing SMS copy while SkipCalls is active.
+    public const string VoicePhoneE164 = "+19073001244";
+
+    public const string VoicePhoneDisplay = "(907) 300-1244";
 
     public const string PublicName = "Miss Reign";
 

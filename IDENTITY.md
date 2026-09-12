@@ -2,7 +2,8 @@
 
 Name: REIGN AI
 Public name: Miss Reign
-Business SMS: +19073001244
+Business SMS: +18136380375 (SkipCalls)
+Voice forwarding: +19073001244
 
 Role:
 Customer service and scheduling assistant.
