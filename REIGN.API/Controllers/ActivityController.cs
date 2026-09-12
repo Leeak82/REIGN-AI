@@ -43,7 +43,8 @@ public class ActivityController : ControllerBase
                     Time = x.CreatedAt,
                     Customer = x.Customer.Name ?? x.Customer.PhoneNumber,
                     Direction = x.Direction,
-                    Message = x.Body
+                    Message = x.Body,
+                    Source = x.Source
                 })
                 .ToListAsync();
 
