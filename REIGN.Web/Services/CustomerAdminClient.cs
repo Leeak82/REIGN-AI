@@ -143,6 +143,8 @@ public sealed class CustomerAdminDto
     public string? Name { get; set; }
 
     public string? Notes { get; set; }
+
+    public string? Warning { get; set; }
 }
 
 public sealed class CustomerAdminResult
