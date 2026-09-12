@@ -1,4 +1,3 @@
-using REIGN.API.Services;
 using REIGN.Core.AI;
 using REIGN.Data.Models;
 
@@ -63,9 +62,11 @@ public class IntentDetectionService
                       System.Text.RegularExpressions.Regex.IsMatch(lower, @"\b\d{1,2}(/|:)\d{1,2}\b") ||
                       System.Text.RegularExpressions.Regex.IsMatch(lower, @"\b\d{1,2}(:\d{2})?\b");
 
+        var step = customer?.ConversationState?.CurrentStep;
         if (!string.IsNullOrWhiteSpace(service) ||
             lower.Contains("book") || lower.Contains("schedule") || lower.Contains("appointment") ||
-            (customer?.ConversationState?.CurrentStep == "AwaitingTime" && hasTime))
+            step == "AwaitingService" ||
+            (step == "AwaitingTime" && hasTime))
         {
             return new DetectedIntent
             {
