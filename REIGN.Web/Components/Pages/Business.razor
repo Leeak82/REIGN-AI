@@ -1,79 +1,168 @@
 @page "/business"
 
 @inject ReignApiClient Api
+@inject BusinessAdminClient AdminApi
 
 <PageTitle>Business Profile — REIGN AI</PageTitle>
 
 <div class="page-head">
     <h1>Business Profile</h1>
-    <p>The business REIGN represents in every conversation.</p>
+    <p>Edit the live business information REIGN uses with customers, including work hours.</p>
 </div>
+
+@if (!string.IsNullOrWhiteSpace(Notice))
+{
+    <div class="card mb-2"><strong>@Notice</strong></div>
+}
 
 @if (Loading)
 {
     <div class="loading"><span class="spinner"></span> Loading business profile…</div>
 }
-else if (Biz == null)
+else if (Editable == null)
 {
     <div class="error-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
-        <span class="msg">Something went wrong. REIGN couldn't load the business profile.</span>
+        <span class="msg">Something went wrong. REIGN couldn't load the editable business profile.</span>
         <button class="btn btn-ghost btn-sm" @onclick="Load">Try again</button>
     </div>
 }
 else
 {
+    @if (!string.IsNullOrWhiteSpace(Editable.Error))
+    {
+        <div class="card mb-2">
+            <div class="card-title">Business editor error</div>
+            <p class="dim" style="margin:6px 0 0;">@Editable.Error</p>
+        </div>
+    }
+
     <div class="grid" style="grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items:start;">
         <div class="card">
-            <div class="row-flex mb-2">
-                <span class="avatar gradient" style="width:52px;height:52px;font-size:18px;">@Fmt.Initials(Biz.Name)</span>
+            <div class="row-flex" style="justify-content:space-between;align-items:center;">
                 <div>
-                    <div class="card-title" style="font-size:19px;">@Biz.Name</div>
-                    @if (!string.IsNullOrWhiteSpace(Biz.Assistant))
-                    {
-                        <div class="small faint">Answered by @Biz.Assistant</div>
-                    }
+                    <div class="card-title">Business details</div>
+                    <div class="card-sub">Saved changes become REIGN's live business profile.</div>
                 </div>
+                <button class="btn" @onclick="Save" disabled="@Saving">@(Saving ? "Saving…" : "Save changes")</button>
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(Biz.Offering))
-            {
-                <div class="divider"></div>
-                <div class="field-label">Offering</div>
-                <p class="dim" style="margin-top:0;">@Biz.Offering</p>
-            }
+            <div class="grid grid-2" style="margin-top:14px;">
+                <label>
+                    <span class="dim">Business name</span>
+                    <input class="input" @bind="Editable.Name" />
+                </label>
+                <label>
+                    <span class="dim">Service provider</span>
+                    <input class="input" @bind="Editable.OwnerName" />
+                </label>
+                <label>
+                    <span class="dim">Contact phone</span>
+                    <input class="input" inputmode="tel" @bind="Editable.Phone" />
+                </label>
+                <label>
+                    <span class="dim">Contact email</span>
+                    <input class="input" type="email" @bind="Editable.Email" />
+                </label>
+            </div>
+
+            <label style="display:block;margin-top:12px;">
+                <span class="dim">Address / location note</span>
+                <input class="input" @bind="Editable.Address" placeholder="Optional" />
+            </label>
 
             <div class="divider"></div>
-
-            <div class="kv"><span class="k">Service provider</span><span class="v">@(Biz.OwnerName ?? "—")</span></div>
-            <div class="kv"><span class="k">Phone</span><span class="v">@(Biz.Phone ?? "—")</span></div>
-            <div class="kv"><span class="k">Email</span><span class="v">@(Biz.Email ?? "—")</span></div>
-            <div class="kv"><span class="k">Hours</span><span class="v">@(Biz.Hours ?? "—")</span></div>
-            <div class="kv"><span class="k">Time zone</span><span class="v">@(Biz.TimeZone ?? "—")</span></div>
+            <div class="card-title">Work hours</div>
+            <div class="card-sub">REIGN uses this when calculating real openings. Examples: “Monday-Friday 9am-5pm” or “9am-5pm. Same-day visits need at least one hour notice.”</div>
+            <label style="display:block;margin-top:12px;">
+                <span class="dim">Hours and scheduling rules</span>
+                <textarea class="input" rows="3" @bind="Editable.Hours"></textarea>
+            </label>
+            <label style="display:block;margin-top:12px;max-width:360px;">
+                <span class="dim">Time zone</span>
+                <input class="input" @bind="Editable.TimeZone" placeholder="America/Los_Angeles" />
+            </label>
+            <p class="small faint" style="margin-top:10px;">This changes customer-facing hours and the live opening finder. It does not change the SMS provider number or Render configuration.</p>
         </div>
 
-        <div class="card">
-            <div class="card-title">Service catalog</div>
-            <div class="card-sub">What REIGN can book</div>
-            @if (!string.IsNullOrWhiteSpace(Biz.Catalog))
-            {
-                <p class="dim small" style="white-space:pre-wrap;">@Biz.Catalog</p>
-            }
-            <a class="btn btn-ghost btn-sm mt-1" href="services">View services</a>
+        <div>
+            <div class="card mb-2">
+                <div class="card-title">REIGN identity</div>
+                <div class="kv"><span class="k">Assistant</span><span class="v">@(Biz?.Assistant ?? "Miss Reign")</span></div>
+                @if (!string.IsNullOrWhiteSpace(Biz?.Offering))
+                {
+                    <div class="divider"></div>
+                    <div class="field-label">Offering</div>
+                    <p class="dim small" style="white-space:pre-wrap;">@Biz!.Offering</p>
+                }
+            </div>
+
+            <div class="card">
+                <div class="card-title">Service catalog</div>
+                <div class="card-sub">What REIGN can quote and book</div>
+                @if (!string.IsNullOrWhiteSpace(Biz?.Catalog))
+                {
+                    <p class="dim small" style="white-space:pre-wrap;">@Biz!.Catalog</p>
+                }
+                <a class="btn btn-ghost btn-sm mt-1" href="services">Edit services</a>
+            </div>
         </div>
     </div>
 }
 
 @code {
     private bool Loading = true;
+    private bool Saving;
+    private string? Notice;
     private ReignApiClient.BusinessDto? Biz;
+    private BusinessAdminDto? Editable;
 
     protected override async Task OnInitializedAsync() => await Load();
 
     private async Task Load()
     {
         Loading = true;
-        Biz = (await Api.GetBusinesses()).FirstOrDefault();
-        Loading = false;
+        Notice = null;
+        try
+        {
+            Biz = (await Api.GetBusinesses()).FirstOrDefault();
+            Editable = await AdminApi.GetAsync();
+        }
+        catch (Exception ex)
+        {
+            Editable = new BusinessAdminDto { Error = ex.Message };
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (Editable == null) return;
+        Saving = true;
+        Notice = null;
+        try
+        {
+            var result = await AdminApi.UpdateAsync(Editable);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Notice = result.Error;
+                return;
+            }
+
+            Editable = result.Business;
+            Notice = "Business profile saved. REIGN is using the updated information and hours now.";
+            Biz = (await Api.GetBusinesses()).FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            Notice = ex.Message;
+        }
+        finally
+        {
+            Saving = false;
+        }
     }
 }
