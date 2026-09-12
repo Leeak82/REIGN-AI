@@ -4,7 +4,7 @@ REIGN is an AI appointment assistant for QV ($150), HH ($300), and HR ($500) vis
 Secrets belong in the host environment, never in git.
 
 Runtime configuration is bound from ASP.NET Core keys, with aliases applied at startup
-(`GROQ_API_KEY`, `GOOGLE_CLIENT_*`, `TWILIO_*`, `ConnectionStrings__Reign`).
+(`GROQ_API_KEY`, `GOOGLE_CLIENT_*`, `SKIPCALLS_*`, `TWILIO_*`, `ConnectionStrings__Reign`).
 
 ## Required variables
 
@@ -15,7 +15,7 @@ Runtime configuration is bound from ASP.NET Core keys, with aliases applied at s
 | `GOOGLE_CLIENT_SECRET` | Google Calendar OAuth client secret |
 | `SKIPCALLS_TOKEN` | SkipCalls API bearer token |
 | `SKIPCALLS_FROM_NUMBER` | Live REIGN SMS number (`+18136380375`) |
-| `ConnectionStrings__Reign` | SQLite path, e.g. `Data Source=/data/REIGN.db` |
+| `ConnectionStrings__Reign` | Production PostgreSQL connection string; see `HOSTING.md`. Local development defaults to SQLite. |
 
 Also set for live SMS/calendar (not secrets, but required):
 
@@ -76,22 +76,17 @@ docker build -t reign-api -f REIGN.API/Dockerfile .
 ```
 
 3. Set the required environment variables on the host. Keep `appsettings.json` empty of secrets.
-4. Persist SQLite (`ConnectionStrings__Reign`) on a volume, or the database will reset when the container is replaced.
+4. Set `ConnectionStrings__Reign` to the production PostgreSQL connection string described in `HOSTING.md`. Startup requires a database connection outside Development.
 
-### Production database location
+### Database initialization
 
-SQLite file must live **outside the container filesystem** that gets replaced on deploy.
+Production uses PostgreSQL. Startup initializes its schema from the EF model and applies the existing PostgreSQL upgrade guards. No SQLite volume is needed for PostgreSQL.
 
-| Environment | `ConnectionStrings__Reign` | Storage |
-| --- | --- | --- |
-| Local | unset or `Data Source=REIGN.db` | API content root (gitignored) |
-| Docker / Render / Railway / Azure | `Data Source=/data/REIGN.db` | Mount a persistent volume at `/data` |
+Local Development defaults to SQLite under the API content root. SQLite startup applies EF migrations and additive schema guards. An explicitly configured SQLite deployment still needs persistent storage outside `/app`; never use an ephemeral container file for customer data.
 
-Do not point production at a path inside `/app`. Startup runs `Database.MigrateAsync()` then additive SQLite `CREATE TABLE IF NOT EXISTS` / `ADD COLUMN` guards. That is safe to re-run; it does not drop customer data.
-
-5. Set `REIGN_API_BASE_URL` on REIGN.Web to the public API origin.
-6. Confirm `GET /health` returns `"status":"healthy"` and `"database":"connected"`.
-7. Confirm startup logs say Groq / Twilio / Google credentials are present — never the secret values.
+5. Set `REIGN_API_BASE_URL` on REIGN.Web to the public API origin. This alias overrides the checked-in localhost defaults; `ReignApi__BaseUrl` is also supported. Use an absolute HTTP(S) URL without credentials, query, or fragment.
+6. Confirm `GET /health` returns `"status":"healthy"` and `"database":"connected"`. HTTP 200 alone is insufficient: a disconnected database returns 200 with `"status":"degraded"`. `/api/health` reports configuration presence, not database connectivity.
+7. Confirm startup logs say Groq / SMS / Google credentials are present — never the secret values.
 
 Host-specific build, start, port, and health settings: **`HOSTING.md`** (Azure App Service, Render, Railway).
 
@@ -128,14 +123,14 @@ For `dotnet run` without Docker, set `GOOGLE_REDIRECT_URI=https://localhost:5001
 
 4. Set `GoogleCalendar__Provider=Google`.
 5. Open `/api/integrations/google/authorize` once while signed in as **j.collins2491@gmail.com**.
-   Production shortcut: `https://reign-ai-2.onrender.com/api/integrations/google/authorize`.
+   Production shortcut: `https://reign-ai-3.onrender.com/api/integrations/google/authorize`.
    The dashboard **Connect Google Calendar** / **Reconnect Google Calendar** buttons on Calendar and Integrations hit the same URL.
-6. Confirm `/api/integrations/status` shows `hasStoredGrant: true`, `activeProvider: Google`, `calendarId: j.collins2491@gmail.com`, and a **https** `redirectUri` on `reign-ai-2.onrender.com` (never `localhost`).
+6. Confirm `/api/integrations/status` shows `hasStoredGrant: true`, `activeProvider: Google`, `calendarId: j.collins2491@gmail.com`, and a **https** `redirectUri` on `reign-ai-3.onrender.com` (never `localhost`).
 7. Book a QV/HH/HR, reply `YES`, and verify one calendar event is created on j.collins2491@gmail.com. Confirmed appointments reuse `ExternalCalendarEventId` so Google does not get a duplicate event.
 
-On Render, leftover `https://localhost:5001/...` from `appsettings.json` used to be rewritten to `http://localhost:8080/...` because the API image listens on 8080. Production now prefers `RENDER_EXTERNAL_URL` / `RENDER_EXTERNAL_HOSTNAME` (and the public `X-Forwarded-Host`) so authorize and token exchange use:
+On Render, production prefers `RENDER_EXTERNAL_URL` / `RENDER_EXTERNAL_HOSTNAME` (and the public `X-Forwarded-Host`) so authorize and token exchange use the public service origin, currently:
 
-`https://reign-ai-2.onrender.com/api/integrations/google/callback`
+`https://reign-ai-3.onrender.com/api/integrations/google/callback`
 
 Still set these on the API service (not secrets, but required for Google Calendar):
 
@@ -145,55 +140,45 @@ Still set these on the API service (not secrets, but required for Google Calenda
 | `GOOGLE_CALENDAR_ID` | `j.collins2491@gmail.com` |
 | `GoogleCalendar__CalendarId` | `j.collins2491@gmail.com` |
 | `GOOGLE_CALENDAR_TIMEZONE` | `America/Los_Angeles` |
-| `GOOGLE_REDIRECT_URI` | `https://reign-ai-2.onrender.com/api/integrations/google/callback` |
+| `GOOGLE_REDIRECT_URI` | `https://reign-ai-3.onrender.com/api/integrations/google/callback` |
 | `GoogleCalendar__RedirectUri` | same public callback |
 | `REIGN_DOCKER` | unset (never `1` on Render) |
 
-In Google Cloud Console, the OAuth **Web** client's authorized redirect URIs must include that same production callback. The live client id is already configured on Render (`GOOGLE_CLIENT_ID`).
+In Google Cloud Console, the OAuth **Web** client's authorized redirect URIs must include that same production callback. The live client id is configured on Render (`GOOGLE_CLIENT_ID`).
 
-`GET /api/integrations/status` now includes `oauthClientId` (public) and `oauthClientSecretLooksLikeWeb` (true when the secret starts with `GOCSPX-` after trimming quotes). `oauthClientConfigured: true` only means a secret is **present**. If consent succeeds and the callback still returns `invalid_client`, paste the **Client secret** from that same Web client into Render as `GOOGLE_CLIENT_SECRET` (or `GoogleCalendar__ClientSecret`), then redeploy. Do not put the secret in git.
+`GET /api/integrations/status` includes `oauthClientId` (public) and `oauthClientSecretLooksLikeWeb` (true when the secret starts with `GOCSPX-` after trimming quotes). `oauthClientConfigured: true` only means a secret is **present**. If consent succeeds and the callback still returns `invalid_client`, paste the **Client secret** from that same Web client into Render as `GOOGLE_CLIENT_SECRET` (or `GoogleCalendar__ClientSecret`), then redeploy. Do not put the secret in git.
 
 Authorize and the token POST use the same canonical callback. If exchange fails, the JSON includes Google's `error` / `error_description` (never the secret) plus the `redirectUri` that was sent.
 
-Do not complete consent as `lee.anthony57@gmail.com`. Cursor Calendar MCP is that account and cannot write to the live booking calendar. REIGN must receive the Google account's own OAuth grant.
+## SkipCalls webhook setup (current live SMS)
 
-## Twilio webhook setup
+Customers text **+18136380375**. Configure SkipCalls to POST inbound SMS to:
 
-1. Buy or assign a **dedicated business number**. Do not use the owner’s personal cell as the REIGN From-number.
-2. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`.
-3. Set `Sms__Provider=Twilio`.
-4. Point the Twilio inbound webhook (HTTP POST) at:
-
-`https://YOUR_DOMAIN/api/sms/incoming`
-
-5. Twilio signs the **public URL it POSTed to**. Behind Render, the API reconstructs that URL from `TWILIO_WEBHOOK_URL`, `Sms__PublicBaseUrl` / `RENDER_EXTERNAL_URL`, and `X-Forwarded-*`. Invalid signatures return **403** (not 500). `TWILIO_WEBHOOK_URL` must be exactly `https://YOUR_HOST/api/sms/incoming`. `/api/sms/webhooks/twilio` remains a compatible alias.
-6. Text the Twilio number from a real phone. Sending SMS from the Twilio Console **Send a message** box only uses Twilio's API — it never hits REIGN and is not a live webhook test.
-
-The Twilio phone number (or Messaging Service) **A Message Comes In** webhook must be:
-
-- Method: **HTTP POST**
-- Content-Type: `application/x-www-form-urlencoded` (Twilio default: `From`, `To`, `Body`, `MessageSid`)
-- URL: `https://reign-ai-2.onrender.com/api/sms/incoming`
-
-JSON POST `/api/sms/incoming` is still the Development simulator and stays disabled in production.
+`https://reign-ai-3.onrender.com/api/sms/webhooks/skipcalls`
 
 Set on the API service:
 
 | Key | Value |
 | --- | --- |
-| `Sms__Provider` | `Twilio` |
-| `TWILIO_ACCOUNT_SID` | live Account SID (same project as the number) |
-| `TWILIO_AUTH_TOKEN` | live Auth Token (must match the SID; test tokens fail live signatures) |
-| `TWILIO_FROM_NUMBER` | the dedicated Twilio number in E.164 (`+1…`), not the owner cell |
-| `TWILIO_WEBHOOK_URL` | `https://reign-ai-2.onrender.com/api/sms/incoming` |
-| `Sms__BusinessPhoneNumber` | same dedicated Twilio number |
-| `Sms__OwnerPhoneNumber` | owner personal cell (never used as From) |
+| `Sms__Provider` | `SkipCalls` |
+| `SKIPCALLS_TOKEN` | live bearer token |
+| `SKIPCALLS_FROM_NUMBER` | `+18136380375` |
+| `Sms__BusinessPhoneNumber` | `+18136380375` |
+| `SKIPCALLS_WEBHOOK_SECRET` | webhook secret when configured |
 
-If inbound shows 403 in Twilio Debugger, the signed URL did not match. Confirm the webhook URL above, then check API logs for `Tried N public URL candidates`. If inbound is 200 but there is no reply, the From number is not a Twilio number or Twilio rejected the outbound send — logs include `outbound send failed`.
+Keep SkipCalls `autoRespondToSms` disabled so Miss Reign is the only assistant replying.
+
+## Twilio webhook setup (optional)
+
+If Twilio is used later, set its live credentials and point **A Message Comes In** to:
+
+`https://reign-ai-3.onrender.com/api/sms/incoming`
+
+Method must be HTTP POST using Twilio's standard form fields (`From`, `To`, `Body`, `MessageSid`). JSON POST `/api/sms/incoming` is the Development simulator and stays disabled in production.
 
 ## SmsGate (Android, optional fallback)
 
-Optional fallback: a dedicated Android phone + Straight Talk SIM **+19073001244** running [SMS Gateway for Android](https://sms-gate.app/). The current customer SMS inbox is SkipCalls **+18136380375**. Details are in `HOSTING.md`.
+Optional fallback: a dedicated Android phone + Straight Talk SIM **+19073001244** running [SMS Gateway for Android](https://sms-gate.app/). The current customer SMS inbox is SkipCalls **+18136380375**. Register the SmsGate `sms:received` webhook at `https://reign-ai-3.onrender.com/api/sms/webhooks/smsgate` only when SmsGate is the active provider. Details are in `HOSTING.md`.
 
 ## Health
 
