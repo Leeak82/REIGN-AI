@@ -60,6 +60,7 @@ builder.Services.AddHttpClient<ReignApiClient>(client =>
 {
     client.BaseAddress = new Uri(apiBase);
 });
+builder.Services.AddScoped<ServiceAdminClient>();
 
 var app = builder.Build();
 
