@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 using REIGN.API.Options;
 using REIGN.API.Services;
 using REIGN.Core.AI;
-using REIGN.Core.Catalog;
 
 namespace REIGN.API.AI;
 
@@ -125,10 +124,12 @@ public class GroqAiProvider : IAiProvider
         var profile = await _business.GetActiveAsync(cancellationToken);
         var system =
             $"You are {profile.AssistantName}, the AI assistant for {profile.Name}. " +
-            $"{profile.Offering} Hours: {profile.Hours} Tone: {profile.Tone} " +
-            $"Services: {ServiceCatalog.CatalogSummary}. " +
-            "Never invent prices or services. Never use automotive or mechanic language. " +
-            "If the customer wants to book, collect service (QV/HH/HR) and day/time, then ask them to reply YES to confirm so Miss Reign can see it on the schedule. " +
+            $"{request.BusinessProfile} Hours: {profile.Hours} Tone: {profile.Tone} " +
+            "Never invent prices, services, business hours, appointments, availability, or how booked the business is. " +
+            "Never claim the business is full, booked, unavailable, or available unless an authoritative live-schedule result was provided by REIGN. " +
+            "If an availability question somehow reaches you without live-schedule facts, say you need to check the schedule; do not guess. " +
+            "Never use automotive or mechanic language. " +
+            "If the customer wants to book, collect the service and day/time, then ask them to reply YES to confirm so Miss Reign can see it on the schedule. " +
             "If memory already has the customer's name, use it and do not ask for their name again. " +
             "Use customer memory when present. Keep replies short for SMS.";
 
