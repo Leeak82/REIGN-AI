@@ -1,0 +1,63 @@
+name: REIGN Production Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://reign-ai-3.onrender.com/health'
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 30 "$url" -o health.json; then
+              cat health.json
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo 'Production health endpoint did not become reachable.' >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          python3 - <<'PY'
+          import json
+          data=json.load(open('health.json'))
+          assert data.get('status') == 'healthy', data
+          assert data.get('database') == 'connected', data
+          assert data.get('smsConfigured') is True, data
+          assert data.get('calendarConfigured') is True, data
+          print('health checks passed')
+          PY
+
+      - name: Verify live integrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 'https://reign-ai-3.onrender.com/api/integrations/status' -o integrations.json
+          cat integrations.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('integrations.json'))
+          sms=data.get('sms') or {}
+          cal=data.get('googleCalendar') or {}
+          assert sms.get('configuredProvider') == 'SkipCalls', sms
+          assert sms.get('activeProvider') == 'SkipCalls', sms
+          assert sms.get('businessPhoneNumber') == '+18136380375', sms
+          assert sms.get('credentialsPresent') is True, sms
+          assert cal.get('configuredProvider') == 'Google', cal
+          assert cal.get('activeProvider') == 'Google', cal
+          assert cal.get('hasStoredGrant') is True, cal
+          print('live integration checks passed')
+          PY
