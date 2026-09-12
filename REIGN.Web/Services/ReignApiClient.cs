@@ -6,13 +6,10 @@ public class ReignApiClient
 {
     private readonly HttpClient _http;
 
-
     public ReignApiClient(HttpClient http)
     {
         _http = http;
     }
-
-
 
     public Uri? BaseAddress => _http.BaseAddress;
 
@@ -62,40 +59,49 @@ public class ReignApiClient
         string phone,
         string message)
     {
-        var response =
-            await _http.PostAsJsonAsync(
-                "api/messages/send",
-                new
-                {
-                    PhoneNumber = phone,
-                    Body = message
-                });
+        var response = await _http.PostAsJsonAsync(
+            "api/messages/send",
+            new
+            {
+                PhoneNumber = phone,
+                Body = message
+            });
 
-        if (!response.IsSuccessStatusCode)
+        response.EnsureSuccessStatusCode();
+
+        OwnerSendResponse? result;
+        try
         {
-            return "Unable to send owner SMS.";
+            result = await response.Content.ReadFromJsonAsync<OwnerSendResponse>();
+        }
+        catch (Exception ex)
+        {
+            throw new HttpRequestException("REIGN returned an invalid SMS response.", ex);
         }
 
-        var result = await response.Content.ReadFromJsonAsync<OwnerSendResponse>();
-        if (!string.IsNullOrWhiteSpace(result?.Error) && result.Sent != true)
+        if (result?.Sent != true)
         {
-            return result.Error;
+            throw new HttpRequestException(
+                string.IsNullOrWhiteSpace(result?.Error)
+                    ? "REIGN did not confirm the SMS was sent."
+                    : result.Error);
         }
 
-        return result?.Simulated == true
+        return result.Simulated
             ? "Owner message saved (simulated SMS)."
             : "Owner message sent.";
     }
 
     public async Task ResumeAssistant(string phone)
     {
-        await _http.PostAsJsonAsync(
+        var response = await _http.PostAsJsonAsync(
             "api/messages/resume",
             new
             {
                 PhoneNumber = phone,
                 Body = ""
             });
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task<IntegrationStatusDto?> GetIntegrationStatus()
@@ -103,20 +109,12 @@ public class ReignApiClient
         return await _http.GetFromJsonAsync<IntegrationStatusDto>("api/integrations/status");
     }
 
-
-
-
-
     public async Task<List<CustomerDto>> GetCustomers()
     {
         return await _http.GetFromJsonAsync<List<CustomerDto>>(
             "api/customers")
             ?? new();
     }
-
-
-
-
 
     public async Task<List<MessageDto>> GetMessages(
         string phone)
@@ -126,10 +124,6 @@ public class ReignApiClient
             ?? new();
     }
 
-
-
-
-
     public async Task<List<AppointmentDto>> GetCustomerAppointments(
         string phone)
     {
@@ -138,38 +132,34 @@ public class ReignApiClient
             ?? new();
     }
 
-
-
-
-
     public async Task<List<AppointmentDto>> GetAppointments()
-{
-    return await _http.GetFromJsonAsync<List<AppointmentDto>>(
-        "api/appointments")
-        ?? new();
-}
-
-
-public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
-{
-    return await _http.GetFromJsonAsync<List<AppointmentDto>>(
-        $"api/inbox/appointments/{customerId}")
-        ?? new();
-}
-
-
-    public async Task ConfirmAppointment(Guid id)
     {
-        await _http.PostAsync(
-            $"api/appointments/{id}/confirm",
-            null);
+        return await _http.GetFromJsonAsync<List<AppointmentDto>>(
+            "api/appointments")
+            ?? new();
     }
 
-    public async Task CancelAppointment(Guid id)
+    public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
     {
-        await _http.PostAsync(
+        return await _http.GetFromJsonAsync<List<AppointmentDto>>(
+            $"api/inbox/appointments/{customerId}")
+            ?? new();
+    }
+
+    public async Task<AppointmentWriteDto?> ConfirmAppointment(Guid id)
+    {
+        var response = await _http.PostAsync(
+            $"api/appointments/{id}/confirm",
+            null);
+        return await ReadAppointmentWriteResponse(response);
+    }
+
+    public async Task<AppointmentWriteDto?> CancelAppointment(Guid id)
+    {
+        var response = await _http.PostAsync(
             $"api/appointments/{id}/cancel",
             null);
+        return await ReadAppointmentWriteResponse(response);
     }
 
     public async Task<AppointmentWriteDto?> CreateAppointment(
@@ -189,15 +179,7 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
                 AppointmentTime = appointmentTime,
                 Confirm = confirm
             });
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();
-            return new AppointmentWriteDto { Error = error?.Error ?? $"REIGN API returned {(int)response.StatusCode}." };
-        }
-
-        return await response.Content.ReadFromJsonAsync<AppointmentWriteDto>()
-            ?? new AppointmentWriteDto { Error = "Empty API response." };
+        return await ReadAppointmentWriteResponse(response);
     }
 
     public async Task<AppointmentWriteDto?> RescheduleAppointment(Guid id, DateTime appointmentTime)
@@ -205,20 +187,40 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
         var response = await _http.PostAsJsonAsync(
             $"api/appointments/{id}/reschedule",
             new { AppointmentTime = appointmentTime });
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadFromJsonAsync<ApiErrorDto>();
-            return new AppointmentWriteDto { Error = error?.Error ?? $"REIGN API returned {(int)response.StatusCode}." };
-        }
-
-        return await response.Content.ReadFromJsonAsync<AppointmentWriteDto>()
-            ?? new AppointmentWriteDto { Error = "Empty API response." };
+        return await ReadAppointmentWriteResponse(response);
     }
 
+    private static async Task<AppointmentWriteDto> ReadAppointmentWriteResponse(HttpResponseMessage response)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            string? error = null;
+            try
+            {
+                error = (await response.Content.ReadFromJsonAsync<ApiErrorDto>())?.Error;
+            }
+            catch
+            {
+            }
 
+            return new AppointmentWriteDto
+            {
+                Error = string.IsNullOrWhiteSpace(error)
+                    ? $"REIGN API returned {(int)response.StatusCode}."
+                    : error
+            };
+        }
 
-
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<AppointmentWriteDto>()
+                ?? new AppointmentWriteDto { Error = "Empty API response." };
+        }
+        catch
+        {
+            return new AppointmentWriteDto { Error = "REIGN API returned an invalid response." };
+        }
+    }
 
     public async Task<CustomerProfileDto?> GetCustomerProfile(string phone)
     {
@@ -469,10 +471,6 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
         public string? Error { get; set; }
     }
 
-
-
-
-
     public class CustomerDto
     {
         public Guid Id { get; set; }
@@ -498,10 +496,6 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
         public int TurnCount { get; set; }
     }
 
-
-
-
-
     public class MessageDto
     {
         public Guid Id { get; set; }
@@ -518,10 +512,6 @@ public async Task<List<AppointmentDto>> GetCustomerAppointments(Guid customerId)
 
         public DateTime CreatedAt { get; set; }
     }
-
-
-
-
 
     public class AppointmentDto
     {
