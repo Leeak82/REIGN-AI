@@ -145,13 +145,14 @@ public class IncomingSmsProcessor
                 };
             }
 
+            var isSimulation = IsSimulationProvider(incoming.Provider);
             var customer = await _conversationService.GetOrCreateCustomer(from, incoming.Body);
 
             await _conversationService.SaveMessage(
                 customer.Id,
                 "Inbound",
                 incoming.Body,
-                source: "Customer");
+                source: isSimulation ? "SimulationCustomer" : "Customer");
 
             if (customer.HumanOverrideActive)
             {
@@ -178,7 +179,7 @@ public class IncomingSmsProcessor
                 customer.Id,
                 "Outbound",
                 reply.Text,
-                source: "Assistant");
+                source: isSimulation ? "SimulationAssistant" : "Assistant");
 
             var persisted = await _db.ConversationMessages.AnyAsync(
                 x => x.CustomerId == customer.Id && x.Direction == "Outbound" && x.Body == reply.Text,
@@ -218,6 +219,10 @@ public class IncomingSmsProcessor
             };
         }
     }
+
+    private static bool IsSimulationProvider(string? provider) =>
+        string.Equals(provider, "AI", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(provider, "Simulated", StringComparison.OrdinalIgnoreCase);
 
     private bool ShouldIgnoreNonCustomer(
         IncomingSmsMessage incoming,
