@@ -47,6 +47,28 @@ public class ConversationEngine
         _logger = logger;
     }
 
+    public ConversationEngine(
+        ReignDbContext db,
+        IntentDetectionService intents,
+        ConversationStateService state,
+        CustomerMemoryService memory,
+        IntentMemoryService intentMemory,
+        IAiProvider ai,
+        IBusinessProfileAccessor business,
+        ILogger<ConversationEngine> logger)
+        : this(
+            db,
+            intents,
+            state,
+            memory,
+            intentMemory,
+            new CatalogIntelligence(db),
+            ai,
+            business,
+            logger)
+    {
+    }
+
     public async Task<string> Process(Customer customer, string message) =>
         (await ProcessDetailed(customer, message, track: true)).Text;
 
