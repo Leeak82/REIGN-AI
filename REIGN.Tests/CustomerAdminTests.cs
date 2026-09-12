@@ -55,6 +55,36 @@ public class CustomerAdminTests
     }
 
     [Fact]
+    public async Task Contact_edit_refreshes_existing_calendar_event_details()
+    {
+        await using var harness = await IncomingSmsProcessorTests.Harness.CreateAsync();
+        var controller = CreateController(harness, out var appointmentService);
+        Authorize(controller);
+
+        var customer = await harness.Conversations.GetOrCreateCustomer("+15555550121");
+        customer.Name = "Old Name";
+        await harness.Db.SaveChangesAsync();
+
+        var when = DateTime.SpecifyKind(DateTime.Now.Date.AddDays(2).AddHours(14), DateTimeKind.Unspecified);
+        var write = await appointmentService.CreateAppointment(customer.Id, ServiceCatalog.HalfHourName, when);
+        Assert.NotNull(write);
+        await appointmentService.ConfirmAppointment(write!.Appointment.Id);
+        Assert.Contains("Old Name", harness.Calendar.Events.Single().Summary);
+
+        var updated = await controller.Update(customer.Id, new CustomerEditRequest
+        {
+            PhoneNumber = "+15555550122",
+            Name = "New Name",
+            Notes = "Updated"
+        });
+        Assert.IsType<OkObjectResult>(updated);
+
+        var calendarEvent = harness.Calendar.Events.Single();
+        Assert.Contains("New Name", calendarEvent.Summary);
+        Assert.Contains("+15555550122", calendarEvent.Description);
+    }
+
+    [Fact]
     public async Task Purge_simulations_deletes_only_tagged_simulation_data()
     {
         await using var harness = await IncomingSmsProcessorTests.Harness.CreateAsync();
@@ -145,7 +175,7 @@ public class CustomerAdminTests
 
         var controller = new CustomersController(
             harness.Db,
-            appointmentService,
+            calendarSync,
             config,
             NullLogger<CustomersController>.Instance)
         {
