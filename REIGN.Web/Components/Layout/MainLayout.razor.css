@@ -1,0 +1,16 @@
+.anthony-quote {
+    margin: 56px auto 0;
+    padding: 18px 12px 2px;
+    max-width: 520px;
+    border-top: 1px solid rgba(148, 163, 184, 0.08);
+    color: rgba(148, 163, 184, 0.42);
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.45;
+    letter-spacing: 0.015em;
+    user-select: none;
+}
+
+.anthony-quote div + div {
+    margin-top: 2px;
+}
