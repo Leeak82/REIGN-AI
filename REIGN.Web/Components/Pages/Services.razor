@@ -1,59 +1,205 @@
 @page "/services"
 
-@inject ReignApiClient Api
+@inject ServiceAdminClient AdminApi
 
 <PageTitle>Services — REIGN AI</PageTitle>
 
 <div class="page-head">
     <h1>Services</h1>
-    <p>What your business offers. REIGN quotes these exact services and prices to customers.</p>
+    <p>Edit what Miss Reign offers. Saved changes become the live catalog REIGN quotes and books.</p>
 </div>
+
+@if (!string.IsNullOrWhiteSpace(Notice))
+{
+    <div class="card mb-2">
+        <strong>@Notice</strong>
+    </div>
+}
 
 @if (Loading)
 {
     <div class="loading"><span class="spinner"></span> Loading services…</div>
 }
-else if (Catalog == null || Catalog.Services.Count == 0)
+else if (Catalog == null)
 {
     <div class="card">
-        <EmptyState Title="No services configured"
-                    Description="REIGN's service catalog is empty. Configure services in the API to show them here."
+        <EmptyState Title="Service editor unavailable"
+                    Description="REIGN could not load the service catalog. Refresh this page or check Integrations."
                     Icon="m12 2 8.5 4.7v9.6L12 21l-8.5-4.7V6.7Z" />
     </div>
 }
 else
 {
-    @if (!string.IsNullOrWhiteSpace(Catalog.Summary))
+    @if (!string.IsNullOrWhiteSpace(Catalog.Error))
     {
         <div class="card mb-2">
-            <div class="card-title">Catalog</div>
-            <p class="dim" style="margin:6px 0 0;">@Catalog.Summary</p>
+            <div class="card-title">Service editor error</div>
+            <p style="margin:6px 0 0;">@Catalog.Error</p>
         </div>
     }
 
-    <div class="grid grid-3">
-        @foreach (var s in Catalog.Services)
-        {
-            <div class="service-card">
-                <div class="row-flex" style="justify-content:space-between;">
-                    <span class="service-code">@s.Code</span>
-                    <StatusBadge Text="Active" Kind="success" />
-                </div>
-                <div class="service-name">@s.Name</div>
-                <div class="service-price">@Fmt.Money(s.Price)</div>
-                <div class="service-meta">@s.DurationMinutes minutes</div>
-            </div>
-        }
+    <div class="card mb-2">
+        <div class="card-title">Live customer catalog</div>
+        <p class="dim" style="margin:6px 0 0;">@Catalog.Summary</p>
     </div>
+
+    <div class="card mb-2">
+        <div class="card-title">Add service</div>
+        <div class="grid grid-3" style="margin-top:12px;">
+            <label>
+                <span class="dim">Name</span>
+                <input class="input" @bind="NewService.Name" placeholder="Service name" />
+            </label>
+            <label>
+                <span class="dim">Price</span>
+                <input class="input" type="number" min="0" step="0.01" @bind="NewService.Price" />
+            </label>
+            <label>
+                <span class="dim">Duration (minutes)</span>
+                <input class="input" type="number" min="5" step="5" @bind="NewService.DurationMinutes" />
+            </label>
+        </div>
+        <div class="row-flex" style="margin-top:12px; justify-content:space-between; align-items:center;">
+            <label class="row-flex" style="gap:8px;">
+                <input type="checkbox" @bind="NewService.Active" />
+                <span>Active immediately</span>
+            </label>
+            <button class="btn" @onclick="AddService" disabled="@Adding">
+                @(Adding ? "Adding…" : "Add service")
+            </button>
+        </div>
+    </div>
+
+    @if (Catalog.Services.Count == 0)
+    {
+        <div class="card">
+            <EmptyState Title="No services configured"
+                        Description="Add the first service above."
+                        Icon="m12 2 8.5 4.7v9.6L12 21l-8.5-4.7V6.7Z" />
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-2">
+            @foreach (var service in Catalog.Services)
+            {
+                <div class="service-card">
+                    <div class="row-flex" style="justify-content:space-between; align-items:center;">
+                        <span class="service-code">@(service.Active ? "LIVE" : "OFF")</span>
+                        <StatusBadge Text="@(service.Active ? "Active" : "Inactive")" Kind="@(service.Active ? "success" : "neutral")" />
+                    </div>
+
+                    <label style="display:block; margin-top:12px;">
+                        <span class="dim">Service name</span>
+                        <input class="input" @bind="service.Name" />
+                    </label>
+
+                    <div class="grid grid-2" style="margin-top:10px;">
+                        <label>
+                            <span class="dim">Price</span>
+                            <input class="input" type="number" min="0" step="0.01" @bind="service.Price" />
+                        </label>
+                        <label>
+                            <span class="dim">Minutes</span>
+                            <input class="input" type="number" min="5" step="5" @bind="service.DurationMinutes" />
+                        </label>
+                    </div>
+
+                    <div class="row-flex" style="margin-top:12px; justify-content:space-between; align-items:center;">
+                        <label class="row-flex" style="gap:8px;">
+                            <input type="checkbox" @bind="service.Active" />
+                            <span>Offer this service</span>
+                        </label>
+                        <button class="btn" @onclick="() => SaveService(service)" disabled="@(SavingId == service.Id)">
+                            @(SavingId == service.Id ? "Saving…" : "Save")
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 }
 
 @code {
     private bool Loading = true;
-    private ReignApiClient.CatalogDto? Catalog;
+    private bool Adding;
+    private Guid? SavingId;
+    private string? Notice;
+    private ServiceAdminCatalog? Catalog;
+    private ServiceAdminDto NewService = new() { DurationMinutes = 30, Active = true };
 
     protected override async Task OnInitializedAsync()
     {
-        Catalog = await Api.GetCatalog();
-        Loading = false;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        Loading = true;
+        try
+        {
+            Catalog = await AdminApi.GetAsync();
+        }
+        catch (Exception ex)
+        {
+            Catalog = new ServiceAdminCatalog { Error = ex.Message };
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private async Task AddService()
+    {
+        Notice = null;
+        Adding = true;
+        try
+        {
+            var result = await AdminApi.CreateAsync(NewService);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Notice = result.Error;
+                return;
+            }
+
+            Notice = $"{result.Service?.Name ?? "Service"} added to REIGN.";
+            NewService = new ServiceAdminDto { DurationMinutes = 30, Active = true };
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Notice = ex.Message;
+        }
+        finally
+        {
+            Adding = false;
+        }
+    }
+
+    private async Task SaveService(ServiceAdminDto service)
+    {
+        Notice = null;
+        SavingId = service.Id;
+        try
+        {
+            var result = await AdminApi.UpdateAsync(service);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Notice = result.Error;
+                return;
+            }
+
+            Notice = $"{result.Service?.Name ?? service.Name} saved. Customer conversations now use the updated catalog.";
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Notice = ex.Message;
+        }
+        finally
+        {
+            SavingId = null;
+        }
     }
 }
