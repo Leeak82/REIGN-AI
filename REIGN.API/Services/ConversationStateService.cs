@@ -38,6 +38,7 @@ public class ConversationStateService
     public async Task UpdateAsync(Customer customer, DetectedIntent intent, string message)
     {
         var state = await GetOrCreate(customer.Id);
+        var previousStep = state.CurrentStep;
 
         state.TurnCount += 1;
         state.LastIntent = intent.Label;
@@ -45,9 +46,23 @@ public class ConversationStateService
         state.LastCustomerMessageAt = DateTime.UtcNow;
         state.UpdatedAt = DateTime.UtcNow;
 
-        if (!string.IsNullOrWhiteSpace(intent.ServiceName))
+        var selectedService = intent.ServiceName;
+        if (string.IsNullOrWhiteSpace(selectedService) && previousStep == "AwaitingService")
         {
-            state.SelectedService = intent.ServiceName;
+            var lowerMessage = message.ToLowerInvariant();
+            var serviceNames = await _db.Services
+                .AsNoTracking()
+                .Where(x => x.Active)
+                .Select(x => x.Name)
+                .ToListAsync();
+            selectedService = serviceNames
+                .OrderByDescending(x => x.Length)
+                .FirstOrDefault(x => lowerMessage.Contains(x.ToLowerInvariant(), StringComparison.Ordinal));
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedService))
+        {
+            state.SelectedService = selectedService;
         }
 
         var lower = message.ToLowerInvariant();
@@ -57,15 +72,19 @@ public class ConversationStateService
             customer.Notes = state.Preferences;
         }
 
+        var hasTimeLanguage = lower.Contains("am") ||
+                              lower.Contains("pm") ||
+                              lower.Contains("today") ||
+                              lower.Contains("tomorrow") ||
+                              System.Text.RegularExpressions.Regex.IsMatch(message, @"\b\d{1,2}:\d{2}\b") ||
+                              System.Text.RegularExpressions.Regex.IsMatch(lower, @"\b(?:at|around|about)\s+(?:1[0-2]|[1-9])\b") ||
+                              (previousStep == "AwaitingTime" &&
+                               System.Text.RegularExpressions.Regex.IsMatch(lower, @"\b(?:1[0-2]|[1-9])\b"));
+
         state.CurrentStep = intent.Kind switch
         {
             ReignIntentKind.Schedule when message.Contains("YES", StringComparison.OrdinalIgnoreCase) => "AwaitingConfirm",
-            ReignIntentKind.Schedule when !string.IsNullOrWhiteSpace(intent.ServiceName) &&
-                                          !(message.ToLowerInvariant().Contains("am") ||
-                                            message.ToLowerInvariant().Contains("pm") ||
-                                            message.ToLowerInvariant().Contains("today") ||
-                                            message.ToLowerInvariant().Contains("tomorrow") ||
-                                            System.Text.RegularExpressions.Regex.IsMatch(message, @"\b\d{1,2}:\d{2}\b"))
+            ReignIntentKind.Schedule when !string.IsNullOrWhiteSpace(selectedService) && !hasTimeLanguage
                 => "AwaitingTime",
             ReignIntentKind.Confirm => "Confirmed",
             ReignIntentKind.Cancel => "Cancelled",
