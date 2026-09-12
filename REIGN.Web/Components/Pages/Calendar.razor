@@ -14,7 +14,7 @@
     <div class="error-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
         <span class="msg">@Error</span>
-        <button class="btn btn-ghost btn-sm" @onclick="Load">Try again</button>
+        <button class="btn btn-ghost btn-sm" @onclick="Load" disabled="@Busy">Try again</button>
     </div>
 }
 
@@ -161,10 +161,10 @@ else
                                 <div class="row-flex" style="flex-wrap:wrap;">
                                     @if (a.Status != "Confirmed")
                                     {
-                                        <button class="btn btn-success btn-sm" @onclick="() => Confirm(a.Id)">Confirm</button>
+                                        <button class="btn btn-success btn-sm" disabled="@Busy" @onclick="() => Confirm(a.Id)">Confirm</button>
                                     }
-                                    <button class="btn btn-ghost btn-sm" @onclick="() => ToggleReschedule(a.Id)">Reschedule</button>
-                                    <button class="btn btn-danger btn-sm" @onclick="() => Cancel(a.Id)">Cancel</button>
+                                    <button class="btn btn-ghost btn-sm" disabled="@Busy" @onclick="() => ToggleReschedule(a.Id)">Reschedule</button>
+                                    <button class="btn btn-danger btn-sm" disabled="@Busy" @onclick="() => Cancel(a.Id)">Cancel</button>
                                 </div>
                                 @if (RescheduleId == a.Id)
                                 {
@@ -242,6 +242,7 @@ else
 
     private async Task Book()
     {
+        if (Busy) return;
         Notice = "";
         Error = "";
         if (string.IsNullOrWhiteSpace(BookPhone) || BookTime == default)
@@ -260,25 +261,22 @@ else
                 return;
             }
 
-            if (result?.CalendarSynced == true)
+            Notice = result?.CalendarSynced == true
+                ? "Booked. Miss Reign has it on the Google Calendar."
+                : result?.Message ?? "Appointment booked.";
+
+            var calendarError = result?.CalendarSyncError;
+            BookPhone = "";
+            BookName = "";
+            await Load();
+            if (!string.IsNullOrWhiteSpace(calendarError))
             {
-                Notice = "Booked. Miss Reign has it on the Google Calendar.";
-                BookPhone = "";
-                BookName = "";
-                await Load();
+                Error = $"Appointment saved, but Google Calendar did not update: {calendarError}";
             }
-            else
-            {
-                Notice = result?.Message ?? "Appointment booked.";
-                var calendarError = result?.CalendarSyncError;
-                BookPhone = "";
-                BookName = "";
-                await Load();
-                if (!string.IsNullOrWhiteSpace(calendarError))
-                {
-                    Error = $"Google Calendar did not update: {calendarError}";
-                }
-            }
+        }
+        catch
+        {
+            Error = "The booking could not be verified. Check the schedule before retrying.";
         }
         finally
         {
@@ -288,6 +286,7 @@ else
 
     private void ToggleReschedule(Guid id)
     {
+        if (Busy) return;
         if (RescheduleId == id)
         {
             RescheduleId = null;
@@ -301,8 +300,10 @@ else
 
     private async Task Reschedule(Guid id)
     {
+        if (Busy) return;
         Busy = true;
         Error = "";
+        Notice = "";
         try
         {
             var result = await Api.RescheduleAppointment(id, RescheduleTime);
@@ -313,8 +314,12 @@ else
             }
 
             RescheduleId = null;
-            Notice = result?.Message ?? "Appointment updated.";
+            ShowAppointmentResult(result, "Appointment rescheduled.");
             await Load();
+        }
+        catch
+        {
+            Error = "The reschedule could not be verified. Check the schedule before retrying.";
         }
         finally
         {
@@ -322,15 +327,52 @@ else
         }
     }
 
-    private async Task Confirm(Guid id)
+    private Task Confirm(Guid id) => RunAppointmentAction(
+        () => Api.ConfirmAppointment(id),
+        "Appointment confirmed.");
+
+    private Task Cancel(Guid id) => RunAppointmentAction(
+        () => Api.CancelAppointment(id),
+        "Appointment cancelled.");
+
+    private async Task RunAppointmentAction(
+        Func<Task<ReignApiClient.AppointmentWriteDto?>> action,
+        string fallbackNotice)
     {
-        await Api.ConfirmAppointment(id);
-        await Load();
+        if (Busy) return;
+        Busy = true;
+        Error = "";
+        Notice = "";
+        try
+        {
+            var result = await action();
+            ShowAppointmentResult(result, fallbackNotice);
+            await Load();
+        }
+        catch
+        {
+            Error = "The appointment action could not be verified. Check the schedule before retrying.";
+        }
+        finally
+        {
+            Busy = false;
+        }
     }
 
-    private async Task Cancel(Guid id)
+    private void ShowAppointmentResult(
+        ReignApiClient.AppointmentWriteDto? result,
+        string fallbackNotice)
     {
-        await Api.CancelAppointment(id);
-        await Load();
+        if (!string.IsNullOrWhiteSpace(result?.Error))
+        {
+            Error = result.Error;
+            return;
+        }
+
+        Notice = result?.Message ?? fallbackNotice;
+        if (!string.IsNullOrWhiteSpace(result?.CalendarSyncError))
+        {
+            Error = "Appointment updated, but Google Calendar did not sync. Check Integrations before retrying.";
+        }
     }
 }
