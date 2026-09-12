@@ -60,8 +60,8 @@ public class AppointmentCalendarSync
             {
                 AppointmentId = appointment.Id,
                 ExistingEventId = appointment.ExternalCalendarEventId,
-            Summary = $"{serviceName} — {who}",
-            Description = BuildEventDescription(
+                Summary = $"{serviceName} — {who}",
+                Description = BuildEventDescription(
                     businessName,
                     appointment.Status,
                     serviceName,
@@ -98,20 +98,33 @@ public class AppointmentCalendarSync
         }
     }
 
-    public async Task CancelAsync(Appointment appointment, CancellationToken cancellationToken = default)
+    public async Task<CalendarSyncResult> CancelWithResultAsync(
+        Appointment appointment,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             var result = await _calendar.CancelAppointmentAsync(appointment.ExternalCalendarEventId, cancellationToken);
             if (!result.Succeeded)
             {
-                _logger.LogWarning("Calendar cancel skipped/failed: {Error}", result.Error);
+                _logger.LogWarning(
+                    "Calendar cancel failed for appointment {AppointmentId}: {Error}",
+                    appointment.Id,
+                    result.Error);
             }
+
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Calendar cancel threw for appointment {AppointmentId}", appointment.Id);
+            return CalendarSyncResult.Fail(_calendar.ProviderName, ex.Message, _calendar.IsSimulated);
         }
+    }
+
+    public async Task CancelAsync(Appointment appointment, CancellationToken cancellationToken = default)
+    {
+        await CancelWithResultAsync(appointment, cancellationToken);
     }
 
     internal static string BuildEventDescription(
