@@ -10,14 +10,7 @@ ContainerListen.Apply(builder);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-var apiBase = builder.Configuration["ReignApi:BaseUrl"]
-    ?? builder.Configuration["ApiBaseUrl"]
-    ?? Environment.GetEnvironmentVariable("REIGN_API_BASE_URL")
-    ?? "http://localhost:5012/";
-if (!apiBase.EndsWith('/'))
-{
-    apiBase += "/";
-}
+var apiBase = ApiEndpoint.Resolve(builder.Configuration);
 
 builder.Services.AddHttpClient<ReignApiClient>(client =>
 {
