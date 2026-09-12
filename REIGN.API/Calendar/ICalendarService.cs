@@ -127,5 +127,6 @@ public interface ICalendarService
     Task<CalendarAvailabilityResult> GetBusyPeriodsAsync(
         DateTime start,
         DateTime end,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(CalendarAvailabilityResult.Fail(ProviderName, "Calendar busy lookup is not implemented by this provider."));
 }
