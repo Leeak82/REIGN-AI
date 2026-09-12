@@ -1,6 +1,7 @@
 @page "/customers"
 
 @inject ReignApiClient Api
+@inject CustomerAdminClient Admin
 @inject NavigationManager Nav
 
 <PageTitle>Customers — REIGN AI</PageTitle>
@@ -8,10 +9,66 @@
 <div class="page-head row-flex">
     <div class="grow">
         <h1>Customers</h1>
-        <p>Everyone who has texted your business.</p>
+        <p>Everyone who has texted your business, plus customers you add manually.</p>
     </div>
     <input class="input" style="max-width:280px;" placeholder="Search name or phone…"
            @oninput="e => Search = e.Value?.ToString() ?? string.Empty" />
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Notice))
+{
+    <div class="card mb-2">
+        <strong>@Notice</strong>
+    </div>
+}
+
+<div class="grid grid-2 mb-2">
+    <div class="card">
+        <div class="card-title">Add customer</div>
+        <p class="small dim" style="margin:4px 0 14px;">Create a customer before they text, or add contact details for someone you already know.</p>
+        <div class="grid grid-2">
+            <label>
+                <span class="dim">Name</span>
+                <input class="input" @bind="NewCustomer.Name" placeholder="Customer name" />
+            </label>
+            <label>
+                <span class="dim">Phone</span>
+                <input class="input" @bind="NewCustomer.PhoneNumber" placeholder="(555) 555-5555" />
+            </label>
+        </div>
+        <label style="display:block; margin-top:10px;">
+            <span class="dim">Notes</span>
+            <textarea class="input" style="min-height:82px; resize:vertical;" @bind="NewCustomer.Notes" placeholder="Optional customer notes"></textarea>
+        </label>
+        <div style="margin-top:12px; text-align:right;">
+            <button class="btn btn-primary" @onclick="AddCustomer" disabled="@AddingCustomer">
+                @(AddingCustomer ? "Adding…" : "Add customer")
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Clean up test data</div>
+        <p class="small dim" style="margin:4px 0 14px;">
+            Removes only conversations explicitly tagged as dashboard simulations. Real SkipCalls/SMS conversations are never included.
+        </p>
+        @if (!ConfirmPurge)
+        {
+            <button class="btn btn-ghost" @onclick="() => ConfirmPurge = true">Review simulation cleanup</button>
+        }
+        else
+        {
+            <div class="small" style="margin-bottom:10px;">
+                This does not guess which old conversations were tests. Legacy test customers can be opened below and deleted individually.
+            </div>
+            <div class="row-flex" style="gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-primary" @onclick="PurgeSimulations" disabled="@Purging">
+                    @(Purging ? "Cleaning…" : "Purge tagged simulations")
+                </button>
+                <button class="btn btn-ghost" @onclick="() => ConfirmPurge = false" disabled="@Purging">Cancel</button>
+            </div>
+        }
+    </div>
 </div>
 
 @if (Error)
@@ -83,13 +140,17 @@ else
 @code {
     private bool Loading = true;
     private bool Error;
+    private bool AddingCustomer;
+    private bool ConfirmPurge;
+    private bool Purging;
+    private string? Notice;
     private string Search = "";
+    private CustomerAdminDto NewCustomer = new();
     private List<ReignApiClient.CustomerDto> AllCustomers = new();
     private List<ReignApiClient.RecentActivityDto> Recent = new();
 
     private List<ReignApiClient.CustomerDto> Filtered =>
         string.IsNullOrWhiteSpace(Search)
-            
             ? AllCustomers
             : AllCustomers.Where(c =>
                 (c.Name?.Contains(Search, StringComparison.OrdinalIgnoreCase) ?? false) ||
@@ -118,6 +179,60 @@ else
         finally
         {
             Loading = false;
+        }
+    }
+
+    private async Task AddCustomer()
+    {
+        Notice = null;
+        AddingCustomer = true;
+        try
+        {
+            var result = await Admin.CreateAsync(NewCustomer);
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Notice = result.Error;
+                return;
+            }
+
+            Notice = $"{result.Customer?.Name ?? result.Customer?.PhoneNumber ?? "Customer"} added.";
+            NewCustomer = new CustomerAdminDto();
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notice = ex.Message;
+        }
+        finally
+        {
+            AddingCustomer = false;
+        }
+    }
+
+    private async Task PurgeSimulations()
+    {
+        Notice = null;
+        Purging = true;
+        try
+        {
+            var result = await Admin.PurgeSimulationsAsync();
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Notice = result.Error;
+                return;
+            }
+
+            Notice = $"Removed {result.MessagesDeleted} tagged simulation messages and {result.CustomersDeleted} empty simulation customer record(s).";
+            ConfirmPurge = false;
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notice = ex.Message;
+        }
+        finally
+        {
+            Purging = false;
         }
     }
 
