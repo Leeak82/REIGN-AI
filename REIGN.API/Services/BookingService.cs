@@ -24,11 +24,16 @@ public class BookingService
 
     private readonly ReignDbContext _db;
     private readonly BusinessClock _clock;
+    private readonly IBusinessProfileAccessor? _business;
 
-    public BookingService(ReignDbContext db, BusinessClock? clock = null)
+    public BookingService(
+        ReignDbContext db,
+        BusinessClock? clock = null,
+        IBusinessProfileAccessor? business = null)
     {
         _db = db;
         _clock = clock ?? new BusinessClock();
+        _business = business;
     }
 
     public async Task<AppointmentRequest> ParseRequest(string message, DateTime? preferredDay = null)
@@ -98,6 +103,99 @@ public class BookingService
         return null;
     }
 
+    public static bool LooksLikeAvailabilityQuestion(string? message)
+    {
+        var text = (message ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        return text.Contains("available") ||
+               text.Contains("availability") ||
+               text.Contains("opening") ||
+               text.Contains("open slot") ||
+               text.Contains("booked") ||
+               text.Contains("when are you free") ||
+               text.Contains("when r u free") ||
+               text.Contains("when can i come") ||
+               text.Contains("when can i book") ||
+               text.Contains("next appointment") ||
+               text.Contains("soonest") ||
+               text.Contains("earliest appointment");
+    }
+
+    public async Task<string> GetAvailabilityReplyAsync(
+        string? requestedService = null,
+        int daysToCheck = 14,
+        CancellationToken cancellationToken = default)
+    {
+        var serviceName = MatchCatalogService(requestedService ?? "") ?? requestedService?.Trim();
+        var service = !string.IsNullOrWhiteSpace(serviceName)
+            ? await _db.Services.AsNoTracking().FirstOrDefaultAsync(
+                x => x.Active && x.Name.ToLower() == serviceName.ToLower(), cancellationToken)
+            : null;
+        var duration = Math.Max(service?.DurationMinutes ?? 30, 5);
+        var displayService = service?.Name ?? (string.IsNullOrWhiteSpace(serviceName) ? "an appointment" : serviceName);
+
+        var profile = _business == null
+            ? new BusinessProfile()
+            : await _business.GetActiveAsync(cancellationToken);
+        var hours = BusinessHoursParser.Parse(profile.Hours);
+        var now = _clock.Now;
+        var horizon = now.Date.AddDays(Math.Clamp(daysToCheck, 1, 31) + 1);
+
+        var existing = await _db.Appointments
+            .AsNoTracking()
+            .Where(x =>
+                x.Status != "Cancelled" &&
+                x.AppointmentTime >= now.Date &&
+                x.AppointmentTime < horizon)
+            .Select(x => new { x.AppointmentTime, x.DurationMinutes })
+            .ToListAsync(cancellationToken);
+
+        var openings = new List<DateTime>();
+        for (var offset = 0; offset < Math.Clamp(daysToCheck, 1, 31) && openings.Count < 5; offset++)
+        {
+            var date = now.Date.AddDays(offset);
+            if (!hours.IsOpen(date.DayOfWeek)) continue;
+
+            var dayOpen = date.Add(hours.OpensAt);
+            var dayClose = date.Add(hours.ClosesAt);
+            var earliest = dayOpen;
+            if (date == now.Date)
+            {
+                var notice = now.AddMinutes(hours.SameDayNoticeMinutes);
+                earliest = notice > earliest ? notice : earliest;
+                earliest = RoundUpToHalfHour(earliest);
+            }
+
+            for (var slot = earliest; slot.AddMinutes(duration) <= dayClose; slot = slot.AddMinutes(30))
+            {
+                if (slot <= now) continue;
+                var end = slot.AddMinutes(duration);
+                var conflict = existing.Any(x =>
+                {
+                    var otherDuration = x.DurationMinutes > 0 ? x.DurationMinutes : 30;
+                    var otherStart = x.AppointmentTime;
+                    var otherEnd = x.AppointmentTime.AddMinutes(otherDuration);
+                    return slot < otherEnd && end > otherStart;
+                });
+
+                if (!conflict)
+                {
+                    openings.Add(slot);
+                    if (openings.Count >= 5) break;
+                }
+            }
+        }
+
+        if (openings.Count == 0)
+        {
+            return $"I checked the live REIGN schedule and don't see an opening for {displayService} in the next {Math.Clamp(daysToCheck, 1, 31)} days. I won't guess beyond that range.";
+        }
+
+        var formatted = string.Join(", ", openings.Select(x => x.ToString("ddd M/d h:mm tt", CultureInfo.InvariantCulture)));
+        return $"I checked the live REIGN schedule. The next openings for {displayService} are {formatted} Pacific. Tell me which one works.";
+    }
+
     public string CreateBooking(AppointmentRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.ServiceName))
@@ -111,6 +209,14 @@ public class BookingService
         }
 
         return $"Your {request.ServiceName} for {request.RequestedDate:g} Pacific is saved. Reply YES to confirm and put it on {ReignContact.PublicName}'s schedule.";
+    }
+
+    private static DateTime RoundUpToHalfHour(DateTime value)
+    {
+        var minute = value.Minute;
+        var add = minute == 0 ? 0 : minute <= 30 ? 30 - minute : 60 - minute;
+        var rounded = value.AddMinutes(add);
+        return new DateTime(rounded.Year, rounded.Month, rounded.Day, rounded.Hour, rounded.Minute, 0, DateTimeKind.Unspecified);
     }
 
     private static DateTime? TryParseDay(string text, DateTime today)

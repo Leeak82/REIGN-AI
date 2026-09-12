@@ -44,6 +44,12 @@ public class ConfigurableCalendarService : ICalendarService
     public Task<CalendarSyncResult> CancelAppointmentAsync(string? eventId, CancellationToken cancellationToken = default) =>
         _inner.CancelAppointmentAsync(eventId, cancellationToken);
 
+    public Task<CalendarAvailabilityResult> GetBusyPeriodsAsync(
+        DateTime start,
+        DateTime end,
+        CancellationToken cancellationToken = default) =>
+        _inner.GetBusyPeriodsAsync(start, end, cancellationToken);
+
     public Task StoreAuthorizationCodeAsync(string code, CancellationToken cancellationToken = default) =>
         _google.StoreAuthorizationCodeAsync(code, cancellationToken);
 

@@ -62,6 +62,7 @@ builder.Services.AddHttpClient<ReignApiClient>(client =>
 });
 builder.Services.AddScoped<ServiceAdminClient>();
 builder.Services.AddScoped<CustomerAdminClient>();
+builder.Services.AddScoped<BusinessAdminClient>();
 
 var app = builder.Build();
 

@@ -402,6 +402,16 @@ public class IncomingSmsProcessor
             };
         }
 
+        if (BookingService.LooksLikeAvailabilityQuestion(message))
+        {
+            var service = BookingService.MatchCatalogService(message) ?? intent.ServiceName;
+            return new ConversationReply
+            {
+                Text = await _bookingService.GetAvailabilityReplyAsync(service),
+                Provider = "LiveSchedule"
+            };
+        }
+
         if (intent.Kind == ReignIntentKind.Schedule)
         {
             var conversationState = await _state.GetOrCreate(customer.Id);
@@ -460,8 +470,8 @@ public class IncomingSmsProcessor
                 {
                     return new ConversationReply
                     {
-                        Text = "That time is not available. Please choose another day or time.",
-                        Provider = "Rules"
+                        Text = "That time is not available. " + await _bookingService.GetAvailabilityReplyAsync(booking.ServiceName),
+                        Provider = "LiveSchedule"
                     };
                 }
                 catch (InvalidBookingException ex)

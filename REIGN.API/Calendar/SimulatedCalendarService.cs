@@ -80,4 +80,23 @@ public class SimulatedCalendarService : ICalendarService
 
         return Task.FromResult(CalendarSyncResult.Ok(ProviderName, eventId, simulated: true));
     }
+
+    public Task<CalendarAvailabilityResult> GetBusyPeriodsAsync(
+        DateTime start,
+        DateTime end,
+        CancellationToken cancellationToken = default)
+    {
+        var busy = _events.Values
+            .Where(x => !x.Cancelled && x.Start < end && x.End > start)
+            .Select(x => new CalendarBusyPeriod
+            {
+                Start = x.Start,
+                End = x.End,
+                EventId = x.EventId
+            })
+            .OrderBy(x => x.Start)
+            .ToList();
+
+        return Task.FromResult(CalendarAvailabilityResult.Ok(ProviderName, busy));
+    }
 }

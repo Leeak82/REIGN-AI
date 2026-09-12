@@ -24,6 +24,60 @@
             setValue: function (id, value) {
                 var el = document.getElementById(id);
                 if (el) { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); }
+            },
+            alertsEnabled: function () {
+                return window.localStorage.getItem('reign-alerts-enabled') === '1';
+            },
+            setAlertsEnabled: async function (enabled) {
+                if (!enabled) {
+                    window.localStorage.setItem('reign-alerts-enabled', '0');
+                    return 'disabled';
+                }
+
+                if ('Notification' in window && Notification.permission === 'default') {
+                    await Notification.requestPermission();
+                }
+
+                window.localStorage.setItem('reign-alerts-enabled', '1');
+                window.reignUi.playReignTone('ready');
+                return !('Notification' in window) ? 'sound-only' : Notification.permission;
+            },
+            playReignTone: function (kind) {
+                try {
+                    var AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContext) return;
+                    var ctx = window.reignAudioContext || new AudioContext();
+                    window.reignAudioContext = ctx;
+                    if (ctx.state === 'suspended') ctx.resume();
+                    var now = ctx.currentTime;
+                    var notes = kind === 'booking' ? [660, 880, 1040] : kind === 'customer' ? [520, 740] : [620, 780];
+                    notes.forEach(function (frequency, index) {
+                        var osc = ctx.createOscillator();
+                        var gain = ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.value = frequency;
+                        gain.gain.setValueAtTime(0.0001, now + index * 0.12);
+                        gain.gain.exponentialRampToValueAtTime(0.12, now + index * 0.12 + 0.015);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, now + index * 0.12 + 0.11);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(now + index * 0.12);
+                        osc.stop(now + index * 0.12 + 0.12);
+                    });
+                } catch (_) { }
+            },
+            alertActivity: function (kind, title, body) {
+                if (!window.reignUi.alertsEnabled()) return;
+                window.reignUi.playReignTone(kind || 'reign');
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    try {
+                        new Notification(title || 'REIGN activity', {
+                            body: body || 'REIGN handled new customer activity.',
+                            icon: '/favicon.png',
+                            tag: 'reign-' + (kind || 'activity')
+                        });
+                    } catch (_) { }
+                }
             }
         };
     </script>
