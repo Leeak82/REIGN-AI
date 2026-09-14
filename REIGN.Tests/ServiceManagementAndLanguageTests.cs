@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using REIGN.API.Calendar;
 using REIGN.API.Controllers;
 using REIGN.API.Messaging;
 using REIGN.API.Services;
@@ -22,10 +23,11 @@ public class ServiceManagementAndLanguageTests
 
         var parsed = await booking.ParseRequest("HH today at 4?");
 
+        var clock = new BusinessClock();
         Assert.Equal(ServiceCatalog.HalfHourName, parsed.ServiceName);
         Assert.True(parsed.HasTime);
         Assert.Equal(16, parsed.RequestedDate.Hour);
-        Assert.Equal(DateTime.Today.Month, parsed.RequestedDate.Month);
+        Assert.Equal(clock.Today.Month, parsed.RequestedDate.Month);
     }
 
     [Fact]
@@ -63,7 +65,8 @@ public class ServiceManagementAndLanguageTests
         var appointment = Assert.Single(harness.Db.Appointments.Include(x => x.Service));
         Assert.Equal(ServiceCatalog.HalfHourName, appointment.Service.Name);
         Assert.Equal(16, appointment.AppointmentTime.Hour);
-        Assert.Equal(DateTime.Today.AddDays(1).Date, appointment.AppointmentTime.Date);
+        var clock = new BusinessClock();
+        Assert.Equal(clock.Today.AddDays(1).Date, appointment.AppointmentTime.Date);
     }
 
     [Fact]
