@@ -1,8 +1,19 @@
 # REIGN AI
 
+**Live dashboard:** https://reign-web.onrender.com  
+**Production API:** https://reign-ai-3.onrender.com  
+**API health:** https://reign-ai-3.onrender.com/health  
+**Repository:** https://github.com/Leeak82/REIGN-AI
+
 REIGN is an AI-assisted customer service and scheduling system I built while teaching myself full-stack application development, integrations, deployment, and production-oriented backend design.
 
 The project combines conversational state, customer memory, appointment workflows, SMS, calendar integrations, a web dashboard, database persistence, health checks, Docker deployment, and provider fallbacks in one application.
+
+## Live deployment
+
+The operator dashboard is publicly hosted and redirects unauthenticated visitors to the REIGN Admin login. The dashboard is configured to use the production API at `https://reign-ai-3.onrender.com/`.
+
+The production health endpoint currently reports database connectivity plus AI, SMS, and Google Calendar configuration status.
 
 ## What It Does
 
@@ -104,9 +115,9 @@ That work includes:
 
 The core application, scheduling logic, AI pipeline, memory, database, UI, Docker support, and provider abstractions are implemented.
 
-Live external integrations still depend on the appropriate hosted environment, credentials, OAuth consent, provider configuration, and webhooks. I intentionally keep that distinction visible rather than treating a simulated integration as a production success.
+The production API is live on Render, and the dashboard is live on Render and configured to call that production API. External provider behavior still depends on the active hosted credentials, OAuth consent, phone-number configuration, and webhook routing, so deployment health and end-to-end message tests remain important.
 
-The production-readiness audit in this repository documents a checkpoint at approximately **95%**, with the remaining work centered on live hosting and external-provider configuration rather than application redesign.
+The production-readiness audit in this repository documents a checkpoint at approximately **95%**, with the remaining work centered on live external-provider behavior, multi-business hardening, and production operations rather than application redesign.
 
 See:
 
@@ -142,6 +153,12 @@ Build the API Docker image:
 
 ```bash
 docker build -t reign-api -f REIGN.API/Dockerfile .
+```
+
+Build the dashboard Docker image:
+
+```bash
+docker build -t reign-web -f REIGN.Web/Dockerfile .
 ```
 
 Full environment and hosting instructions are in [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`HOSTING.md`](HOSTING.md).
