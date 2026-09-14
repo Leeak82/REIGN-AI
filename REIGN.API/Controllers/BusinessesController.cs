@@ -17,11 +17,6 @@ public class BusinessesController : ControllerBase
     private readonly IBusinessProfileAccessor _profiles;
     private readonly IConfiguration _configuration;
 
-    public BusinessesController(ReignDbContext db, IBusinessProfileAccessor profiles)
-        : this(db, profiles, new ConfigurationBuilder().Build())
-    {
-    }
-
     public BusinessesController(
         ReignDbContext db,
         IBusinessProfileAccessor profiles,
