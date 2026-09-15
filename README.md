@@ -163,6 +163,22 @@ docker build -t reign-web -f REIGN.Web/Dockerfile .
 
 Full environment and hosting instructions are in [`DEPLOYMENT.md`](DEPLOYMENT.md) and [`HOSTING.md`](HOSTING.md).
 
+## Pinokio launcher
+
+The checked-in Pinokio scripts install a project-local .NET SDK, build and test
+the solution, and publish generated files under `app/`. Choose **Install** or
+**Rebuild / test**, then **Start**.
+
+The current Start action runs the local dashboard against
+`https://reign-ai-3.onrender.com/`; it does not start a local API or prove that
+live SMS and Google Calendar integrations work. Preserve the existing API
+configuration and verify those integrations separately.
+
+**Update** performs a fast-forward Git pull and rebuild. **Reset build** removes
+generated `app/` and `.dotnet/` directories, preserving source and `data/`.
+Local SDKs, build output, data, and Aider history are excluded from Git.
+Do not put credentials in launcher scripts.
+
 ## Why I Built It
 
 REIGN started as a practical automation idea and became one of the projects I used to teach myself application architecture, stateful workflows, API integrations, databases, deployment, failure handling, and the less glamorous parts of software engineering that appear after the demo works.

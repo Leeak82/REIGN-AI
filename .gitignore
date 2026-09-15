@@ -26,3 +26,10 @@ node_modules/
 !.env.example
 .openclaw/
 memory/
+
+# Pinokio-generated files and local coding-agent history
+/.dotnet/
+/.installer/
+/app/
+/data/
+/.aider*
